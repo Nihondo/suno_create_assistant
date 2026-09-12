@@ -60,17 +60,18 @@
 .suno-assistant__button--clear { background: transparent; color: var(--color-foreground-secondary, #b7b7bd); }
 
 .suno-assistant__menu {
-  position: absolute;
-  z-index: 2147483647;
-  top: calc(100% - 6px);
+  position: fixed;
+  inset: auto;
+  margin: 0;
   min-width: 210px;
   max-width: min(380px, calc(100vw - 32px));
-  max-height: 260px;
+  max-height: min(360px, calc(100dvh - 16px));
   overflow: auto;
   padding: 5px;
   border: 1px solid var(--color-border-primary, #4a4a50);
   border-radius: 10px;
-  background: var(--color-background-secondary, #202025);
+  color: #f5f5f6;
+  background: #202025;
   box-shadow: 0 12px 30px rgb(0 0 0 / 32%);
 }
 
@@ -80,7 +81,7 @@
   border: 0;
   border-radius: 7px;
   padding: 8px 9px;
-  color: inherit;
+  color: #f5f5f6;
   background: transparent;
   font: inherit;
   text-align: left;

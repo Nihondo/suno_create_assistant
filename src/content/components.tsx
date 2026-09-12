@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import type { MasteringPrompt, OtherOptionsPreset, SavedStyle } from '../domain/models';
 import { readStorage, subscribeStorage } from '../storage/repository';
 import type { ControllerState, SunoController } from '../suno/controller';
@@ -38,13 +38,35 @@ function Dropdown<T>({ label, valueLabel, items, disabled, onOpen, onSelect }: {
   const [active, setActive] = useState(0);
   const listId = useId();
   const container = useRef<HTMLDivElement>(null);
+  const trigger = useRef<HTMLButtonElement>(null);
+  const menu = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const close = (event: MouseEvent) => {
-      if (!container.current?.contains(event.target as Node)) setOpen(false);
+      if (!event.composedPath().includes(container.current!)) setOpen(false);
     };
     document.addEventListener('mousedown', close);
     return () => document.removeEventListener('mousedown', close);
   }, []);
+  useLayoutEffect(() => {
+    const menuElement = menu.current;
+    const triggerElement = trigger.current;
+    if (!open || !menuElement || !triggerElement) return;
+    const positionMenu = () => {
+      const rect = triggerElement.getBoundingClientRect();
+      const maxLeft = Math.max(8, window.innerWidth - Math.min(380, window.innerWidth - 16));
+      menuElement.style.top = `${Math.min(rect.bottom + 6, window.innerHeight - 8)}px`;
+      menuElement.style.left = `${Math.max(8, Math.min(rect.left, maxLeft))}px`;
+    };
+    positionMenu();
+    menuElement.showPopover();
+    window.addEventListener('resize', positionMenu);
+    window.addEventListener('scroll', positionMenu, true);
+    return () => {
+      window.removeEventListener('resize', positionMenu);
+      window.removeEventListener('scroll', positionMenu, true);
+      if (menuElement.matches(':popover-open')) menuElement.hidePopover();
+    };
+  }, [open]);
   const toggle = async () => {
     if (disabled) return;
     if (!open) await onOpen?.();
@@ -64,10 +86,12 @@ function Dropdown<T>({ label, valueLabel, items, disabled, onOpen, onSelect }: {
     if (event.key === 'Enter' && open && items[active]) choose(items[active]);
   };
   return <div className="suno-assistant__dropdown" ref={container}>
-    <button type="button" className="suno-assistant__select" aria-haspopup="listbox" aria-expanded={open} aria-controls={listId} disabled={disabled} onClick={() => void toggle()} onKeyDown={onKeyDown}>
-      {label}: {valueLabel} ▼
+    <button ref={trigger} type="button" className="suno-assistant__select" aria-label={`${label}: ${valueLabel}`} aria-haspopup="listbox" aria-expanded={open} aria-controls={listId} disabled={disabled} onClick={() => void toggle()} onKeyDown={onKeyDown}>
+      {valueLabel} <span aria-hidden="true">▼</span>
     </button>
-    {open && <div id={listId} className="suno-assistant__menu" role="listbox" aria-label={label}>
+    {open && <div ref={menu} id={listId} className="suno-assistant__menu" popover="auto" role="listbox" aria-label={label} onToggle={() => {
+      if (!menu.current?.matches(':popover-open')) setOpen(false);
+    }}>
       {items.map((item, index) => <button key={item.id} type="button" role="option" aria-selected={valueLabel === item.label} className={item.manage ? 'suno-assistant__manage' : undefined} onMouseEnter={() => setActive(index)} onClick={() => choose(item)}>{item.label}</button>)}
     </div>}
   </div>;

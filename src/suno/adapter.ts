@@ -25,14 +25,25 @@ function nativeSetValue(element: HTMLInputElement | HTMLTextAreaElement, value: 
   element.dispatchEvent(new Event('change', { bubbles: true }));
 }
 
+function optionPanelAndHeading(): { panel: HTMLElement; heading: HTMLButtonElement } | undefined {
+  const headings = [...document.querySelectorAll<HTMLButtonElement>('button')]
+    .filter((button) => text(button).includes('その他のオプション') && visible([button]) === button);
+  const candidates = headings
+    .flatMap((heading) => {
+      let node: HTMLElement | null = heading.parentElement;
+      for (let depth = 0; node && depth < 20; depth += 1, node = node.parentElement) {
+        if (node.querySelector('[role="slider"][aria-label="奇抜さ"]') && node.querySelector('[role="slider"][aria-label="スタイルの影響"]')) {
+          return [{ panel: node, heading, depth }];
+        }
+      }
+      return [];
+    })
+    .sort((a, b) => a.depth - b.depth);
+  return candidates[0];
+}
+
 function optionPanel(): HTMLElement | undefined {
-  const heading = visible([...document.querySelectorAll('button')].filter((button) => text(button).includes('その他のオプション')));
-  if (!heading) return undefined;
-  let node: HTMLElement | null = heading.parentElement;
-  for (let depth = 0; node && depth < 7; depth += 1, node = node.parentElement) {
-    if (node.querySelector('[role="slider"][aria-label="奇抜さ"]') && node.querySelector('[role="slider"][aria-label="スタイルの影響"]')) return node;
-  }
-  return undefined;
+  return optionPanelAndHeading()?.panel;
 }
 
 function excludedStylesInput(panel: HTMLElement): HTMLInputElement | undefined {
@@ -173,7 +184,7 @@ export class SunoAdapter {
   }
 
   optionsAnchor(): HTMLElement | undefined {
-    return optionPanel();
+    return optionPanelAndHeading()?.heading ?? optionPanel();
   }
 
   readOtherOptions(): OtherOptionsSnapshot | undefined {

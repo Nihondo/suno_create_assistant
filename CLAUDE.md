@@ -15,6 +15,7 @@ Run `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm test:e2e`, and `pnpm build
 - Suno is a React SPA. Update controlled host inputs through native property setters followed by bubbling `input` and `change` events.
 - Never access private Suno APIs, cookies, or page-framework state. Saved styles are read only from the visible native dialog and are never persisted by the extension.
 - Content UI is mounted in a Shadow DOM and must not use untrusted text as HTML.
+- Dropdown listboxes are native Popovers so they escape Suno's overflow clipping. Their document-level outside-click check must use `Event.composedPath()` because Shadow DOM retargets events at the host.
 - Keep the host-page inspiration-label shortening and Create-button lookup in `src/suno/adapter.ts`. The Manifest `trigger-suno-create` command has no default key; users assign it in Chrome's extension shortcut settings.
 
 ## Storage

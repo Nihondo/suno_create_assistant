@@ -76,10 +76,14 @@ test('mounts the three Suno controls and persists the automatic-title switch', a
     await page.waitForTimeout(250);
     expect(await page.locator('suno-create-assistant').count(), extensionErrors.join('\n')).toBe(3);
     await expect(page.locator('#inspiration')).toHaveText('＋ ひらめき');
-    await page.locator('suno-create-assistant').filter({ hasText: 'スタイル:' }).getByRole('button', { name: /スタイル:/ }).click();
-    await expect(page.locator('suno-create-assistant').filter({ hasText: 'スタイル:' }).getByRole('option', { name: 'ARIA' })).toBeVisible();
+    await expect(page.getByRole('button', { name: /^プリセット:/ })).toBeVisible();
+    await page.getByRole('button', { name: /^スタイル:/ }).click();
+    await expect(page.getByRole('option', { name: 'ARIA' })).toBeVisible();
+    await expect(page.getByRole('option', { name: 'ARIA' })).toHaveCSS('color', 'rgb(245, 245, 246)');
+    await page.getByRole('option', { name: 'ARIA' }).click();
+    await expect(page.locator('[data-testid="create-form-styles-wrapper"] textarea')).toHaveValue('gentle acoustic ensemble');
     await page.locator('suno-create-assistant').filter({ hasText: '自動設定' }).getByRole('checkbox').check();
-    await expect(page.locator('input[placeholder="曲名(任意)"]')).toHaveValue('Demo Workspace');
+    await expect(page.locator('input[placeholder="曲名(任意)"]')).toHaveValue('Demo Workspace (ARIA)');
     const shortcutResult = await worker.evaluate(async () => {
       const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
       if (tab?.id === undefined) throw new Error('Suno作成タブが見つかりません。');
