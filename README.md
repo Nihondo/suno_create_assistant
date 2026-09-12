@@ -13,7 +13,7 @@ A local Chrome extension for the Advanced tab of [Suno Create](https://suno.com/
 
 ### Styles and mastering
 
-Under Suno's Style field, choose a saved Suno style and an optional mastering prompt. The extension writes them to the Style field on separate lines. Use **Manage…** to add, edit, or delete mastering prompts in an in-page dialog.
+Directly under the **Style** heading, the extension provides style and mastering controls that stay visible whether the style disclosure is open or closed. Choose a saved Suno style and an optional mastering prompt to write them to the Style field on separate lines. Use **Manage…** to add, edit, or delete mastering prompts in an in-page dialog.
 
 The extension reads only each saved style's prompt from Suno's existing dialog, without storing it. Style names label the list, and saved dates are never inserted into the Style field. When Suno's saved-style list is opened or changed, the next extension dropdown opening refreshes its in-memory list.
 

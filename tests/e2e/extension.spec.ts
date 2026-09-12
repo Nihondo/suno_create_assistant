@@ -12,7 +12,7 @@ const sunoFixture = `<!doctype html><html lang="ja"><body>
   <main>
     <button role="tab" aria-selected="true">アドバンスト</button>
     <button id="inspiration">＋ インスピレーション</button>
-    <section><div data-testid="create-form-styles-wrapper"><textarea></textarea></div><button id="saved-styles" aria-label="保存したスタイルプロンプトを見る">保存したスタイル</button></section>
+    <section id="styles"><div id="styles-header"><div role="button" tabindex="0" aria-expanded="true">スタイル</div></div><div data-testid="create-form-styles-wrapper"><textarea></textarea></div><button id="saved-styles" aria-label="保存したスタイルプロンプトを見る">保存したスタイル</button></section>
     <dialog role="dialog" aria-label="保存したスタイル"><div><button aria-label="ARIA">ARIA</button><span>gentle acoustic ensemble</span></div></dialog>
     <section id="options"><div id="options-header"><div role="button" tabindex="0" aria-expanded="true">その他のオプション</div><button aria-label="すべてリセット">すべてリセット</button></div><div id="options-body"><input aria-label="スタイルを除外" />
       <div>ボーカル性別<button data-selected="false">男性</button><button data-selected="false">女性</button></div>
@@ -113,6 +113,18 @@ test('mounts the Suno controls beside their anchors, survives host removal, and 
     await page.evaluate(() => document.querySelector('suno-create-assistant[data-suno-create-assistant="presets"]')?.remove());
     await expect(presetsHost).toBeVisible({ timeout: 300 });
     await expect(page.locator('#options-header + suno-create-assistant[data-suno-create-assistant="presets"]')).toHaveCount(1);
+
+    const stylesHost = page.locator('suno-create-assistant[data-suno-create-assistant="styles"]');
+    await expect(page.locator('#styles-header + suno-create-assistant[data-suno-create-assistant="styles"]')).toHaveCount(1);
+    await expect(stylesHost).toBeVisible();
+
+    // Verify styles host stays visible even when the styles section is closed/hidden
+    await page.evaluate(() => {
+      document.querySelector('#styles-header [role="button"]')?.setAttribute('aria-expanded', 'false');
+      const wrapper = document.querySelector<HTMLElement>('[data-testid="create-form-styles-wrapper"]');
+      if (wrapper) wrapper.style.display = 'none';
+    });
+    await expect(stylesHost).toBeVisible();
 
     await expect(page.locator('#inspiration')).toHaveText('＋ ひらめき');
     await expect(page.getByRole('button', { name: /^プリセット:/ })).toBeVisible();

@@ -27,6 +27,42 @@ describe('SunoAdapter title mount anchor', () => {
   });
 });
 
+describe('SunoAdapter style mount anchor', () => {
+  it('uses the style header row when present, so controls stay mounted when closed', () => {
+    document.body.innerHTML = `
+      <section id="styles-card">
+        <div id="styles-header"><button>スタイル</button></div>
+        <div data-testid="create-form-styles-wrapper"><textarea></textarea></div>
+      </section>
+    `;
+    const adapter = new SunoAdapter();
+    expect(adapter.styleAnchor()).toBe(document.querySelector('#styles-header'));
+  });
+
+  it('falls back to STYLE_WRAPPER when no style heading exists', () => {
+    document.body.innerHTML = `
+      <section id="styles-card">
+        <div data-testid="create-form-styles-wrapper"><textarea></textarea></div>
+      </section>
+    `;
+    const adapter = new SunoAdapter();
+    expect(adapter.styleAnchor()).toBe(document.querySelector('[data-testid="create-form-styles-wrapper"]'));
+  });
+
+  it('sets and gets style prompt even when textarea is in a closed/hidden wrapper', () => {
+    document.body.innerHTML = `
+      <section id="styles-card">
+        <div id="styles-header"><button>スタイル</button></div>
+        <div data-testid="create-form-styles-wrapper" style="display:none"><textarea></textarea></div>
+      </section>
+    `;
+    const adapter = new SunoAdapter();
+    const ok = adapter.setStylePrompt('chill ambient');
+    expect(ok).toBe(true);
+    expect(adapter.getStylePrompt()).toBe('chill ambient');
+  });
+});
+
 describe('SunoAdapter options mount anchor', () => {
   it('uses the persistent header row (heading + reset action), not the disclosure body', async () => {
     document.body.innerHTML = `

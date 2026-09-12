@@ -479,3 +479,16 @@ output/chrome-mv3/content-scripts/suno.js: src/content/suno-ui.css の通知配�
 - tests/controller.test.ts: openPresetCreationの単体テストを追加
 - tests/e2e/extension.spec.ts: 「設定を保存」ボタン経由でのプリセット作成フローを検証
 - README.md / README_ja.md / CLAUDE.md: 「設定を保存」ボタンに関するドキュメントを更新
+
+## [task] 2026-09-12 22:27:14
+
+**Agent:** Antigravity
+**Prompt:** スタイルプルダウンのUIは、プリセットと同様に、スタイルセクションを閉じていても表示できないか
+
+**Changes:**
+- src/suno/adapter.ts: スタイルアコーディオン見出し行直後へのマウントアンカー探索と、閉状態textareaへのアクセス/展開フォールバックを追加
+- tests/adapter.test.ts: スタイルヘッダー行アンカー探索および閉じたtextareaへの読み書きテストを追加
+- tests/e2e/extension.spec.ts: スタイルセクション折りたたみ時もスタイルUIが表示され続けるE2Eテストを追加
+- README.md: スタイルコントロール常時表示仕様のドキュメント更新
+- README_ja.md: スタイルコントロール常時表示仕様のドキュメント更新（日本語）
+- CLAUDE.md: スタイルコントロール常時表示仕様の更新

@@ -235,24 +235,76 @@ function optionHeaderRow(): HTMLElement | undefined {
   return candidate;
 }
 
+function styleHeading(): HTMLElement | undefined {
+  return [...document.querySelectorAll<HTMLElement>('button, [role="button"]')]
+    .filter((element) => {
+      if (visible([element]) !== element) return false;
+      const aria = element.getAttribute('aria-label') ?? '';
+      const raw = text(element);
+      if (raw.includes('その他のオプション') || aria.includes('その他のオプション')) return false;
+      if (raw.includes('保存したスタイル') || aria.includes('保存したスタイル')) return false;
+      if (raw.includes('スタイルを除外') || aria.includes('スタイルを除外')) return false;
+
+      const firstLine = (raw.split('\n')[0] ?? '').trim().replaceAll(/\s+/g, '');
+      const ariaClean = aria.trim().replaceAll(/\s+/g, '');
+
+      return firstLine === 'スタイル' || firstLine === 'Style' || firstLine === 'Styles'
+        || ariaClean === 'スタイル' || ariaClean === 'Style' || ariaClean === 'Styles'
+        || (firstLine.startsWith('スタイル') && !firstLine.includes('除外') && !firstLine.includes('保存'));
+    })
+    .at(0);
+}
+
+function containsStyleBody(node: HTMLElement): boolean {
+  return !!node.querySelector(`${STYLE_WRAPPER}, textarea, #saved-styles`);
+}
+
+function leavesStyleCard(node: HTMLElement): boolean {
+  return !!node.querySelector(`input[placeholder="${TITLE_PLACEHOLDER}"], #options, [role="slider"]`);
+}
+
+function styleHeaderRow(): HTMLElement | undefined {
+  const heading = styleHeading();
+  if (!heading) return undefined;
+  let candidate: HTMLElement = heading;
+  let node: HTMLElement | null = heading.parentElement;
+  for (let depth = 0; node && depth < 10; depth += 1, node = node.parentElement) {
+    if (containsStyleBody(node) || leavesStyleCard(node)) break;
+    candidate = node;
+  }
+  return candidate;
+}
+
 export class SunoAdapter {
-  styleTextarea(): HTMLTextAreaElement | undefined {
-    return visible(document.querySelectorAll<HTMLTextAreaElement>(`${STYLE_WRAPPER} textarea`));
+  styleTextarea(includeHidden = false): HTMLTextAreaElement | undefined {
+    const list = [...document.querySelectorAll<HTMLTextAreaElement>(`${STYLE_WRAPPER} textarea`)];
+    if (list.length > 0) return includeHidden ? list[0] : (visible(list) ?? (includeHidden ? list[0] : undefined));
+    const textareas = [...document.querySelectorAll<HTMLTextAreaElement>('textarea')].filter((el) => {
+      return !el.closest('#lyrics-wrapper') && !el.getAttribute('placeholder')?.includes('歌詞');
+    });
+    return includeHidden ? textareas[0] : (visible(textareas) ?? (includeHidden ? textareas[0] : undefined));
   }
 
   styleAnchor(): HTMLElement | undefined {
-    return this.styleTextarea()?.closest<HTMLElement>(STYLE_WRAPPER) ?? undefined;
+    return styleHeaderRow() ?? this.styleTextarea(true)?.closest<HTMLElement>(STYLE_WRAPPER) ?? undefined;
   }
 
   setStylePrompt(value: string): boolean {
-    const textarea = this.styleTextarea();
+    let textarea = this.styleTextarea() ?? this.styleTextarea(true);
+    if (!textarea) {
+      const heading = styleHeading();
+      if (heading && !isDisabled(heading)) {
+        heading.click();
+        textarea = this.styleTextarea(true);
+      }
+    }
     if (!textarea) return false;
     nativeSetValue(textarea, value);
     return true;
   }
 
   getStylePrompt(): string {
-    return this.styleTextarea()?.value ?? '';
+    return (this.styleTextarea() ?? this.styleTextarea(true))?.value ?? '';
   }
 
   setTitle(value: string): boolean {
