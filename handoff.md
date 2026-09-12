@@ -665,3 +665,12 @@ output/chrome-mv3/content-scripts/suno.js: src/content/suno-ui.css の通知配�
 
 **Changes:**
 - 実機Sunoにて改行付き挿入・未フォーカス状態からの初回クリック動作・単一挿入の正常動作を確認完了
+
+## [task] 2026-09-13 00:46:40
+
+**Agent:** Antigravity
+**Prompt:** 拡張機能のバージョンを0.1.0から0.9.0に変更
+
+**Changes:**
+- package.json: versionを0.9.0に更新
+- output/chrome-mv3/manifest.json: ビルドによりversion 0.9.0を反映
