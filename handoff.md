@@ -341,3 +341,14 @@ src/content/suno-ui.css: ホスト要素へのmarginをやめ、padding方式に
 - src/content/SettingsDialog.tsx: 設定ダイアログが設定用フィードバックだけを描画
 - tests/controller.test.ts: 3系統の成功・失敗通知が他セクションへ漏れない回帰テストを追加
 - tests/e2e/extension.spec.ts: プリセット適用通知がプリセット行のみへ表示されるE2E回帰テストを追加
+
+## [task] 2026-09-12 21:10:23
+
+**Agent:** Codex
+**Prompt:** スタイルプルダウン選択時にスタイル名と保存日まで挿入される不具合を修正してほしい
+
+**Changes:**
+- src/suno/adapter.ts: 保存スタイル行の末端プロンプトだけを抽出し、名前・保存日を除外
+- tests/adapter.test.ts: ネストした名前・プロンプト・保存日の行で本文だけを抽出する回帰テストを追加
+- README.md, README_ja.md, CLAUDE.md: スタイル本文だけを挿入する仕様と実装上の注意を更新
+- output/chrome-mv3/content-scripts/suno.js: 修正済み拡張を再ビルド

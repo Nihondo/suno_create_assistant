@@ -87,6 +87,23 @@ function savedStylesDialog(includeHidden = false): HTMLElement | undefined {
   return includeHidden ? dialogs[0] : visible(dialogs);
 }
 
+function savedStylePrompt(row: HTMLElement, name: string): string {
+  // A saved-style row has nested spans for its name, prompt, and save date.
+  // Reading textContent from a parent span merges those fields, so use only
+  // leaf spans and remove the separately exposed accessible name and date.
+  const candidates = [...row.querySelectorAll<HTMLElement>('span')]
+    .filter((span) => span.children.length === 0)
+    .map((span) => text(span))
+    .filter((value) => value.length > 0 && value !== name && !isSavedStyleDate(value));
+  return candidates.sort((a, b) => b.length - a.length)[0] ?? '';
+}
+
+function isSavedStyleDate(value: string): boolean {
+  const normalized = value.trim();
+  return /^(?:保存(?:日|済み|された日)?|作成(?:日)?|更新(?:日)?|saved|created|updated)\s*[:：]?/i.test(normalized)
+    || /^(?:\d{4}[/-]\d{1,2}[/-]\d{1,2}|\d{4}年\d{1,2}月\d{1,2}日|(?:今日|昨日)|\d+\s*(?:分|時間|日|weeks?|days?|hours?|minutes?)\s*(?:前|ago)?)$/i.test(normalized);
+}
+
 function rowFor(panel: HTMLElement, label: string): HTMLElement | undefined {
   const candidates = [...panel.querySelectorAll<HTMLElement>('div')];
   return candidates.find((candidate) => {
@@ -479,9 +496,8 @@ export class SunoAdapter {
         });
       return rows.map((button, index) => {
         const row = button.parentElement;
-        const spans = [...row?.querySelectorAll('span') ?? []].map((span) => text(span));
-        const prompt = spans.sort((a, b) => b.length - a.length)[0] ?? '';
         const name = button.getAttribute('aria-label') ?? '';
+        const prompt = row ? savedStylePrompt(row, name) : '';
         return { id: savedStyleId(name, prompt, index), name, prompt };
       }).filter((style) => style.prompt.length > 0);
     } finally {

@@ -133,6 +133,27 @@ describe('SunoAdapter.readOtherOptions', () => {
   });
 });
 
+describe('SunoAdapter.extractSavedStyles', () => {
+  it('extracts only the prompt, excluding the saved style name and date', async () => {
+    document.body.innerHTML = `
+      <dialog role="dialog" aria-label="保存したスタイル" open>
+        <div>
+          <button aria-label="Night Train">
+            <span>Night Train</span>
+            <span><span>minimal synthwave, nocturnal pulse</span><span>保存済み: 2026年9月12日</span></span>
+          </button>
+        </div>
+      </dialog>
+    `;
+
+    const adapter = new SunoAdapter();
+
+    await expect(adapter.extractSavedStyles()).resolves.toEqual([
+      expect.objectContaining({ name: 'Night Train', prompt: 'minimal synthwave, nocturnal pulse' }),
+    ]);
+  });
+});
+
 describe('SunoAdapter.applyOtherOptions', () => {
   it('re-fetches the options panel for each field, so a mid-apply DOM replacement does not leave a later field clicking a detached copy', async () => {
     // Reproduces the reported "プリセットを選択しても、値が設定されない" bug:
