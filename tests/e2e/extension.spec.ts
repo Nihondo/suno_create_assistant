@@ -171,14 +171,15 @@ test('mounts the Suno controls beside their anchors, survives host removal, and 
     await page.getByRole('option', { name: '標準' }).click();
     await expect(page.getByRole('button', { name: 'プリセット: 標準' })).toBeVisible();
     const presetTrigger = presetsHost.getByRole('button', { name: 'プリセット: 標準' });
-    const presetFeedback = presetsHost.getByText('プリセットを適用しました。');
-    await expect(presetFeedback).toBeVisible();
-    const [triggerBox, feedbackBox] = await Promise.all([presetTrigger.boundingBox(), presetFeedback.boundingBox()]);
+    const saveButton = presetsHost.getByRole('button', { name: '設定を保存' });
+    await expect(presetsHost.getByText('プリセットを適用しました。')).toHaveCount(0);
+    const [triggerBox, saveBox] = await Promise.all([presetTrigger.boundingBox(), saveButton.boundingBox()]);
     expect(triggerBox).not.toBeNull();
-    expect(feedbackBox).not.toBeNull();
-    expect(feedbackBox!.x).toBeGreaterThan(triggerBox!.x + triggerBox!.width);
-    expect(Math.abs((feedbackBox!.y + feedbackBox!.height / 2) - (triggerBox!.y + triggerBox!.height / 2))).toBeLessThan(1);
-    await expect(page.locator('suno-create-assistant[data-suno-create-assistant="styles"]')).not.toContainText('プリセットを適用しました。');
+    expect(saveBox).not.toBeNull();
+    expect(saveBox!.x).toBeGreaterThan(triggerBox!.x + triggerBox!.width);
+    expect(Math.abs((saveBox!.y + saveBox!.height / 2) - (triggerBox!.y + triggerBox!.height / 2))).toBeLessThan(2);
+    // Button height should be standard single-line height (~32px), not wrapped vertically
+    expect(saveBox!.height).toBeLessThan(40);
 
     // Test in-page keyboard shortcut (Cmd+Enter on macOS, Ctrl+Enter elsewhere)
     await page.bringToFront();

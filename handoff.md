@@ -492,3 +492,23 @@ output/chrome-mv3/content-scripts/suno.js: src/content/suno-ui.css の通知配�
 - README.md: スタイルコントロール常時表示仕様のドキュメント更新
 - README_ja.md: スタイルコントロール常時表示仕様のドキュメント更新（日本語）
 - CLAUDE.md: スタイルコントロール常時表示仕様の更新
+
+## [task] 2026-09-12 22:29:49
+
+**Agent:** Antigravity
+**Prompt:** 二つのプルダウン、上側のマージンを狭くしたい
+
+**Changes:**
+- src/content/suno-ui.css: スタイルカードとプリセットカード内のアシスタントコンテナの margin-top を 0 に変更し、ヘッダー直下の余白を狭めて上下のバランスを調整
+
+## [task] 2026-09-12 22:35:30
+
+**Agent:** Antigravity
+**Prompt:** 「プリセットを適用しました」メッセージは冗長なので不要、またこのメッセージ欄に表示があるとボタンが崩れる
+
+**Changes:**
+- src/suno/controller.ts: プリセット適用成功時の冗長なメッセージ通知を削除（正常時はフィードバック非表示、未適用項目やエラー時のみ表示）
+- src/content/suno-ui.css: ボタンおよびセレクト要素に white-space: nowrap と flex-shrink: 0 を追加してテキスト折返し・崩れを防止し、プリセットの flex-wrap: nowrap を解除してメッセージ表示時もボタンを圧迫しないよう改善
+- tests/controller.test.ts: プリセット適用成功時にフィードバックが空（undefined）になること、および未適用項目通知のテストに更新
+- tests/e2e/extension.spec.ts: プリセット適用成功時にメッセージが表示されないこと、および「設定を保存」ボタンが折れ曲がらず表示されることの検証に更新
+- CLAUDE.md: プリセット適用のフィードバック非表示およびボタン崩れ防止の規約を更新

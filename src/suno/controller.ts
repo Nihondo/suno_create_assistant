@@ -133,14 +133,16 @@ export class SunoController {
     // adapter.ts's applyOtherOptions), so it can take a moment - show
     // immediate feedback rather than leaving the UI looking unresponsive.
     this.state.preset = preset;
-    this.state.presetFeedback = { kind: 'notice', message: '適用しています…' };
+    this.state.presetFeedback = undefined;
     this.emit();
     try {
       const result = await this.adapter.applyOtherOptions(preset.fields);
-      this.state.presetFeedback = {
-        kind: 'notice',
-        message: result.skipped.length ? `適用できなかった項目: ${describeSkipped(result.skipped)}` : 'プリセットを適用しました。',
-      };
+      this.state.presetFeedback = result.skipped.length
+        ? {
+            kind: 'notice',
+            message: `適用できなかった項目: ${describeSkipped(result.skipped)}`,
+          }
+        : undefined;
       this.emit();
       return result;
     } catch (error) {

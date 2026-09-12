@@ -85,11 +85,11 @@
 
 /* Both the styles row and the presets row sit directly inside one of
    Suno's own cards as siblings of Suno's rows. The visible card is
-   .suno-assistant, not its host. Match the "スタイルを除外" row's inline
-   inset while keeping a measured 12px separation on both axes. */
+   .suno-assistant, not its host. Suno's header row already has its own
+   bottom padding, so margin-top is kept at 0 to balance spacing. */
 :host([data-suno-create-assistant="styles"]) .suno-assistant,
 :host([data-suno-create-assistant="presets"]) .suno-assistant {
-  margin: 12px;
+  margin: 0 12px 12px;
 }
 
 /* titleControlAnchor() enables wrapping on Suno's title-card row; reserve
@@ -112,6 +112,8 @@
   background: var(--sca-bg-control);
   font: inherit;
   cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .suno-assistant__select {
@@ -164,18 +166,6 @@
 .suno-assistant__menu button.suno-assistant__manage { color: var(--sca-accent-strong); }
 .suno-assistant__status { flex-basis: 100%; color: var(--sca-fg-secondary); font-size: 12px; }
 .suno-assistant__status--error { color: var(--sca-error); }
-
-/* Preset feedback belongs beside its sole dropdown, rather than on a new row.
-   Keep the message readable if the host card becomes narrow. */
-:host([data-suno-create-assistant="presets"]) .suno-assistant {
-  flex-wrap: nowrap;
-  align-items: safe center;
-}
-
-:host([data-suno-create-assistant="presets"]) .suno-assistant__status {
-  flex: 0 1 auto;
-  min-inline-size: 0;
-}
 
 .suno-assistant__check { accent-color: var(--sca-accent); }
 .suno-assistant__check-label { display: inline-flex; align-items: center; gap: 5px; cursor: pointer; }

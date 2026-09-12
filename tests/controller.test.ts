@@ -13,7 +13,7 @@ function watch(controller: SunoController) {
 }
 
 describe('SunoController feedback scopes', () => {
-  it('keeps a successful preset notification out of the styles and settings scopes', async () => {
+  it('keeps preset feedback clear on success and out of other scopes', async () => {
     const controller = new SunoController();
     vi.spyOn(controller.adapter, 'applyOtherOptions').mockResolvedValue({ applied: [], skipped: [] });
     const current = watch(controller);
@@ -21,9 +21,23 @@ describe('SunoController feedback scopes', () => {
     await controller.applyPreset(preset);
 
     const state = current();
-    expect(state.presetFeedback).toEqual({ kind: 'notice', message: 'プリセットを適用しました。' });
+    expect(state.presetFeedback).toBeUndefined();
     expect(state.styleFeedback).toBeUndefined();
     expect(state.settingsFeedback).toBeUndefined();
+  });
+
+  it('reports skipped preset items when applyOtherOptions reports unapplied fields', async () => {
+    const controller = new SunoController();
+    vi.spyOn(controller.adapter, 'applyOtherOptions').mockResolvedValue({ applied: [], skipped: ['vocalGender'] });
+    const current = watch(controller);
+
+    await controller.applyPreset(preset);
+
+    const state = current();
+    expect(state.presetFeedback).toEqual({
+      kind: 'notice',
+      message: '適用できなかった項目: ボーカル性別',
+    });
   });
 
   it('keeps feedback from style loading and settings capture in their own scopes', async () => {
