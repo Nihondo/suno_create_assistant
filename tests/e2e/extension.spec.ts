@@ -9,6 +9,19 @@ import { chromium, type BrowserContext } from 'playwright';
 const extensionPath = resolve('output/chrome-mv3');
 
 const sunoFixture = `<!doctype html><html lang="ja"><body>
+  <aside class="group/sidebar">
+    <div class="flex flex-col gap-px px-3">
+      <a href="/discover">ホーム</a>
+      <a href="/explore">探索</a>
+      <a href="/create">作成</a>
+      <a href="/studio">Studio</a>
+      <a href="/me" data-testid="navbar-library-tab">ライブラリ</a>
+      <a href="/hooks">Hooks</a>
+      <div class="group/profile-row hxc-btn-split-root">
+        <button type="button" data-testid="profile-menu-button">nihondo</button>
+      </div>
+    </div>
+  </aside>
   <main>
     <button role="tab" aria-selected="true">アドバンスト</button>
     <button id="inspiration">＋ インスピレーション</button>
@@ -73,8 +86,17 @@ test('mounts the Suno controls beside their anchors, survives host removal, and 
     await cdp.send('Runtime.enable');
     await page.goto('https://suno.com/create');
     await page.locator('suno-create-assistant').first().waitFor();
-    // styles, presets, title, and the always-mounted settings dialog host.
-    expect(await page.locator('suno-create-assistant').count(), extensionErrors.join('\n')).toBe(4);
+    // styles, presets, title, sidebar, and the always-mounted settings dialog host.
+    expect(await page.locator('suno-create-assistant').count(), extensionErrors.join('\n')).toBe(5);
+
+    // Verify sidebar settings button is mounted after hooks link, in light DOM
+    const sidebarHost = page.locator('suno-create-assistant[data-suno-create-assistant="sidebar"]');
+    await expect(sidebarHost).toHaveCount(1);
+    await expect(page.locator('a[href="/hooks"] + suno-create-assistant[data-suno-create-assistant="sidebar"]')).toHaveCount(1);
+    const sidebarButton = sidebarHost.locator('button[data-suno-assistant="sidebar-settings-button"]');
+    await expect(sidebarButton).toBeVisible();
+    await expect(sidebarButton).toHaveText(/拡張設定/);
+    await expect(sidebarButton).toHaveAttribute('data-inactive', '');
     const titleHost = page.locator('suno-create-assistant[data-suno-create-assistant="title"]');
     await expect(titleHost).toHaveCount(1);
     expect(await titleHost.evaluate((host) => host.parentElement === document.querySelector('input[placeholder="曲名(任意)"]')?.parentElement)).toBe(true);
@@ -170,6 +192,14 @@ test('mounts the Suno controls beside their anchors, survives host removal, and 
     await expect(dialog.getByText('奇抜さ: 35%')).toBeVisible();
     await dialog.getByRole('button', { name: '閉じる' }).click();
     await expect(dialog.getByRole('heading', { name: 'Suno Create Assistant の設定' })).toBeHidden();
+
+    // Open settings from sidebar button and verify active state
+    await sidebarButton.click();
+    await expect(dialog.getByRole('heading', { name: 'Suno Create Assistant の設定' })).toBeVisible();
+    await expect(sidebarButton).toHaveAttribute('data-active', '');
+    await dialog.getByRole('button', { name: '閉じる' }).click();
+    await expect(dialog.getByRole('heading', { name: 'Suno Create Assistant の設定' })).toBeHidden();
+    await expect(sidebarButton).toHaveAttribute('data-inactive', '');
 
     await page.getByRole('button', { name: /^プリセット:/ }).click();
     await expect(page.getByRole('option', { name: '標準' })).toBeVisible();

@@ -140,4 +140,19 @@ describe('createMounter', () => {
     expect(mounter.hostOf('presets')).toBeUndefined();
     expect(document.querySelector('suno-create-assistant')).toBeNull();
   });
+
+  it('mounts without Shadow DOM when shadow option is false', () => {
+    document.body.innerHTML = '<div id="anchor"></div>';
+    const anchor = document.querySelector<HTMLElement>('#anchor')!;
+    const mounter = createMounter('');
+    mounter.mount('sidebar', { anchor, position: 'beforeend' }, () => null, undefined, { shadow: false });
+    const host = mounter.hostOf('sidebar')!;
+
+    expect(host).toBeDefined();
+    expect(host.shadowRoot).toBeNull();
+    expect(host.style.display).toBe('contents');
+    expect(host.parentElement).toBe(anchor);
+
+    mounter.dispose();
+  });
 });

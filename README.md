@@ -44,6 +44,10 @@ Enable **Auto title** inside the title section to generate a title using the con
 ### Create shortcut and inspiration label
  
 On the Suno Create page, press `Cmd + Enter` (macOS) or `Ctrl + Enter` (Windows/Linux) to trigger the **Create** button directly without any configuration (with automatic take numbering if `{{TAKE}}` is present). The extension also shortens Suno's **インスピレーション** button label to **ひらめき** to prevent the action row from wrapping.
+
+### Sidebar "拡張設定" (Extension settings) menu
+
+The extension injects an **拡張設定** (Extension settings) item with a gear icon into Suno's sidebar navigation (right below Hooks and above the profile item). Clicking it opens the in-page settings dialog where you can manage song title formats, mastering prompts, and presets. While the settings dialog is open, the menu item highlights in an active state. When the sidebar is collapsed/minimized, the text automatically hides and leaves only the gear icon visible, exactly mirroring Suno's native navigation items.
  
 ## Privacy
  

@@ -179,7 +179,7 @@ export class SunoController {
     }
   }
 
-  openSettings(section: SettingsSection, action?: SettingsAction): void {
+  openSettings(section: SettingsSection = 'titleFormat', action?: SettingsAction): void {
     this.state.settings = { section, action };
     this.state.settingsFeedback = undefined;
     this.emit();

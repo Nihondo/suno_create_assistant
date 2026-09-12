@@ -533,3 +533,22 @@ output/chrome-mv3/content-scripts/suno.js: src/content/suno-ui.css の通知配�
 - tests/e2e/extension.spec.ts: 設定画面の曲名フォーマット検証、自動設定時のフォーマット反映、Cmd+Enter/作成ボタンクリック時のテイク番号カウントアップ (Take 1 -> Take 2) および {{TAKE}} への即座復元を検証
 - README.md / README_ja.md / CLAUDE.md: 曲名フォーマット、{{WORKSPACE}} / {{STYLE}} / {{TAKE}} プレースホルダ、作成ボタンフック仕様を更新
 
+## [task] 2026-09-12 23:08:45
+
+**Agent:** Antigravity
+**Prompt:** サイドバーに歯車アイコン＋「拡張設定」メニューを追加して、設定画面を開けるようにしたい
+
+**Changes:**
+- src/content/mount.ts: MountOptions (`{ shadow?: boolean }`) を追加。`shadow: false` の場合は Shadow DOM を作らず、`display: contents` の `<suno-create-assistant>` ホストに直接 React 19 の `createRoot` をマウントする Light DOM マウントに対応
+- src/suno/adapter.ts: `sidebarPlacement(): Placement | undefined` を新設。Hooksリンク直後（`afterend`）、プロフィール行手前（`beforebegin`）、ナビゲーションコンテナ末尾（`beforeend`）の優先順で配置位置を特定
+- src/suno/controller.ts: `openSettings(section: SettingsSection = 'titleFormat', action?: SettingsAction)` に既定値を設定
+- src/content/components.tsx: `SidebarSettingsButton` を新設。Sunoネイティブの Tailwind CSS クラス、歯車アイコンSVG、設定ダイアログ開閉に連動した `data-active` / `data-inactive` 属性切り替え、サイドバー折りたたみ対応（`group-data-[show-content=false]/sidebar:opacity-0` によるアイコン化）を実装
+- entrypoints/suno.content.tsx: `refreshMounts()` 内で `sidebarPlacement()` を取得し、`sidebar` ホストを `{ shadow: false }` でマウント
+- tests/mount.test.ts: `shadow: false` 時の Light DOM マウント単体テストを追加
+- tests/adapter.test.ts: `sidebarPlacement` の Hooks後・プロフィール前・コンテナ末尾・未検出の単体テストを追加
+- tests/controller.test.ts: `openSettings()` のデフォルト引数テストを追加
+- tests/e2e/extension.spec.ts: E2Eテストにサイドバーフィクスチャを追加し、「拡張設定」ボタンの表示、属性、クリックでの設定ダイアログ表示および active/inactive 状態の連動を検証
+- README.md / README_ja.md / CLAUDE.md: サイドバー「拡張設定」メニュー仕様・Light DOM設計不変条件を更新
+- output/chrome-mv3: 更新済み拡張機能を再ビルド
+
+

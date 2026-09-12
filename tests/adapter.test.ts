@@ -339,3 +339,60 @@ describe('SunoAdapter triggerCreate', () => {
   });
 });
 
+describe('SunoAdapter sidebarPlacement', () => {
+  it('places after hooks link when present', () => {
+    document.body.innerHTML = `
+      <div class="flex flex-col gap-px px-3">
+        <a href="/discover">ホーム</a>
+        <a href="/create">作成</a>
+        <a href="/hooks">Hooks</a>
+        <div class="group/profile-row hxc-btn-split-root">nihondo</div>
+      </div>
+    `;
+
+    const adapter = new SunoAdapter();
+    const placement = adapter.sidebarPlacement();
+    expect(placement).toBeDefined();
+    expect(placement!.anchor).toBe(document.querySelector('a[href="/hooks"]'));
+    expect(placement!.position).toBe('afterend');
+  });
+
+  it('falls back to before profile row when hooks link is absent', () => {
+    document.body.innerHTML = `
+      <div class="flex flex-col gap-px px-3">
+        <a href="/discover">ホーム</a>
+        <a href="/create">作成</a>
+        <div class="group/profile-row hxc-btn-split-root">nihondo</div>
+      </div>
+    `;
+
+    const adapter = new SunoAdapter();
+    const placement = adapter.sidebarPlacement();
+    expect(placement).toBeDefined();
+    expect(placement!.anchor).toBe(document.querySelector('.group\\/profile-row'));
+    expect(placement!.position).toBe('beforebegin');
+  });
+
+  it('falls back to nav container end when neither hooks nor profile row exist', () => {
+    document.body.innerHTML = `
+      <div id="nav" class="flex flex-col gap-px px-3">
+        <a href="/discover">ホーム</a>
+        <a href="/create">作成</a>
+      </div>
+    `;
+
+    const adapter = new SunoAdapter();
+    const placement = adapter.sidebarPlacement();
+    expect(placement).toBeDefined();
+    expect(placement!.anchor).toBe(document.querySelector('#nav'));
+    expect(placement!.position).toBe('beforeend');
+  });
+
+  it('returns undefined when no sidebar nav can be found', () => {
+    document.body.innerHTML = '<div>no nav</div>';
+    const adapter = new SunoAdapter();
+    expect(adapter.sidebarPlacement()).toBeUndefined();
+  });
+});
+
+

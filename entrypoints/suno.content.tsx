@@ -1,5 +1,5 @@
 import styleCss from '../src/content/suno-ui.css?inline';
-import { AutoTitleControl, PresetControls, StyleControls } from '../src/content/components';
+import { AutoTitleControl, PresetControls, SidebarSettingsButton, StyleControls } from '../src/content/components';
 import { SettingsDialog } from '../src/content/SettingsDialog';
 import { createMounter } from '../src/content/mount';
 import { detectSunoTheme } from '../src/content/theme';
@@ -34,6 +34,11 @@ export default defineContentScript({
       // regardless of which tab is selected so it never disappears while
       // the user is interacting with it.
       mounter.mount('settings', { anchor: document.body, position: 'beforeend' }, () => <SettingsDialog controller={controller} />, theme);
+
+      const sidebarPlacement = controller.adapter.sidebarPlacement();
+      if (sidebarPlacement) {
+        mounter.mount('sidebar', sidebarPlacement, () => <SidebarSettingsButton controller={controller} />, theme, { shadow: false });
+      }
 
       const advanced = [...document.querySelectorAll('[role="tab"]')].some((tab) => {
         const label = tab.textContent ?? '';

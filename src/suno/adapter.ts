@@ -1,6 +1,7 @@
 import type { ApplyResult, OtherOptionsCapture, OtherOptionsKey, OtherOptionsSnapshot, SavedStyle, VocalGender } from '../domain/models';
 import { emptyOtherOptions, optionLabels } from '../domain/models';
 import { savedStyleId } from '../domain/logic';
+import type { Placement } from '../content/mount';
 
 const STYLE_WRAPPER = '[data-testid="create-form-styles-wrapper"]';
 const TITLE_PLACEHOLDER = '曲名(任意)';
@@ -633,6 +634,20 @@ export class SunoAdapter {
       document.removeEventListener('input', inputHandler, true);
       document.removeEventListener('change', inputHandler, true);
     };
+  }
+
+  sidebarPlacement(): Placement | undefined {
+    const hooks = document.querySelector<HTMLElement>('a[href="/hooks"]');
+    if (hooks) return { anchor: hooks, position: 'afterend' };
+
+    const profile = document.querySelector<HTMLElement>('.group\\/profile-row, [data-testid="profile-menu-button"]')?.closest<HTMLElement>('.hxc-btn-split-root')
+      ?? document.querySelector<HTMLElement>('a[href^="/@"]')?.closest<HTMLElement>('.hxc-btn-split-root');
+    if (profile) return { anchor: profile, position: 'beforebegin' };
+
+    const navContainer = document.querySelector<HTMLElement>('a[href="/create"], a[href="/discover"], [data-testid="navbar-library-tab"]')?.parentElement;
+    if (navContainer) return { anchor: navContainer, position: 'beforeend' };
+
+    return undefined;
   }
 }
 

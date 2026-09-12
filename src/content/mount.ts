@@ -40,6 +40,10 @@ function insertAt(host: HTMLElement, placement: Placement): void {
   anchor.insertAdjacentElement(position, host);
 }
 
+export interface MountOptions {
+  shadow?: boolean;
+}
+
 /**
  * Creates hosts that survive Suno's own re-renders. Unlike a naive
  * mount/unmount cycle, an existing host is *moved* back into place rather
@@ -49,7 +53,13 @@ function insertAt(host: HTMLElement, placement: Placement): void {
 export function createMounter(styleCss: string, onThrash?: (key: string) => void) {
   const entries = new Map<string, Entry>();
 
-  const mount = (key: string, placement: Placement, render: () => ReactNode, theme?: 'light' | 'dark'): void => {
+  const mount = (
+    key: string,
+    placement: Placement,
+    render: () => ReactNode,
+    theme?: 'light' | 'dark',
+    options?: MountOptions,
+  ): void => {
     const current = entries.get(key);
     if (!placement.anchor) {
       if (current) {
@@ -69,13 +79,21 @@ export function createMounter(styleCss: string, onThrash?: (key: string) => void
     const host = document.createElement('suno-create-assistant');
     host.dataset.sunoCreateAssistant = key;
     if (theme) host.dataset.theme = theme;
-    const shadow = host.attachShadow({ mode: 'open' });
-    const style = document.createElement('style');
-    style.textContent = styleCss;
-    const container = document.createElement('div');
-    shadow.append(style, container);
-    insertAt(host, placement);
-    const root = createRoot(container);
+
+    let root: Root;
+    if (options?.shadow === false) {
+      host.style.display = 'contents';
+      insertAt(host, placement);
+      root = createRoot(host);
+    } else {
+      const shadow = host.attachShadow({ mode: 'open' });
+      const style = document.createElement('style');
+      style.textContent = styleCss;
+      const container = document.createElement('div');
+      shadow.append(style, container);
+      insertAt(host, placement);
+      root = createRoot(container);
+    }
     root.render(render());
     entries.set(key, { host, root, placement, reattachTimestamps: [], thrashNotified: false });
   };
