@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { autoTitle, composePrompt, nextBaseAfterManualEdit, validateUniqueName } from '../src/domain/logic';
+import {
+  autoTitle,
+  composePrompt,
+  extractTakeKey,
+  hasTakePlaceholder,
+  nextBaseAfterManualEdit,
+  replaceTakePlaceholder,
+  validateUniqueName,
+} from '../src/domain/logic';
 import type { MasteringPrompt } from '../src/domain/models';
 
 describe('prompt composition', () => {
@@ -20,14 +28,37 @@ describe('prompt composition', () => {
   });
 });
 
-describe('automatic titles', () => {
+describe('automatic titles and placeholders', () => {
   it.each([
-    ['Workspace', 'ARIA', 'Workspace (ARIA)'],
-    ['Workspace', '', 'Workspace'],
-    ['', 'ARIA', 'ARIA'],
+    ['Workspace', 'ARIA', 'Workspace (ARIA) {{TAKE}}'],
+    ['Workspace', '', 'Workspace {{TAKE}}'],
+    ['', 'ARIA', 'ARIA {{TAKE}}'],
     ['', '', ''],
-  ])('formats %s and %s', (destination, style, expected) => {
+  ])('formats default title for %s and %s', (destination, style, expected) => {
     expect(autoTitle(destination, style)).toBe(expected);
+  });
+
+  it('supports custom formats with placeholders', () => {
+    expect(autoTitle('Workspace', 'ARIA', '{{WORKSPACE}} - {{STYLE}} #{{TAKE}}')).toBe('Workspace - ARIA #{{TAKE}}');
+    expect(autoTitle('Workspace', '', '{{WORKSPACE}} ({{STYLE}}) [{{TAKE}}]')).toBe('Workspace [{{TAKE}}]');
+  });
+
+  it('detects take placeholder case-insensitively', () => {
+    expect(hasTakePlaceholder('Song {{TAKE}}')).toBe(true);
+    expect(hasTakePlaceholder('Song {{take}}')).toBe(true);
+    expect(hasTakePlaceholder('Song')).toBe(false);
+  });
+
+  it('extracts take key by removing placeholder and trimming whitespace', () => {
+    expect(extractTakeKey('Workspace (ARIA) {{TAKE}}')).toBe('Workspace (ARIA)');
+    expect(extractTakeKey('Workspace (ARIA) {{take}}')).toBe('Workspace (ARIA)');
+    expect(extractTakeKey('Song {{TAKE}}')).toBe('Song');
+    expect(extractTakeKey('{{TAKE}}')).toBe('');
+  });
+
+  it('replaces take placeholder with formatted take number', () => {
+    expect(replaceTakePlaceholder('Workspace (ARIA) {{TAKE}}', 1)).toBe('Workspace (ARIA) 1');
+    expect(replaceTakePlaceholder('Song #{{take}}', 42)).toBe('Song #42');
   });
 });
 

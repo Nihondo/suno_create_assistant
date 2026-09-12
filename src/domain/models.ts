@@ -35,6 +35,8 @@ export interface StorageSchemaV1 {
   masteringPrompts: MasteringPrompt[];
   optionPresets: OtherOptionsPreset[];
   autoTitleEnabled: boolean;
+  titleFormat?: string;
+  takeNumbers?: Record<string, number>;
 }
 
 export interface SavedStyle {

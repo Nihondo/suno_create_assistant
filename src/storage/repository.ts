@@ -1,3 +1,4 @@
+import { DEFAULT_TITLE_FORMAT } from '../domain/logic';
 import type { MasteringPrompt, OtherOptionsPreset, StorageSchemaV1 } from '../domain/models';
 
 const STORAGE_KEY = 'sunoCreateAssistant';
@@ -7,6 +8,8 @@ const defaults = (): StorageSchemaV1 => ({
   masteringPrompts: [],
   optionPresets: [],
   autoTitleEnabled: false,
+  titleFormat: DEFAULT_TITLE_FORMAT,
+  takeNumbers: {},
 });
 
 function isSchema(value: unknown): value is StorageSchemaV1 {
@@ -18,7 +21,13 @@ function isSchema(value: unknown): value is StorageSchemaV1 {
 
 export async function readStorage(): Promise<StorageSchemaV1> {
   const value = (await chrome.storage.local.get(STORAGE_KEY))[STORAGE_KEY];
-  return isSchema(value) ? value : defaults();
+  if (!isSchema(value)) return defaults();
+  return {
+    ...defaults(),
+    ...value,
+    titleFormat: value.titleFormat || DEFAULT_TITLE_FORMAT,
+    takeNumbers: value.takeNumbers ?? {},
+  };
 }
 
 export async function writeStorage(next: StorageSchemaV1): Promise<void> {
@@ -33,6 +42,44 @@ export async function updateStorage(mutator: (current: StorageSchemaV1) => Stora
 
 export async function setAutoTitleEnabled(autoTitleEnabled: boolean): Promise<void> {
   await updateStorage((current) => ({ ...current, autoTitleEnabled }));
+}
+
+export async function getTitleFormat(): Promise<string> {
+  return (await readStorage()).titleFormat ?? DEFAULT_TITLE_FORMAT;
+}
+
+export async function saveTitleFormat(titleFormat: string): Promise<void> {
+  await updateStorage((current) => ({ ...current, titleFormat }));
+}
+
+export async function getNextTakeNumber(key: string): Promise<number> {
+  let nextTake = 1;
+  await updateStorage((current) => {
+    const takes = current.takeNumbers ?? {};
+    const currentTake = takes[key] ?? 0;
+    nextTake = currentTake + 1;
+    return {
+      ...current,
+      takeNumbers: {
+        ...takes,
+        [key]: nextTake,
+      },
+    };
+  });
+  return nextTake;
+}
+
+export async function getTakeNumber(key: string): Promise<number> {
+  const current = await readStorage();
+  return current.takeNumbers?.[key] ?? 0;
+}
+
+export async function resetTakeNumber(key: string): Promise<void> {
+  await updateStorage((current) => {
+    const takes = { ...(current.takeNumbers ?? {}) };
+    delete takes[key];
+    return { ...current, takeNumbers: takes };
+  });
 }
 
 export async function saveMastering(input: Omit<MasteringPrompt, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }): Promise<MasteringPrompt> {

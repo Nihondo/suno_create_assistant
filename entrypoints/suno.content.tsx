@@ -78,7 +78,7 @@ export default defineContentScript({
 
         event.preventDefault();
         event.stopPropagation();
-        controller.adapter.triggerCreate();
+        void controller.executeCreateWithTake();
       }
     };
     document.addEventListener('keydown', onKeyDown, true);

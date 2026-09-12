@@ -1,11 +1,12 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
+import { DEFAULT_TITLE_FORMAT } from '../domain/logic';
 import type { MasteringPrompt, OtherOptionsPreset, SavedStyle } from '../domain/models';
 import { readStorage, subscribeStorage } from '../storage/repository';
 import type { ControllerState, SunoController } from '../suno/controller';
 
 export function useController(controller: SunoController): ControllerState {
   const [state, setState] = useState<ControllerState>({
-    styles: [], stylesLoading: false, stylesDirty: true, isCustomStyle: false, autoTitleEnabled: false,
+    styles: [], stylesLoading: false, stylesDirty: true, isCustomStyle: false, autoTitleEnabled: false, titleFormat: DEFAULT_TITLE_FORMAT,
   });
   useEffect(() => controller.subscribe(setState), [controller]);
   return state;

@@ -1,9 +1,23 @@
-import { autoTitle, composePrompt, nextBaseAfterManualEdit } from '../domain/logic';
+import {
+  autoTitle,
+  composePrompt,
+  DEFAULT_TITLE_FORMAT,
+  extractTakeKey,
+  hasTakePlaceholder,
+  nextBaseAfterManualEdit,
+  replaceTakePlaceholder,
+} from '../domain/logic';
 import type { ApplyResult, MasteringPrompt, OtherOptionsCapture, OtherOptionsPreset, SavedStyle } from '../domain/models';
-import { readStorage, setAutoTitleEnabled, subscribeStorage } from '../storage/repository';
+import {
+  getNextTakeNumber,
+  readStorage,
+  saveTitleFormat,
+  setAutoTitleEnabled,
+  subscribeStorage,
+} from '../storage/repository';
 import { describeSkipped, SunoAdapter } from './adapter';
 
-export type SettingsSection = 'masterings' | 'presets';
+export type SettingsSection = 'masterings' | 'presets' | 'titleFormat';
 export type SettingsAction = 'create-preset';
 
 export interface Feedback {
@@ -20,6 +34,7 @@ export interface ControllerState {
   mastering?: MasteringPrompt;
   preset?: OtherOptionsPreset;
   autoTitleEnabled: boolean;
+  titleFormat: string;
   settings?: { section: SettingsSection; action?: SettingsAction };
   styleFeedback?: Feedback;
   presetFeedback?: Feedback;
@@ -31,22 +46,34 @@ type Listener = (state: ControllerState) => void;
 export class SunoController {
   readonly adapter = new SunoAdapter();
   private state: ControllerState = {
-    styles: [], stylesLoading: false, stylesDirty: true, isCustomStyle: false, autoTitleEnabled: false,
+    styles: [],
+    stylesLoading: false,
+    stylesDirty: true,
+    isCustomStyle: false,
+    autoTitleEnabled: false,
+    titleFormat: DEFAULT_TITLE_FORMAT,
   };
   private listeners = new Set<Listener>();
   private baseStyle = '';
   private programmaticStyleWrite = false;
   private refreshingStyles = false;
+  private isExecutingCreate = false;
   private unsubscribeStorage?: () => void;
 
   async initialize(): Promise<void> {
-    this.state.autoTitleEnabled = (await readStorage()).autoTitleEnabled;
+    const stored = await readStorage();
+    this.state.autoTitleEnabled = stored.autoTitleEnabled;
+    this.state.titleFormat = stored.titleFormat ?? DEFAULT_TITLE_FORMAT;
     this.adapter.setTitleReadOnly(this.state.autoTitleEnabled);
     this.updateAutoTitle();
     this.unsubscribeStorage = subscribeStorage(async () => {
-      const stored = await readStorage();
-      const active = this.state.mastering && !stored.masteringPrompts.some((item) => item.id === this.state.mastering?.id);
+      const updated = await readStorage();
+      const active = this.state.mastering && !updated.masteringPrompts.some((item) => item.id === this.state.mastering?.id);
       if (active) this.state.mastering = undefined;
+      if (updated.titleFormat && updated.titleFormat !== this.state.titleFormat) {
+        this.state.titleFormat = updated.titleFormat;
+        this.updateAutoTitle();
+      }
       this.emit();
     });
     document.addEventListener('click', this.handleDocumentClick, true);
@@ -200,6 +227,7 @@ export class SunoController {
   }
 
   reconcile(): void {
+    if (this.isExecutingCreate) return;
     this.adapter.setTitleReadOnly(this.state.autoTitleEnabled);
     this.updateAutoTitle();
   }
@@ -214,6 +242,52 @@ export class SunoController {
     this.emit();
   }
 
+  async saveTitleFormat(format: string): Promise<void> {
+    const nextFormat = format.trim() || DEFAULT_TITLE_FORMAT;
+    this.state.titleFormat = nextFormat;
+    this.updateAutoTitle();
+    this.emit();
+    await saveTitleFormat(nextFormat);
+  }
+
+  async executeCreateWithTake(): Promise<boolean> {
+    if (this.isExecutingCreate) return false;
+    this.isExecutingCreate = true;
+
+    try {
+      const button = this.adapter.getCreateButton();
+      if (!button) return false;
+
+      const currentTitle = this.adapter.getTitle();
+      if (!hasTakePlaceholder(currentTitle)) {
+        return this.adapter.triggerCreate();
+      }
+
+      const key = extractTakeKey(currentTitle) || 'default';
+      const nextTakeNumber = await getNextTakeNumber(key);
+      const titleWithTake = replaceTakePlaceholder(currentTitle, nextTakeNumber);
+
+      // 1. Temporarily write the title with the resolved take number
+      this.adapter.setTitle(titleWithTake);
+
+      // 2. Yield for React controlled component input/change event processing
+      await new Promise((resolve) => setTimeout(resolve, 60));
+
+      // 3. Trigger Suno's Create button
+      const created = this.adapter.triggerCreate();
+
+      // 4. Yield so Suno's click/submit handler reads the title value
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      // 5. Revert back to the template with {{TAKE}}
+      this.adapter.setTitle(currentTitle);
+
+      return created;
+    } finally {
+      this.isExecutingCreate = false;
+    }
+  }
+
   private writeStyle(value: string): void {
     this.programmaticStyleWrite = true;
     this.adapter.setStylePrompt(value);
@@ -221,9 +295,10 @@ export class SunoController {
   }
 
   private updateAutoTitle(): void {
+    if (this.isExecutingCreate) return;
     if (!this.state.autoTitleEnabled) return;
     const styleName = this.state.isCustomStyle ? 'カスタム' : this.state.style?.name ?? '';
-    this.adapter.setTitle(autoTitle(this.adapter.getDestinationName(), styleName));
+    this.adapter.setTitle(autoTitle(this.adapter.getDestinationName(), styleName, this.state.titleFormat));
   }
 
   private failOverflow(): void {
@@ -244,6 +319,20 @@ export class SunoController {
 
   private handleDocumentClick = (event: Event): void => {
     if (this.refreshingStyles) return;
+
+    const createCandidate = event.target instanceof Element ? event.target.closest('button, [role="button"]') : undefined;
+    if (createCandidate instanceof HTMLElement && this.adapter.isCreateButton(createCandidate)) {
+      if (this.isExecutingCreate) return;
+      const currentTitle = this.adapter.getTitle();
+      if (hasTakePlaceholder(currentTitle)) {
+        event.preventDefault();
+        event.stopPropagation();
+        event.stopImmediatePropagation();
+        void this.executeCreateWithTake();
+        return;
+      }
+    }
+
     const target = event.target instanceof Element ? event.target.closest('button') : undefined;
     const label = target?.getAttribute('aria-label') ?? '';
     const buttonText = target?.textContent?.trim() ?? '';

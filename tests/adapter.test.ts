@@ -311,5 +311,31 @@ describe('SunoAdapter triggerCreate', () => {
     const result = adapter.triggerCreate();
     expect(result).toBe(false);
   });
+
+  it('detects create buttons and gets title from input', () => {
+    document.body.innerHTML = `
+      <section>
+        <div><input placeholder="曲名(任意)" value="My Song {{TAKE}}" /></div>
+        <div>保存先…<button>Workspace</button></div>
+      </section>
+      <main>
+        <button id="create-btn">作成 10</button>
+        <button id="other-btn">その他</button>
+        <suno-create-assistant><button id="assistant-btn">作成</button></suno-create-assistant>
+      </main>
+    `;
+
+    const adapter = new SunoAdapter();
+    expect(adapter.getTitle()).toBe('My Song {{TAKE}}');
+
+    const createBtn = document.querySelector<HTMLElement>('#create-btn')!;
+    const otherBtn = document.querySelector<HTMLElement>('#other-btn')!;
+    const assistantBtn = document.querySelector<HTMLElement>('#assistant-btn')!;
+
+    expect(adapter.isCreateButton(createBtn)).toBe(true);
+    expect(adapter.isCreateButton(otherBtn)).toBe(false);
+    expect(adapter.isCreateButton(assistantBtn)).toBe(false);
+    expect(adapter.getCreateButton()).toBe(createBtn);
+  });
 });
 

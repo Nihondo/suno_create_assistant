@@ -311,3 +311,20 @@
   font: inherit;
   cursor: pointer;
 }
+
+.suno-assistant__format-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.suno-assistant__format-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.suno-assistant__format-saved {
+  font-size: 12px;
+  color: var(--sca-accent);
+}

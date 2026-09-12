@@ -307,6 +307,10 @@ export class SunoAdapter {
     return (this.styleTextarea() ?? this.styleTextarea(true))?.value ?? '';
   }
 
+  getTitle(): string {
+    return titleInput()?.value ?? '';
+  }
+
   setTitle(value: string): boolean {
     const input = titleInput();
     if (!input) return false;
@@ -346,34 +350,39 @@ export class SunoAdapter {
     if (accessibleName?.includes('インスピレーション')) button.setAttribute('aria-label', accessibleName.replaceAll('インスピレーション', 'ひらめき'));
   }
 
-  triggerCreate(): boolean {
-    const isCreateCandidate = (candidate: HTMLElement): boolean => {
-      if (candidate.closest('nav, aside, [role="navigation"]')) return false;
-      if (candidate instanceof HTMLButtonElement && candidate.disabled) return false;
-      if (candidate.getAttribute('aria-disabled') === 'true') return false;
+  isCreateButton(candidate: HTMLElement): boolean {
+    if (candidate.closest('nav, aside, [role="navigation"]')) return false;
+    if (candidate.closest('suno-create-assistant')) return false;
+    if (candidate instanceof HTMLButtonElement && candidate.disabled) return false;
+    if (candidate.getAttribute('aria-disabled') === 'true') return false;
 
-      const ariaLabel = candidate.getAttribute('aria-label')?.trim() ?? '';
-      const textContent = text(candidate);
+    const ariaLabel = candidate.getAttribute('aria-label')?.trim() ?? '';
+    const textContent = text(candidate);
 
-      const patterns = [
-        /^(?:作成|Create)(?:\s*[(（]?\s*\d+.*|[!！])?$/i,
-        /^(?:曲|トラック)を作成/i,
-        /^Create\s+(?:Song|Track|Music)/i,
-      ];
+    const patterns = [
+      /^(?:作成|Create)(?:\s*[(（]?\s*\d+.*|[!！])?$/i,
+      /^(?:曲|トラック)を作成/i,
+      /^Create\s+(?:Song|Track|Music)/i,
+    ];
 
-      for (const pattern of patterns) {
-        if (pattern.test(ariaLabel) || pattern.test(textContent)) return true;
-      }
+    for (const pattern of patterns) {
+      if (pattern.test(ariaLabel) || pattern.test(textContent)) return true;
+    }
 
-      const startsWithCreate = ariaLabel.startsWith('作成') || textContent.startsWith('作成')
-        || ariaLabel.toLowerCase().startsWith('create') || textContent.toLowerCase().startsWith('create');
-      const excluded = /^(?:作成(?:済み|日|中|者)?|プリセットを作成|Created|Create Preset)/i;
+    const startsWithCreate = ariaLabel.startsWith('作成') || textContent.startsWith('作成')
+      || ariaLabel.toLowerCase().startsWith('create') || textContent.toLowerCase().startsWith('create');
+    const excluded = /^(?:作成(?:済み|日|中|者)?|プリセットを作成|Created|Create Preset)/i;
 
-      return startsWithCreate && !excluded.test(ariaLabel) && !excluded.test(textContent);
-    };
+    return startsWithCreate && !excluded.test(ariaLabel) && !excluded.test(textContent);
+  }
 
+  getCreateButton(): HTMLElement | undefined {
     const candidates = [...document.querySelectorAll<HTMLElement>('main button, main [role="button"], button, [role="button"]')];
-    const button = visible(candidates.filter(isCreateCandidate));
+    return visible(candidates.filter((candidate) => this.isCreateButton(candidate)));
+  }
+
+  triggerCreate(): boolean {
+    const button = this.getCreateButton();
     if (!button) return false;
 
     if (typeof PointerEvent !== 'undefined') {

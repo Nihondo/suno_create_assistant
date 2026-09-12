@@ -26,7 +26,10 @@ const sunoFixture = `<!doctype html><html lang="ja"><body>
     <section><div style="display:flex;flex-wrap:nowrap"><input placeholder="曲名(任意)" /></div><div>保存先…<button>Demo Workspace</button></div></section>
     <button id="create">作成</button>
     <script>
-      document.querySelector('#create').addEventListener('click', () => document.body.dataset.created = 'true');
+      document.querySelector('#create').addEventListener('click', () => {
+        document.body.dataset.created = 'true';
+        document.body.dataset.createdTitle = document.querySelector('input[placeholder="曲名(任意)"]').value;
+      });
       document.querySelector('#saved-styles').addEventListener('click', () => {
         const dialog = document.querySelector('[role="dialog"]');
         dialog.open ? dialog.close() : dialog.showModal();
@@ -134,7 +137,7 @@ test('mounts the Suno controls beside their anchors, survives host removal, and 
     await page.getByRole('option', { name: 'ARIA' }).click();
     await expect(page.locator('[data-testid="create-form-styles-wrapper"] textarea')).toHaveValue('gentle acoustic ensemble');
     await titleHost.getByRole('checkbox', { name: '自動設定' }).check();
-    await expect(page.locator('input[placeholder="曲名(任意)"]')).toHaveValue('Demo Workspace (ARIA)');
+    await expect(page.locator('input[placeholder="曲名(任意)"]')).toHaveValue('Demo Workspace (ARIA) {{TAKE}}');
     await page.reload();
     await expect(page.locator('suno-create-assistant[data-suno-create-assistant="title"]')).toHaveCount(1);
     await expect(page.locator('suno-create-assistant[data-suno-create-assistant="title"]').getByRole('checkbox', { name: '自動設定' })).toBeChecked();
@@ -143,6 +146,8 @@ test('mounts the Suno controls beside their anchors, survives host removal, and 
     await presetsHost.getByRole('button', { name: '設定を保存' }).click();
     const dialog = page.locator('suno-create-assistant[data-suno-create-assistant="settings"]');
     await expect(dialog.getByRole('heading', { name: 'Suno Create Assistant の設定' })).toBeVisible();
+    await expect(dialog.getByRole('heading', { name: '曲名フォーマット' })).toBeVisible();
+    await expect(dialog.getByRole('textbox', { name: '曲名フォーマット' })).toHaveValue('{{WORKSPACE}} ({{STYLE}}) {{TAKE}}');
     await expect(dialog.getByRole('button', { name: '現在値からプリセットを作成' })).toHaveCount(0);
 
     await dialog.getByRole('textbox', { name: '名前' }).fill('標準');
@@ -181,11 +186,32 @@ test('mounts the Suno controls beside their anchors, survives host removal, and 
     // Button height should be standard single-line height (~32px), not wrapped vertically
     expect(saveBox!.height).toBeLessThan(40);
 
+    // Re-select style to test full Workspace (Style) {{TAKE}} formatting
+    await page.getByRole('button', { name: /^スタイル:/ }).click();
+    await page.getByRole('option', { name: 'ARIA' }).click();
+    await expect(page.locator('input[placeholder="曲名(任意)"]')).toHaveValue('Demo Workspace (ARIA) {{TAKE}}');
+
     // Test in-page keyboard shortcut (Cmd+Enter on macOS, Ctrl+Enter elsewhere)
+    // First creation: take 1 is submitted, title reverts to {{TAKE}}
     await page.bringToFront();
-    await page.evaluate(() => document.body.removeAttribute('data-created'));
+    await page.evaluate(() => {
+      document.body.removeAttribute('data-created');
+      document.body.removeAttribute('data-created-title');
+    });
     await page.keyboard.press('ControlOrMeta+Enter');
     await expect(page.locator('body')).toHaveAttribute('data-created', 'true');
+    await expect(page.locator('body')).toHaveAttribute('data-created-title', 'Demo Workspace (ARIA) 1');
+    await expect(page.locator('input[placeholder="曲名(任意)"]')).toHaveValue('Demo Workspace (ARIA) {{TAKE}}');
+
+    // Second creation via mouse click on #create: take 2 is submitted, title reverts to {{TAKE}}
+    await page.evaluate(() => {
+      document.body.removeAttribute('data-created');
+      document.body.removeAttribute('data-created-title');
+    });
+    await page.locator('#create').click();
+    await expect(page.locator('body')).toHaveAttribute('data-created', 'true');
+    await expect(page.locator('body')).toHaveAttribute('data-created-title', 'Demo Workspace (ARIA) 2');
+    await expect(page.locator('input[placeholder="曲名(任意)"]')).toHaveValue('Demo Workspace (ARIA) {{TAKE}}');
   } finally {
     await context?.close();
     await new Promise<void>((resolveClose, rejectClose) => server.close((error) => error ? rejectClose(error) : resolveClose()));

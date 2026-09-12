@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState } from 'react';
-import { validateUniqueName } from '../domain/logic';
+import { DEFAULT_TITLE_FORMAT, validateUniqueName } from '../domain/logic';
 import { emptyOtherOptions, optionKeys, optionLabels, type MasteringPrompt, type OtherOptionsKey, type OtherOptionsPreset, type OtherOptionsSnapshot, type VocalGender } from '../domain/models';
 import { deleteMastering, deletePreset, saveMastering, savePreset } from '../storage/repository';
 import type { SunoController } from '../suno/controller';
@@ -38,8 +38,11 @@ export function SettingsDialog({ controller }: { controller: SunoController }) {
   const state = useController(controller);
   const { masterings, presets } = useStoredLists();
   const dialogRef = useRef<HTMLDialogElement>(null);
+  const titleFormatSectionRef = useRef<HTMLElement>(null);
   const masteringSectionRef = useRef<HTMLElement>(null);
   const presetSectionRef = useRef<HTMLElement>(null);
+  const [titleFormat, setTitleFormat] = useState(state.titleFormat);
+  const [formatSavedNotice, setFormatSavedNotice] = useState(false);
   const [editingMastering, setEditingMastering] = useState<MasteringPrompt>();
   const [masteringForm, setMasteringForm] = useState<{ name: string; prompt: string }>();
   const [editingPreset, setEditingPreset] = useState<OtherOptionsPreset>();
@@ -55,6 +58,11 @@ export function SettingsDialog({ controller }: { controller: SunoController }) {
     if (open && !dialog.open) dialog.showModal();
     if (!open && dialog.open) dialog.close();
   }, [open]);
+
+  useEffect(() => {
+    setTitleFormat(state.titleFormat);
+    setFormatSavedNotice(false);
+  }, [open, state.titleFormat]);
 
   useEffect(() => {
     if (open) return;
@@ -78,7 +86,11 @@ export function SettingsDialog({ controller }: { controller: SunoController }) {
     } else {
       setPresetForm(undefined);
     }
-    const target = state.settings?.section === 'masterings' ? masteringSectionRef.current : presetSectionRef.current;
+    const target = state.settings?.section === 'masterings'
+      ? masteringSectionRef.current
+      : state.settings?.section === 'titleFormat'
+        ? titleFormatSectionRef.current
+        : presetSectionRef.current;
     target?.scrollIntoView({ block: 'start' });
   }, [open, state.settings?.section, state.settings?.action, controller]);
 
@@ -129,6 +141,15 @@ export function SettingsDialog({ controller }: { controller: SunoController }) {
   };
   const allSelected = !!presetForm && optionKeys.every((key) => presetForm.fields[key] !== undefined);
 
+  const handleSaveTitleFormat = async () => {
+    await controller.saveTitleFormat(titleFormat);
+    setFormatSavedNotice(true);
+    setTimeout(() => setFormatSavedNotice(false), 2000);
+  };
+  const handleResetTitleFormat = () => {
+    setTitleFormat(DEFAULT_TITLE_FORMAT);
+  };
+
   return <dialog ref={dialogRef} className="suno-assistant__dialog" closedby="any" onClose={close} onCancel={close}>
     <div className="suno-assistant__dialog-body">
       <div className="suno-assistant__dialog-header">
@@ -140,6 +161,26 @@ export function SettingsDialog({ controller }: { controller: SunoController }) {
           {localError ?? state.settingsFeedback?.message}
         </p>
       )}
+
+      <section ref={titleFormatSectionRef} aria-labelledby="suno-assistant-title-format-heading">
+        <h3 id="suno-assistant-title-format-heading">曲名フォーマット</h3>
+        <p className="suno-assistant__hint">
+          「自動設定」オン時に生成される曲名の書式です。利用可能なプレースホルダ: <code>{'{{WORKSPACE}}'}</code>（保存先）、<code>{'{{STYLE}}'}</code>（スタイル）、<code>{'{{TAKE}}'}</code>（テイク番号）
+        </p>
+        <div className="suno-assistant__format-field">
+          <input
+            type="text"
+            aria-label="曲名フォーマット"
+            value={titleFormat}
+            onChange={(event) => setTitleFormat(event.target.value)}
+          />
+          <div className="suno-assistant__format-actions">
+            <button type="button" onClick={handleResetTitleFormat}>初期値に戻す</button>
+            <button type="button" onClick={() => void handleSaveTitleFormat()}>フォーマットを保存</button>
+            {formatSavedNotice && <span className="suno-assistant__format-saved">保存しました</span>}
+          </div>
+        </div>
+      </section>
 
       <section ref={masteringSectionRef} aria-labelledby="suno-assistant-mastering-heading">
         <h3 id="suno-assistant-mastering-heading">マスタリングプロンプト</h3>

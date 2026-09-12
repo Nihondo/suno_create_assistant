@@ -512,3 +512,24 @@ output/chrome-mv3/content-scripts/suno.js: src/content/suno-ui.css の通知配�
 - tests/controller.test.ts: プリセット適用成功時にフィードバックが空（undefined）になること、および未適用項目通知のテストに更新
 - tests/e2e/extension.spec.ts: プリセット適用成功時にメッセージが表示されないこと、および「設定を保存」ボタンが折れ曲がらず表示されることの検証に更新
 - CLAUDE.md: プリセット適用のフィードバック非表示およびボタン崩れ防止の規約を更新
+
+## [task] 2026-09-12 22:55:30
+
+**Agent:** Antigravity
+**Prompt:** 作成ボタンフック、{{TAKE}}プレースホルダによるテイク番号自動カウントアップ・復元、{{WORKSPACE}}・{{STYLE}}プレースホルダおよび設定画面での曲名フォーマット設定
+
+**Changes:**
+- src/domain/models.ts: StorageSchemaV1 に titleFormat と takeNumbers を追加
+- src/domain/logic.ts: DEFAULT_TITLE_FORMAT ('{{WORKSPACE}} ({{STYLE}}) {{TAKE}}') を定義し、hasTakePlaceholder, extractTakeKey, replaceTakePlaceholder, autoTitle をプレースホルダ対応に更新
+- src/storage/repository.ts: getTitleFormat, saveTitleFormat, getNextTakeNumber, getTakeNumber, resetTakeNumber を追加し、chrome.storage.local でテイク番号・フォーマットを永続化
+- src/suno/adapter.ts: getTitle, isCreateButton, getCreateButton を追加し、triggerCreate をリファクタ
+- src/suno/controller.ts: executeCreateWithTake を新設し、作成ボタン押下時にタイトル内の {{TAKE}} をテイク番号へ一時置換してサブミットし即座に復元するフック処理を実装。handleDocumentClick のキャプチャフェーズで作成ボタンクリックを捕捉。updateAutoTitle/reconcile に isExecutingCreate ガードを追加
+- src/content/SettingsDialog.tsx & suno-ui.css: 「曲名フォーマット」設定セクションを追加し、フォーマット入力、プレースホルダ説明、初期値復元、保存機能を実装
+- src/content/components.tsx: useController の初期状態に titleFormat を追加
+- entrypoints/suno.content.tsx: ページ内ショートカット (Cmd/Ctrl+Enter) を controller.executeCreateWithTake() 呼び出しに変更
+- tests/logic.test.ts: プレースホルダ置換、テイクキー抽出、カスタムフォーマットの単体テストを追加
+- tests/controller.test.ts: executeCreateWithTake (テイク採番・置換・サブミット・復元) および saveTitleFormat の単体テストを追加
+- tests/adapter.test.ts: getTitle および isCreateButton / getCreateButton のテストを追加
+- tests/e2e/extension.spec.ts: 設定画面の曲名フォーマット検証、自動設定時のフォーマット反映、Cmd+Enter/作成ボタンクリック時のテイク番号カウントアップ (Take 1 -> Take 2) および {{TAKE}} への即座復元を検証
+- README.md / README_ja.md / CLAUDE.md: 曲名フォーマット、{{WORKSPACE}} / {{STYLE}} / {{TAKE}} プレースホルダ、作成ボタンフック仕様を更新
+

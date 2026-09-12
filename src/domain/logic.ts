@@ -5,10 +5,36 @@ export function composePrompt(style?: string, mastering?: string): string | unde
   return value.length <= 1000 ? value : undefined;
 }
 
-export function autoTitle(destination: string, styleName: string): string {
-  const parts = [destination.trim(), styleName.trim()].filter(Boolean);
-  if (parts.length === 2) return `${parts[0]} (${parts[1]})`;
-  return parts[0] ?? '';
+export const DEFAULT_TITLE_FORMAT = '{{WORKSPACE}} ({{STYLE}}) {{TAKE}}';
+
+export function hasTakePlaceholder(title: string): boolean {
+  return /\{\{take\}\}/i.test(title);
+}
+
+export function extractTakeKey(title: string): string {
+  return title.replace(/\{\{take\}\}/gi, '').replace(/\s+/g, ' ').trim();
+}
+
+export function replaceTakePlaceholder(title: string, takeNumber: number): string {
+  return title.replaceAll(/\{\{take\}\}/gi, String(takeNumber));
+}
+
+export function autoTitle(destination: string, styleName: string, format = DEFAULT_TITLE_FORMAT): string {
+  const ws = destination.trim();
+  const st = styleName.trim();
+  if (!ws && !st) return '';
+
+  if (format === DEFAULT_TITLE_FORMAT) {
+    if (ws && st) return `${ws} (${st}) {{TAKE}}`;
+    return `${ws || st} {{TAKE}}`;
+  }
+
+  let result = format;
+  result = result.replaceAll(/\{\{workspace\}\}/gi, ws);
+  result = result.replaceAll(/\{\{style\}\}/gi, st);
+  result = result.replace(/\(\s*\)/g, '');
+  result = result.replace(/\[\s*\]/g, '');
+  return result.replace(/\s+/g, ' ').trim();
 }
 
 export function nextBaseAfterManualEdit(value: string, mastering?: MasteringPrompt): string {

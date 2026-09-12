@@ -1,6 +1,21 @@
+// @vitest-environment jsdom
 import { describe, expect, it, vi } from 'vitest';
 import type { OtherOptionsPreset } from '../src/domain/models';
 import { type ControllerState, SunoController } from '../src/suno/controller';
+
+const storageMock: Record<string, unknown> = {};
+globalThis.chrome = {
+  storage: {
+    local: {
+      get: vi.fn(async (key: string) => ({ [key]: storageMock[key] })),
+      set: vi.fn(async (items: Record<string, unknown>) => { Object.assign(storageMock, items); }),
+    },
+    onChanged: {
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+    },
+  },
+} as unknown as typeof chrome;
 
 const preset: OtherOptionsPreset = {
   id: 'preset-1', name: '標準', fields: {}, createdAt: '', updatedAt: '',
@@ -79,5 +94,58 @@ describe('SunoController feedback scopes', () => {
     controller.openPresetCreation();
 
     expect(current().settings).toEqual({ section: 'presets', action: 'create-preset' });
+  });
+});
+
+describe('SunoController executeCreateWithTake and title format', () => {
+  it('increments take number, sets substituted title, submits, and reverts to template', async () => {
+    const controller = new SunoController();
+    const titlesSet: string[] = [];
+    vi.spyOn(controller.adapter, 'getCreateButton').mockReturnValue(document.createElement('button'));
+    vi.spyOn(controller.adapter, 'getTitle').mockReturnValue('Workspace (ARIA) {{TAKE}}');
+    vi.spyOn(controller.adapter, 'setTitle').mockImplementation((value) => {
+      titlesSet.push(value);
+      return true;
+    });
+    vi.spyOn(controller.adapter, 'triggerCreate').mockReturnValue(true);
+
+    const result = await controller.executeCreateWithTake();
+    expect(result).toBe(true);
+    expect(titlesSet).toEqual([
+      'Workspace (ARIA) 1',
+      'Workspace (ARIA) {{TAKE}}',
+    ]);
+  });
+
+  it('submits directly without changing title if no take placeholder exists', async () => {
+    const controller = new SunoController();
+    const titlesSet: string[] = [];
+    vi.spyOn(controller.adapter, 'getCreateButton').mockReturnValue(document.createElement('button'));
+    vi.spyOn(controller.adapter, 'getTitle').mockReturnValue('Custom Song Title');
+    vi.spyOn(controller.adapter, 'setTitle').mockImplementation((value) => {
+      titlesSet.push(value);
+      return true;
+    });
+    const triggerSpy = vi.spyOn(controller.adapter, 'triggerCreate').mockReturnValue(true);
+
+    const result = await controller.executeCreateWithTake();
+    expect(result).toBe(true);
+    expect(triggerSpy).toHaveBeenCalled();
+    expect(titlesSet).toHaveLength(0);
+  });
+
+  it('returns false if no active create button is found', async () => {
+    const controller = new SunoController();
+    vi.spyOn(controller.adapter, 'getCreateButton').mockReturnValue(undefined);
+
+    const result = await controller.executeCreateWithTake();
+    expect(result).toBe(false);
+  });
+
+  it('saves and updates title format', async () => {
+    const controller = new SunoController();
+    const current = watch(controller);
+    await controller.saveTitleFormat('{{WORKSPACE}} - {{STYLE}} #{{TAKE}}');
+    expect(current().titleFormat).toBe('{{WORKSPACE}} - {{STYLE}} #{{TAKE}}');
   });
 });
