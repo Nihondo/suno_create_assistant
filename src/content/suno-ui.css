@@ -1,0 +1,101 @@
+:host {
+  all: initial;
+  display: block;
+  color: var(--color-foreground-primary, #f5f5f6);
+  font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+.suno-assistant {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  padding: 10px 12px;
+  margin-top: 8px;
+  border: 1px solid color-mix(in srgb, var(--color-border-primary, #4a4a50) 80%, transparent);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--color-background-tertiary, #27272c) 80%, transparent);
+  color: var(--color-foreground-primary, #f5f5f6);
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.suno-assistant--title {
+  margin: 0 0 0 8px;
+  padding: 3px 8px;
+  background: transparent;
+  border: 0;
+}
+
+.suno-assistant__select,
+.suno-assistant__button {
+  appearance: none;
+  border: 0;
+  border-radius: 999px;
+  min-height: 32px;
+  padding: 6px 11px;
+  color: inherit;
+  background: var(--color-background-secondary, #202025);
+  font: inherit;
+  cursor: pointer;
+}
+
+.suno-assistant__select {
+  min-width: 130px;
+  text-align: left;
+}
+
+.suno-assistant__select:focus-visible,
+.suno-assistant__button:focus-visible,
+.suno-assistant__check:focus-visible {
+  outline: 2px solid var(--color-accent-blue, #3182f6);
+  outline-offset: 2px;
+}
+
+.suno-assistant__button:hover,
+.suno-assistant__select:hover { background: var(--color-background-quaternary, #34343a); }
+.suno-assistant__button--clear { background: transparent; color: var(--color-foreground-secondary, #b7b7bd); }
+
+.suno-assistant__menu {
+  position: absolute;
+  z-index: 2147483647;
+  top: calc(100% - 6px);
+  min-width: 210px;
+  max-width: min(380px, calc(100vw - 32px));
+  max-height: 260px;
+  overflow: auto;
+  padding: 5px;
+  border: 1px solid var(--color-border-primary, #4a4a50);
+  border-radius: 10px;
+  background: var(--color-background-secondary, #202025);
+  box-shadow: 0 12px 30px rgb(0 0 0 / 32%);
+}
+
+.suno-assistant__menu button {
+  display: block;
+  width: 100%;
+  border: 0;
+  border-radius: 7px;
+  padding: 8px 9px;
+  color: inherit;
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.suno-assistant__menu button:hover,
+.suno-assistant__menu button[aria-selected="true"] { background: var(--color-background-tertiary, #2b2b30); }
+.suno-assistant__menu button.suno-assistant__manage { color: var(--color-accent-blue, #5b9cff); }
+.suno-assistant__status { flex-basis: 100%; color: var(--color-foreground-secondary, #b7b7bd); font-size: 12px; }
+.suno-assistant__status--error { color: #ff8fa3; }
+
+.suno-assistant__check { accent-color: var(--color-accent-blue, #3182f6); }
+.suno-assistant__check-label { display: inline-flex; align-items: center; gap: 5px; cursor: pointer; }
+
+@media (max-width: 420px) {
+  .suno-assistant__select { min-width: 0; flex: 1 1 135px; }
+}

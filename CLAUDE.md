@@ -1,0 +1,22 @@
+# Suno Create Assistant development notes
+
+## Stack and commands
+
+This is a Manifest V3 Chrome extension built with WXT, React, TypeScript, and pnpm.
+
+Run `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm test:e2e`, and `pnpm build` before handoff. The unpacked build output is `.output/chrome-mv3`.
+
+`tests/e2e/extension.spec.ts` starts a local HTTPS fixture mapped to `suno.com` only inside Playwright Chromium. Install its browser with `pnpm exec playwright install chromium`; the E2E test does not contact Suno.
+
+## Suno integration rules
+
+- Run the content script only on `https://suno.com/create*` and only mount UI while the Advanced tab is active.
+- Keep all host-page selectors in `src/suno/adapter.ts`. Prefer stable data attributes, accessible labels, placeholders, and relative structure over CSS classes.
+- Suno is a React SPA. Update controlled host inputs through native property setters followed by bubbling `input` and `change` events.
+- Never access private Suno APIs, cookies, or page-framework state. Saved styles are read only from the visible native dialog and are never persisted by the extension.
+- Content UI is mounted in a Shadow DOM and must not use untrusted text as HTML.
+- Keep the host-page inspiration-label shortening and Create-button lookup in `src/suno/adapter.ts`. The Manifest `trigger-suno-create` command has no default key; users assign it in Chrome's extension shortcut settings.
+
+## Storage
+
+`chrome.storage.local` holds schema version 1, mastering prompts, option presets, and the Auto title preference. Tab-local selection state and saved-style caches must remain ephemeral.
