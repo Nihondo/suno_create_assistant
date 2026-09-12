@@ -57,4 +57,13 @@ describe('SunoController feedback scopes', () => {
     expect(state.styleFeedback).toBeUndefined();
     expect(state.settingsFeedback).toBeUndefined();
   });
+
+  it('sets section to presets and action to create-preset when openPresetCreation is called', () => {
+    const controller = new SunoController();
+    const current = watch(controller);
+
+    controller.openPresetCreation();
+
+    expect(current().settings).toEqual({ section: 'presets', action: 'create-preset' });
+  });
 });

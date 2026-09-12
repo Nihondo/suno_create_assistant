@@ -67,9 +67,20 @@ export function SettingsDialog({ controller }: { controller: SunoController }) {
 
   useEffect(() => {
     if (!open) return;
+    if (state.settings?.action === 'create-preset') {
+      void (async () => {
+        const result = await controller.captureOptions();
+        if (!result) return;
+        setEditingPreset(undefined);
+        setPresetForm({ name: '', fields: capturedFields(result.snapshot, result.unreadable) });
+        setLocalError(undefined);
+      })();
+    } else {
+      setPresetForm(undefined);
+    }
     const target = state.settings?.section === 'masterings' ? masteringSectionRef.current : presetSectionRef.current;
     target?.scrollIntoView({ block: 'start' });
-  }, [open, state.settings?.section]);
+  }, [open, state.settings?.section, state.settings?.action, controller]);
 
   const close = () => controller.closeSettings();
 
@@ -96,13 +107,6 @@ export function SettingsDialog({ controller }: { controller: SunoController }) {
     setLocalError(undefined);
   };
   const cancelPreset = () => { setPresetForm(undefined); setEditingPreset(undefined); };
-  const createPresetFromCurrentOptions = async () => {
-    const result = await controller.captureOptions();
-    if (!result) return;
-    setEditingPreset(undefined);
-    setPresetForm({ name: '', fields: capturedFields(result.snapshot, result.unreadable) });
-    setLocalError(undefined);
-  };
   const saveCurrentPreset = async () => {
     const name = presetForm!.name.trim();
     const issue = validateUniqueName(name, presets, editingPreset?.id)
@@ -167,7 +171,6 @@ export function SettingsDialog({ controller }: { controller: SunoController }) {
         <h3 id="suno-assistant-preset-heading">その他のオプションプリセット</h3>
         <p className="suno-assistant__hint">各項目のチェックで保存対象を選び、値を直接編集できます。</p>
         {!presetForm && <>
-          <p><button type="button" onClick={() => void createPresetFromCurrentOptions()}>現在値からプリセットを作成</button></p>
           <ul className="suno-assistant__list">
             {presets.map((item) => <li key={item.id}>
               <div><strong>{item.name}</strong><p>{formatPreset(item.fields)}</p></div>

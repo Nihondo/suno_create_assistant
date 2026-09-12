@@ -466,3 +466,16 @@ output/chrome-mv3/content-scripts/suno.js: src/content/suno-ui.css の通知配�
 - entrypoints/suno.content.tsx: backgroundへの通知処理(SUNO_TOUCHED)およびメッセージ受信処理を削除し、純粋なContent Script化
 - tests/e2e/extension.spec.ts: options画面およびservice worker依存のテストを整理
 - README.md / README_ja.md / CLAUDE.md: オプション画面およびChromeショートカット設定に関する記述を削除
+
+## [task] 2026-09-12 22:20:28
+
+**Agent:** Antigravity
+**Prompt:** プリセット設定を保存ボタンの追加と設定画面からの作成ボタン削除
+
+**Changes:**
+- src/content/components.tsx: PresetControlsのプルダウン右隣に「設定を保存」ボタンを追加
+- src/suno/controller.ts: SettingsAction型とopenPresetCreationメソッドを追加し、プリセット作成モードで設定ダイアログを開けるよう対応
+- src/content/SettingsDialog.tsx: ダイアログから「現在値からプリセットを作成」ボタンを削除し、create-presetアクション時に自動で現在値を取り込んで作成フォームを開くよう対応
+- tests/controller.test.ts: openPresetCreationの単体テストを追加
+- tests/e2e/extension.spec.ts: 「設定を保存」ボタン経由でのプリセット作成フローを検証
+- README.md / README_ja.md / CLAUDE.md: 「設定を保存」ボタンに関するドキュメントを更新

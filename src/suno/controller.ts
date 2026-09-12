@@ -4,6 +4,7 @@ import { readStorage, setAutoTitleEnabled, subscribeStorage } from '../storage/r
 import { describeSkipped, SunoAdapter } from './adapter';
 
 export type SettingsSection = 'masterings' | 'presets';
+export type SettingsAction = 'create-preset';
 
 export interface Feedback {
   message: string;
@@ -19,7 +20,7 @@ export interface ControllerState {
   mastering?: MasteringPrompt;
   preset?: OtherOptionsPreset;
   autoTitleEnabled: boolean;
-  settings?: { section: SettingsSection };
+  settings?: { section: SettingsSection; action?: SettingsAction };
   styleFeedback?: Feedback;
   presetFeedback?: Feedback;
   settingsFeedback?: Feedback;
@@ -149,10 +150,14 @@ export class SunoController {
     }
   }
 
-  openSettings(section: SettingsSection): void {
-    this.state.settings = { section };
+  openSettings(section: SettingsSection, action?: SettingsAction): void {
+    this.state.settings = { section, action };
     this.state.settingsFeedback = undefined;
     this.emit();
+  }
+
+  openPresetCreation(): void {
+    this.openSettings('presets', 'create-preset');
   }
 
   closeSettings(): void {

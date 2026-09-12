@@ -127,14 +127,12 @@ test('mounts the Suno controls beside their anchors, survives host removal, and 
     await expect(page.locator('suno-create-assistant[data-suno-create-assistant="title"]')).toHaveCount(1);
     await expect(page.locator('suno-create-assistant[data-suno-create-assistant="title"]').getByRole('checkbox', { name: '自動設定' })).toBeChecked();
 
-    // Settings management (masterings and presets) now lives in a modal
-    // dialog inside the Suno page itself, opened from the preset dropdown.
-    await page.getByRole('button', { name: /^プリセット:/ }).click();
-    await page.getByRole('option', { name: 'プリセットを管理…' }).click();
+    // Preset creation is now directly triggered via the "設定を保存" button next to the dropdown.
+    await presetsHost.getByRole('button', { name: '設定を保存' }).click();
     const dialog = page.locator('suno-create-assistant[data-suno-create-assistant="settings"]');
     await expect(dialog.getByRole('heading', { name: 'Suno Create Assistant の設定' })).toBeVisible();
+    await expect(dialog.getByRole('button', { name: '現在値からプリセットを作成' })).toHaveCount(0);
 
-    await dialog.getByRole('button', { name: '現在値からプリセットを作成' }).click();
     await dialog.getByRole('textbox', { name: '名前' }).fill('標準');
     await dialog.getByRole('button', { name: '保存', exact: true }).click();
     await expect(dialog.getByText('標準')).toBeVisible();
