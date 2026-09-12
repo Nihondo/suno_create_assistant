@@ -121,17 +121,31 @@ function slider(panel: HTMLElement, label: string): HTMLElement | undefined {
   return visible(panel.querySelectorAll<HTMLElement>(`[role="slider"][aria-label="${label}"]`));
 }
 
-// Confirmed on the live site: dispatching several ArrowRight keydowns on a
-// slider back-to-back, with no yield in between, only moves it by ONE step
-// in total - not one step per keydown. Waiting a frame between each keydown
-// (so Suno's own state update/re-render actually completes) makes each one
-// register individually. Re-querying the panel/slider fresh on every step,
-// rather than reusing the reference from before the loop, also guards
-// against Suno replacing the slider's DOM node between steps.
 async function settle(): Promise<void> {
   await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
 }
 
+// DO NOT replace this with the slider's double-click-to-edit "NN%" readout
+// (dblclick it, type into the revealed <input type="text">, commit with
+// Enter). That path was tried and reverted: confirmed on the live site, it
+// only sets a transient DOM attribute, not Suno's real underlying state.
+// A single slider changed this way and left alone stays looking correct
+// indefinitely (nothing re-renders it) - but the moment anything else
+// triggers a re-render of the panel (in practice: applyOtherOptions()
+// moving on to the next field), Suno reconciles the display back to its
+// real, never-actually-updated value. Measured on the live site: the
+// slider read the correct value for ~120ms after commit, then silently
+// reverted once the next field's own change ran. Stepping arrow keys one
+// at a time is the only mechanism confirmed to update Suno's real state,
+// so it is slower but it is the only one that stays correct.
+//
+// Confirmed on the live site: firing several ArrowRight keydowns
+// back-to-back, with no yield in between, only moves the slider by ONE
+// step in total - not one step per keydown. Waiting a frame between each
+// keydown (so Suno's own state update/re-render actually completes) makes
+// each one register individually. Re-querying the panel/slider fresh on
+// every step, rather than reusing the reference from before the loop, also
+// guards against Suno replacing the slider's DOM node between steps.
 const SLIDER_STEP_GUARD = 200;
 
 async function setSlider(label: string, value: number): Promise<boolean> {

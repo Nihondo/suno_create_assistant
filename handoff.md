@@ -225,3 +225,21 @@ src/suno/adapter.ts: 1) optionHeading()のクエリを'button'から'button, [ro
 ## [solution] 2026-09-12 19:30:46
 
 src/suno/adapter.ts: applyOtherOptions()を各フィールドごとにoptionPanel()を再取得しsettle()(1 requestAnimationFrame)で間隔を空ける設計に変更。setSlider()を(element,value)引数から(label,value)引数に変え、ステップごとにpanel/sliderとaria-valuenowを再取得する設計に変更(最大200ステップガード)。applyOtherOptions/setSliderをasync化。src/suno/controller.tsのapplyPreset()もasync化し、適用中は'適用しています…'を即座に表示。src/content/components.tsxのonSelectをvoid付きに変更。tests/adapter.test.tsに2件の回帰テストを追加(panel使い回しでSuno風の丸ごと差し替えが起きても後続フィールドが検知可能な生要素をクリックすること、スライダーが目標値まで正確に収束すること)。修正前コードで実際に失敗することをファイル差し替えで検証済み
+
+## [task] 2026-09-12 19:48:56
+
+**Agent:** Claude Sonnet 5 (Claude Code)
+**Prompt:** スライダーの反映が1%ずつで遅い。パーセンテージのダブルクリックで数値入力できることを利用できないか
+
+**Changes:**
+- src/suno/adapter.ts: setSliderDirectly()を新設。奇抜さ/スタイルの影響のスライダー横にある「NN%」表示テキストをdblclickで数値入力(input type=text)に切り替え、値を入れてEnterで確定する方式に変更。距離に関わらず1回の操作で反映されるため高速化。setSlider()はまずこの直接入力を試み、対応する「NN%」表示が見つからない場合(バリエーション等)は従来のキーステップ方式(setSliderByStepping)にフォールバック
+- tests/adapter.test.ts: ダブルクリック→input出現→Enterで確定、という一連の流れの回帰テストを追加(25件全通過)
+- CLAUDE.md: 直接入力方式とフォールバック条件を記録
+
+## [issue] 2026-09-12 20:00:48
+
+前回導入したスライダーのダブルクリック直接入力方式(setSliderDirectly)が、単独では正しく値が保持されるように見えるが、プリセット適用のように続けて他の項目(スタイルの影響等)を操作すると、約120ms後に元の値へ静かに巻き戻ることが判明。ユーザー報告『奇抜さが一瞬50%になった後1%になる』を実機のMutationObserverログで確認: t=5409ms 50→t=5536ms 1、t=21400ms 50→t=21520ms 0。単独で1000ms監視しても巻き戻らないことも確認したが、これは他に再描画のきっかけが無かっただけで、根本原因はDOM属性(aria-valuenow)を直接書き換えているだけでSunoの実際のReact内部状態が更新されておらず、何かがその領域を再描画した瞬間に本当の(未変更の)値へ巻き戻される、という仕組みだと結論
+
+## [solution] 2026-09-12 20:00:48
+
+src/suno/adapter.ts: setSliderDirectly()を完全に撤去し、setSlider()を確実に動作するキー操作方式(setSliderByStepping、settle()で1フレームずつ)のみに戻した。速度より正確性を優先。CLAUDE.mdに『二度と直接入力方式を試みない』旨と、なぜ単独テストでは検出できなかったか(他に再描画のきっかけが無いと巻き戻りが観測されない)を明記。tests/adapter.test.tsから該当テストを削除。pnpm lint/typecheck/test(24件)/build/test:e2e全て成功
