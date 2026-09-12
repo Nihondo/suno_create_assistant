@@ -6,7 +6,7 @@ A local Chrome extension for the Advanced tab of [Suno Create](https://suno.com/
 
 1. Install dependencies with `pnpm install`.
 2. Build the extension with `pnpm build`.
-3. Open `chrome://extensions`, enable **Developer mode**, choose **Load unpacked**, and select `output/chrome-mv3`.
+3. Open `chrome://extensions`, enable **Developer mode**, choose **Load unpacked**, and select `install/chrome-mv3`.
 4. Open `https://suno.com/create` and select the **Advanced** tab.
 
 ## Use
@@ -71,6 +71,12 @@ You can toggle this automatic collapse behavior using the **"Close lyrics, style
 ## Privacy
  
 All mastering prompts, presets, the Auto title preference, custom title formats, and take counter records are stored in Chrome local extension storage. The extension does not call Suno private APIs, send data to a server, or store Suno saved-style prompts permanently.
+
+## Disclaimer
+
+This is an unofficial, independent extension and is not affiliated with, endorsed by, or sponsored by Suno, Inc. "Suno" is a registered trademark of Suno, Inc.
+
+Because this extension operates by interacting directly with the Suno web interface, future updates, design overhauls, or specification changes made by Suno may cause some or all features of this extension to stop functioning.
 
 ## License
 

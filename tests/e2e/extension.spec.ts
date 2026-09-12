@@ -1,12 +1,13 @@
 import { expect, test } from '@playwright/test';
 import { createServer } from 'node:https';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, rm } from 'node:fs/promises';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { chromium, type BrowserContext } from 'playwright';
+import { generate } from 'selfsigned';
 
-const extensionPath = resolve('output/chrome-mv3');
+const extensionPath = resolve('install/chrome-mv3');
 
 const sunoFixture = `<!doctype html><html lang="ja"><body>
   <aside class="group/sidebar">
@@ -60,9 +61,10 @@ const sunoFixture = `<!doctype html><html lang="ja"><body>
 
 test('mounts the Suno controls beside their anchors, survives host removal, and manages settings in-page', async () => {
   const profile = await mkdtemp(join(tmpdir(), 'suno-create-assistant-'));
+  const pems = await generate([{ name: 'commonName', value: 'suno.com' }], { algorithm: 'sha256' });
   const server = createServer({
-    key: await readFile(new URL('./fixture-key.pem', import.meta.url)),
-    cert: await readFile(new URL('./fixture-cert.pem', import.meta.url)),
+    key: pems.private,
+    cert: pems.cert,
   }, (_request, response) => {
     response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
     response.end(sunoFixture);
