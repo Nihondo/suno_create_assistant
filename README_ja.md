@@ -13,7 +13,7 @@
 
 ## 使い方
 
-[Create/Advancedタブ](images/suno_create.png)
+![Create/Advancedタブ](./images/suno_create.png)
 
 ### 多言語対応（日本語・英語）
 
@@ -62,7 +62,7 @@ Sunoの言語設定（`en` または `ja`）を自動的に判別します。Sun
 
 Suno作成画面では、設定不要で `Cmd + Enter`（macOS） / `Ctrl + Enter`（Windows/Linux）を押すと「作成」ボタンを実行できます（曲名に `{{TAKE}}` があればテイク番号採番・復元も行われます）。また、日本語UIでは操作行が折り返さないよう、Sunoの **インスピレーション** ボタンの表示を **ひらめき** に短縮します。
 
-[拡張設定](images/suno_setting.png)
+![拡張設定](./images/suno_setting.png)
 
 ### サイドバー「拡張設定」メニュー
 

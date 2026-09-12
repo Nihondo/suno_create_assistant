@@ -13,7 +13,7 @@ Pre-built extension files are included in this repository under `install/chrome-
 
 ## Use
 
-[Create/Advanced tab](images/suno_create.png)
+![Create/Advanced tab](./images/suno_create.png)
 
 ### Multilingual support (English & Japanese)
 
@@ -62,7 +62,7 @@ Enable **Auto title** (自動設定) inside the title section to generate a titl
  
 On the Suno Create page, press `Cmd + Enter` (macOS) or `Ctrl + Enter` (Windows/Linux) to trigger the **Create** button directly without any configuration (with automatic take numbering if `{{TAKE}}` is present). In Japanese UI, the extension also shortens Suno's **インスピレーション** button label to **ひらめき** to prevent the action row from wrapping.
 
-[Extension Settings](images/suno_setting.png)
+![Extension Settings](./images/suno_setting.png)
 
 ### Sidebar "Extension Settings" menu
 
