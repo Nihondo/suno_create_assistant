@@ -2,14 +2,18 @@
 
 A local Chrome extension for the Advanced tab of [Suno Create](https://suno.com/create). It adds quick access to saved styles, your own mastering prompts, reusable advanced-option presets, and automatic song titles. Fully supports both English and Japanese interfaces on Suno with automatic language detection.
 
-## Install locally
+## Installation
 
-1. Install dependencies with `pnpm install`.
-2. Build the extension with `pnpm build`.
-3. Open `chrome://extensions`, enable **Developer mode**, choose **Load unpacked**, and select `install/chrome-mv3`.
-4. Open `https://suno.com/create` and select the **Advanced** tab.
+Pre-built extension files are included in this repository under `install/chrome-mv3`, so you can install and use it right away without needing Node.js or any build tools.
+
+1. Download this repository (**Code** → **Download ZIP**) and extract it, or run `git clone https://github.com/Nihondo/suno_extension.git`.
+2. In Google Chrome, navigate to `chrome://extensions` and enable **Developer mode** in the upper-right corner.
+3. Click **Load unpacked** and select the `install/chrome-mv3` directory inside the repository.
+4. Open [Suno Create](https://suno.com/create) and select the **Advanced** tab.
 
 ## Use
+
+[Create/Advanced tab](images/suno_create.png)
 
 ### Multilingual support (English & Japanese)
 
@@ -58,6 +62,8 @@ Enable **Auto title** (自動設定) inside the title section to generate a titl
  
 On the Suno Create page, press `Cmd + Enter` (macOS) or `Ctrl + Enter` (Windows/Linux) to trigger the **Create** button directly without any configuration (with automatic take numbering if `{{TAKE}}` is present). In Japanese UI, the extension also shortens Suno's **インスピレーション** button label to **ひらめき** to prevent the action row from wrapping.
 
+[Extension Settings](images/suno_setting.png)
+
 ### Sidebar "Extension Settings" menu
 
 The extension injects an **Extension Settings** (拡張設定) item with a gear icon into Suno's sidebar navigation (right below Hooks and above the profile item). Clicking it opens the in-page settings dialog where you can manage song title formats, display settings, mastering prompts, and presets. While the settings dialog is open, the menu item highlights in an active state. When the sidebar is collapsed/minimized, the text automatically hides and leaves only the gear icon visible, exactly mirroring Suno's native navigation items.
@@ -67,6 +73,25 @@ The extension injects an **Extension Settings** (拡張設定) item with a gear 
 When opening the Advanced tab, the "Lyrics", "Styles", and "More options" ("歌詞", "スタイル", "その他のオプション") disclosure sections (accordions) default to a collapsed state. Because the extension's dropdown controls (Style, Mastering, Presets) are permanently anchored to the header rows, you can operate them without expanding the full native sections, keeping your workspace clean and compact.
 
 You can toggle this automatic collapse behavior using the **"Close lyrics, styles, and more options when opening the Advanced tab"** / **"アドバンスドタブを開いた時に歌詞、スタイル、その他のオプションを閉じる"** checkbox in the settings dialog under **Display Settings** / **表示設定** (enabled by default). Once collapsed upon opening the tab, any section you manually click to open stays open while you edit without being unexpectedly re-closed.
+
+## Development & Building from Source
+
+If you want to modify the source code or build the extension from scratch:
+
+1. Install dependencies:
+   ```bash
+   pnpm install
+   ```
+2. Build the extension:
+   ```bash
+   pnpm build
+   ```
+   The unpacked extension will be built into `install/chrome-mv3`.
+3. Run tests:
+   ```bash
+   pnpm test        # Unit tests
+   pnpm test:e2e    # Playwright E2E tests
+   ```
 
 ## Privacy
  
