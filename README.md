@@ -6,10 +6,8 @@ A local Chrome extension for the Advanced tab of [Suno Create](https://suno.com/
 
 1. Install dependencies with `pnpm install`.
 2. Build the extension with `pnpm build`.
-3. Open `chrome://extensions`, enable **Developer mode**, choose **Load unpacked**, and select `.output/chrome-mv3`.
+3. Open `chrome://extensions`, enable **Developer mode**, choose **Load unpacked**, and select `output/chrome-mv3`.
 4. Open `https://suno.com/create` and select the **Advanced** tab.
-
-For development, run `pnpm dev` and reload the extension from `chrome://extensions` after changes.
 
 ## Use
 
@@ -44,15 +42,3 @@ The extension shortens Suno's **インスピレーション** button label to **
 ## Privacy
 
 All mastering prompts, presets, and the Auto title preference are stored in Chrome local extension storage. The extension does not call Suno private APIs, send data to a server, or store Suno saved-style prompts permanently.
-
-## Development
-
-```text
-pnpm lint
-pnpm typecheck
-pnpm test
-pnpm test:e2e
-pnpm build
-```
-
-Run `pnpm exec playwright install chromium` once before the E2E test. The test starts a local HTTPS Suno fixture and loads the built extension unpacked; it never contacts Suno.

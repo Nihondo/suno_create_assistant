@@ -4,7 +4,7 @@
 
 This is a Manifest V3 Chrome extension built with WXT, React, TypeScript, and pnpm.
 
-Run `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm test:e2e`, and `pnpm build` before handoff. The unpacked build output is `.output/chrome-mv3`.
+Run `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm test:e2e`, and `pnpm build` before handoff. The unpacked build output is `output/chrome-mv3`.
 
 `tests/e2e/extension.spec.ts` starts a local HTTPS fixture mapped to `suno.com` only inside Playwright Chromium. Install its browser with `pnpm exec playwright install chromium`; the E2E test does not contact Suno.
 

@@ -27,6 +27,11 @@ export default defineBackground(() => {
       void chrome.storage.session.set({ lastSunoTabId });
       return;
     }
+    if (message?.type === 'OPEN_OPTIONS') {
+      void chrome.runtime.openOptionsPage();
+      sendResponse({ ok: true });
+      return;
+    }
     if (message?.type === 'CAPTURE_LAST_SUNO') {
       if (lastSunoTabId === undefined) {
         sendResponse({ ok: false, error: '直近に操作したSuno作成タブがありません。' });

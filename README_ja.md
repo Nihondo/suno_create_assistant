@@ -6,10 +6,8 @@
 
 1. `pnpm install` で依存関係をインストールします。
 2. `pnpm build` で拡張をビルドします。
-3. `chrome://extensions` を開き、**デベロッパーモード**を有効にして、**パッケージ化されていない拡張機能を読み込む**から `.output/chrome-mv3` を選択します。
+3. `chrome://extensions` を開き、**デベロッパーモード**を有効にして、**パッケージ化されていない拡張機能を読み込む**から `output/chrome-mv3` を選択します。
 4. `https://suno.com/create` を開き、**アドバンスト**タブを選択します。
-
-開発時は `pnpm dev` を実行し、変更後に `chrome://extensions` から拡張を再読み込みしてください。
 
 ## 使い方
 
@@ -44,15 +42,3 @@ Sunoのスタイル欄の下で、保存済みSunoスタイルと任意のマス
 ## プライバシー
 
 マスタリングプロンプト、プリセット、自動設定の状態はChrome拡張のローカルストレージに保存されます。Sunoの非公開APIは使わず、サーバーへのデータ送信や、Suno保存スタイルプロンプトの永続保存も行いません。
-
-## 開発
-
-```text
-pnpm lint
-pnpm typecheck
-pnpm test
-pnpm test:e2e
-pnpm build
-```
-
-E2Eテストを初めて実行する前に、一度 `pnpm exec playwright install chromium` を実行してください。テストはローカルHTTPSのSuno模擬画面とunpacked拡張を使うため、Sunoへ接続しません。

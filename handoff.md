@@ -36,3 +36,26 @@ Each agent can read this file to understand the project context and continue wor
 - src/options/OptionsApp.tsx: Chromeショートカット設定を開く導線を追加
 - tests/e2e/extension.spec.ts: 表示短縮と作成メッセージのE2Eを追加
 - README.md / README_ja.md / CLAUDE.md: 利用方法と実装制約を更新
+
+## [task] 2026-09-12 17:11:20
+
+**Agent:** Codex
+**Prompt:** 実サイトで発生した保存スタイル・管理画面・プリセット表示の不具合を修正
+
+**Changes:**
+- src/suno/adapter.ts: 非表示中の保存スタイルダイアログを読めるよう修正し、placeholderに依存しないその他オプション検出を追加
+- src/content/components.tsx / entrypoints/background.ts: 管理画面起動をContent ScriptからBackground経由へ変更
+- tests/e2e/extension.spec.ts: 非表示ダイアログの保存スタイル抽出とplaceholderなしオプションを検証
+- eslint.config.js: 古いoutput生成物をlint除外
+- README.md / README_ja.md / CLAUDE.md: 正しいunpacked出力先を.output/chrome-mv3へ統一
+
+## [task] 2026-09-12 17:12:25
+
+**Agent:** Codex
+**Prompt:** Chrome拡張のビルド出力先を.outputからoutputへ変更
+
+**Changes:**
+- wxt.config.ts: outDirをoutputへ固定
+- tests/e2e/extension.spec.ts: unpacked拡張の参照先をoutput/chrome-mv3へ変更
+- README.md / README_ja.md / CLAUDE.md: 出力先をoutput/chrome-mv3へ統一
+- eslint.config.js: output生成物はlint対象外を維持

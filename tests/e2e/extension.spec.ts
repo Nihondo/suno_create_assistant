@@ -6,14 +6,15 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { chromium, type BrowserContext } from 'playwright';
 
-const extensionPath = resolve('.output/chrome-mv3');
+const extensionPath = resolve('output/chrome-mv3');
 
 const sunoFixture = `<!doctype html><html lang="ja"><body>
   <main>
     <button role="tab" aria-selected="true">アドバンスト</button>
     <button id="inspiration">＋ インスピレーション</button>
-    <section><div data-testid="create-form-styles-wrapper"><textarea></textarea></div></section>
-    <section id="options"><button>その他のオプション</button><input placeholder="スタイルを除外" />
+    <section><div data-testid="create-form-styles-wrapper"><textarea></textarea></div><button id="saved-styles" aria-label="保存したスタイルプロンプトを見る">保存したスタイル</button></section>
+    <dialog role="dialog" aria-label="保存したスタイル"><div><button aria-label="ARIA">ARIA</button><span>gentle acoustic ensemble</span></div></dialog>
+    <section id="options"><button>その他のオプション</button><input aria-label="スタイルを除外" />
       <div>ボーカル性別<button>男性</button><button>女性</button></div>
       <div>長さ<button>カスタム</button><button class="hxc-btn-variant-standard">Auto</button></div>
       <div>Maxモード<button class="hxc-btn-variant-standard">オフ</button><button>オン</button></div>
@@ -24,7 +25,13 @@ const sunoFixture = `<!doctype html><html lang="ja"><body>
     </section>
     <section><div><input placeholder="曲名(任意)" /></div><div>保存先…<button>Demo Workspace</button></div></section>
     <button id="create">作成</button>
-    <script>document.querySelector('#create').addEventListener('click', () => document.body.dataset.created = 'true');</script>
+    <script>
+      document.querySelector('#create').addEventListener('click', () => document.body.dataset.created = 'true');
+      document.querySelector('#saved-styles').addEventListener('click', () => {
+        const dialog = document.querySelector('[role="dialog"]');
+        dialog.open ? dialog.close() : dialog.showModal();
+      });
+    </script>
   </main>
 </body></html>`;
 
@@ -69,6 +76,8 @@ test('mounts the three Suno controls and persists the automatic-title switch', a
     await page.waitForTimeout(250);
     expect(await page.locator('suno-create-assistant').count(), extensionErrors.join('\n')).toBe(3);
     await expect(page.locator('#inspiration')).toHaveText('＋ ひらめき');
+    await page.locator('suno-create-assistant').filter({ hasText: 'スタイル:' }).getByRole('button', { name: /スタイル:/ }).click();
+    await expect(page.locator('suno-create-assistant').filter({ hasText: 'スタイル:' }).getByRole('option', { name: 'ARIA' })).toBeVisible();
     await page.locator('suno-create-assistant').filter({ hasText: '自動設定' }).getByRole('checkbox').check();
     await expect(page.locator('input[placeholder="曲名(任意)"]')).toHaveValue('Demo Workspace');
     const shortcutResult = await worker.evaluate(async () => {

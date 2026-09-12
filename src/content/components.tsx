@@ -88,7 +88,7 @@ export function StyleControls({ controller }: { controller: SunoController }) {
   const styleLabel = state.isCustomStyle ? 'カスタム' : state.style?.name ?? '未選択';
   return <div className="suno-assistant" aria-label="Suno Create Assistant: スタイル設定">
     <Dropdown label="スタイル" valueLabel={state.stylesLoading ? '読み込み中…' : styleLabel} items={styles} disabled={state.stylesLoading} onOpen={() => controller.refreshStyles()} onSelect={(style) => void controller.selectStyle(style)} />
-    <Dropdown label="マスタリング" valueLabel={state.mastering?.name ?? '未選択'} items={masteringItems} onSelect={(mastering, manage) => manage ? void chrome.runtime.openOptionsPage() : void controller.selectMastering(mastering)} />
+    <Dropdown label="マスタリング" valueLabel={state.mastering?.name ?? '未選択'} items={masteringItems} onSelect={(mastering, manage) => manage ? void chrome.runtime.sendMessage({ type: 'OPEN_OPTIONS' }) : void controller.selectMastering(mastering)} />
     <button type="button" className="suno-assistant__button suno-assistant__button--clear" onClick={() => controller.clearStyleAndMastering()}>解除</button>
     {(state.error || state.notice) && <output className={`suno-assistant__status ${state.error ? 'suno-assistant__status--error' : ''}`}>{state.error ?? state.notice}</output>}
   </div>;
@@ -103,7 +103,7 @@ export function PresetControls({ controller }: { controller: SunoController }) {
     { id: 'manage', label: 'プリセットを管理…', manage: true },
   ];
   return <div className="suno-assistant" aria-label="Suno Create Assistant: その他のオプションプリセット">
-    <Dropdown label="プリセット" valueLabel={state.preset?.name ?? '未選択'} items={items} onSelect={(preset, manage) => manage ? void chrome.runtime.openOptionsPage() : controller.applyPreset(preset)} />
+    <Dropdown label="プリセット" valueLabel={state.preset?.name ?? '未選択'} items={items} onSelect={(preset, manage) => manage ? void chrome.runtime.sendMessage({ type: 'OPEN_OPTIONS' }) : controller.applyPreset(preset)} />
     {(state.error || state.notice) && <output className={`suno-assistant__status ${state.error ? 'suno-assistant__status--error' : ''}`}>{state.error ?? state.notice}</output>}
   </div>;
 }

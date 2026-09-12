@@ -30,9 +30,21 @@ function optionPanel(): HTMLElement | undefined {
   if (!heading) return undefined;
   let node: HTMLElement | null = heading.parentElement;
   for (let depth = 0; node && depth < 7; depth += 1, node = node.parentElement) {
-    if (node.querySelector('input[placeholder="スタイルを除外"]') && node.querySelector('[role="slider"][aria-label="奇抜さ"]')) return node;
+    if (node.querySelector('[role="slider"][aria-label="奇抜さ"]') && node.querySelector('[role="slider"][aria-label="スタイルの影響"]')) return node;
   }
   return undefined;
+}
+
+function excludedStylesInput(panel: HTMLElement): HTMLInputElement | undefined {
+  const named = visible(panel.querySelectorAll<HTMLInputElement>('input[placeholder="スタイルを除外"]'));
+  if (named) return named;
+  return visible([...panel.querySelectorAll<HTMLInputElement>('input')].filter((input) => !input.type || input.type === 'text'));
+}
+
+function savedStylesDialog(includeHidden = false): HTMLElement | undefined {
+  const dialogs = [...document.querySelectorAll<HTMLElement>('[role="dialog"]')]
+    .filter((dialog) => (dialog.getAttribute('aria-label') ?? '').includes('保存したスタイル'));
+  return includeHidden ? dialogs[0] : visible(dialogs);
 }
 
 function rowFor(panel: HTMLElement, label: string): HTMLElement | undefined {
@@ -168,7 +180,7 @@ export class SunoAdapter {
     const panel = optionPanel();
     if (!panel) return undefined;
     const snapshot = emptyOtherOptions();
-    snapshot.excludedStyles = (visible(panel.querySelectorAll<HTMLInputElement>('input[placeholder="スタイルを除外"]')))?.value ?? '';
+    snapshot.excludedStyles = excludedStylesInput(panel)?.value ?? '';
 
     if (selected(rowButton(panel, 'ボーカル性別', '男性'))) snapshot.vocalGender = 'male';
     if (selected(rowButton(panel, 'ボーカル性別', '女性'))) snapshot.vocalGender = 'female';
@@ -193,7 +205,7 @@ export class SunoAdapter {
     const success = (key: OtherOptionsKey, value: boolean) => (value ? applied.push(key) : skipped.push(key));
 
     if (partial.excludedStyles !== undefined) {
-      const input = visible(panel.querySelectorAll<HTMLInputElement>('input[placeholder="スタイルを除外"]'));
+      const input = excludedStylesInput(panel);
       if (input) nativeSetValue(input, partial.excludedStyles);
       success('excludedStyles', !!input);
     }
@@ -230,7 +242,7 @@ export class SunoAdapter {
   }
 
   async extractSavedStyles(): Promise<SavedStyle[]> {
-    const existing = visible(document.querySelectorAll<HTMLElement>('[role="dialog"][aria-label="保存したスタイル"]'));
+    const existing = savedStylesDialog();
     const trigger = visible([...document.querySelectorAll<HTMLButtonElement>('button')].filter((button) =>
       (button.getAttribute('aria-label') ?? '').includes('保存したスタイルプロンプトを見る')));
     let dialog = existing;
@@ -245,7 +257,9 @@ export class SunoAdapter {
       openedHere = true;
       for (let attempt = 0; attempt < 20 && !dialog; attempt += 1) {
         await new Promise((resolve) => setTimeout(resolve, 50));
-        dialog = visible(document.querySelectorAll<HTMLElement>('[role="dialog"][aria-label="保存したスタイル"]'));
+        // The extension deliberately hides this native dialog while reading
+        // it, so this lookup must not require visual visibility.
+        dialog = savedStylesDialog(true);
       }
     }
     try {
