@@ -71,22 +71,22 @@ export default defineContentScript({
       mounter.reattach();
       schedule();
     });
-    chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-      if (message?.type === 'TRIGGER_SUNO_CREATE') {
-        const ok = controller.adapter.triggerCreate();
-        sendResponse(ok ? { ok: true } : { ok: false, error: '有効な「作成」ボタンが見つかりませんでした。' });
+    const onKeyDown = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
+        const dialogOpen = !!document.querySelector('suno-create-assistant [role="dialog"][open]');
+        if (dialogOpen) return;
+
+        event.preventDefault();
+        event.stopPropagation();
+        controller.adapter.triggerCreate();
       }
-    });
-    const touched = () => chrome.runtime.sendMessage({ type: 'SUNO_TOUCHED' });
-    document.addEventListener('pointerdown', touched, true);
-    window.addEventListener('focus', touched);
-    void chrome.runtime.sendMessage({ type: 'SUNO_TOUCHED' });
+    };
+    document.addEventListener('keydown', onKeyDown, true);
     schedule();
     return () => {
       unobserve();
       controller.dispose();
-      document.removeEventListener('pointerdown', touched, true);
-      window.removeEventListener('focus', touched);
+      document.removeEventListener('keydown', onKeyDown, true);
       mounter.dispose();
     };
   },

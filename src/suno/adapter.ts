@@ -295,12 +295,41 @@ export class SunoAdapter {
   }
 
   triggerCreate(): boolean {
-    const button = visible([...document.querySelectorAll<HTMLButtonElement>('button')].filter((candidate) => {
-      const label = candidate.getAttribute('aria-label') ?? text(candidate);
-      return label.trim() === '作成' && !candidate.disabled && candidate.getAttribute('aria-disabled') !== 'true';
-    }));
+    const isCreateCandidate = (candidate: HTMLElement): boolean => {
+      if (candidate.closest('nav, aside, [role="navigation"]')) return false;
+      if (candidate instanceof HTMLButtonElement && candidate.disabled) return false;
+      if (candidate.getAttribute('aria-disabled') === 'true') return false;
+
+      const ariaLabel = candidate.getAttribute('aria-label')?.trim() ?? '';
+      const textContent = text(candidate);
+
+      const patterns = [
+        /^(?:作成|Create)(?:\s*[(（]?\s*\d+.*|[!！])?$/i,
+        /^(?:曲|トラック)を作成/i,
+        /^Create\s+(?:Song|Track|Music)/i,
+      ];
+
+      for (const pattern of patterns) {
+        if (pattern.test(ariaLabel) || pattern.test(textContent)) return true;
+      }
+
+      const startsWithCreate = ariaLabel.startsWith('作成') || textContent.startsWith('作成')
+        || ariaLabel.toLowerCase().startsWith('create') || textContent.toLowerCase().startsWith('create');
+      const excluded = /^(?:作成(?:済み|日|中|者)?|プリセットを作成|Created|Create Preset)/i;
+
+      return startsWithCreate && !excluded.test(ariaLabel) && !excluded.test(textContent);
+    };
+
+    const candidates = [...document.querySelectorAll<HTMLElement>('main button, main [role="button"], button, [role="button"]')];
+    const button = visible(candidates.filter(isCreateCandidate));
     if (!button) return false;
+
+    if (typeof PointerEvent !== 'undefined') {
+      button.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true }));
+    }
+    button.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
     button.click();
+    button.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true }));
     return true;
   }
 

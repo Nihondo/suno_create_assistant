@@ -61,10 +61,6 @@ test('mounts the Suno controls beside their anchors, survives host removal, and 
         `--load-extension=${extensionPath}`,
       ],
     });
-    // Wait until Chrome has registered the extension before navigating to the
-    // matched Suno URL; otherwise a fast first navigation can miss injection.
-    const worker = context.serviceWorkers()[0] ?? await context.waitForEvent('serviceworker');
-    expect(worker.url()).toContain('background.js');
     const page = await context.newPage();
     const cdp = await context.newCDPSession(page);
     const extensionErrors: string[] = [];
@@ -73,7 +69,7 @@ test('mounts the Suno controls beside their anchors, survives host removal, and 
     });
     await cdp.send('Runtime.enable');
     await page.goto('https://suno.com/create');
-    await page.waitForTimeout(250);
+    await page.locator('suno-create-assistant').first().waitFor();
     // styles, presets, title, and the always-mounted settings dialog host.
     expect(await page.locator('suno-create-assistant').count(), extensionErrors.join('\n')).toBe(4);
     const titleHost = page.locator('suno-create-assistant[data-suno-create-assistant="title"]');
@@ -174,20 +170,10 @@ test('mounts the Suno controls beside their anchors, survives host removal, and 
     expect(Math.abs((feedbackBox!.y + feedbackBox!.height / 2) - (triggerBox!.y + triggerBox!.height / 2))).toBeLessThan(1);
     await expect(page.locator('suno-create-assistant[data-suno-create-assistant="styles"]')).not.toContainText('プリセットを適用しました。');
 
-    // The extension options page now hosts only the shortcut setting.
-    const extensionId = new URL(worker.url()).host;
-    const optionsPage = await context.newPage();
-    await optionsPage.goto(`chrome-extension://${extensionId}/options.html`);
-    await expect(optionsPage.getByRole('heading', { name: 'キーボードショートカット' })).toBeVisible();
-    await expect(optionsPage.getByRole('button', { name: 'Sunoから現在値を取得' })).toHaveCount(0);
-
+    // Test in-page keyboard shortcut (Cmd+Enter on macOS, Ctrl+Enter elsewhere)
     await page.bringToFront();
-    const shortcutResult = await worker.evaluate(async () => {
-      const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
-      if (tab?.id === undefined) throw new Error('Suno作成タブが見つかりません。');
-      return chrome.tabs.sendMessage(tab.id!, { type: 'TRIGGER_SUNO_CREATE' });
-    });
-    expect(shortcutResult).toEqual({ ok: true });
+    await page.evaluate(() => document.body.removeAttribute('data-created'));
+    await page.keyboard.press('ControlOrMeta+Enter');
     await expect(page.locator('body')).toHaveAttribute('data-created', 'true');
   } finally {
     await context?.close();

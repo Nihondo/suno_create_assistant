@@ -225,3 +225,55 @@ describe('SunoAdapter.applyOtherOptions', () => {
     expect(weirdnessSlider.getAttribute('aria-valuenow')).toBe('57');
   });
 });
+
+describe('SunoAdapter triggerCreate', () => {
+  it('triggers create button with credit counts and ignores navigation buttons', () => {
+    document.body.innerHTML = `
+      <nav><button>作成</button></nav>
+      <main>
+        <button id="create-btn"><span>作成</span> <span>10</span></button>
+      </main>
+    `;
+
+    const adapter = new SunoAdapter();
+    let clicked = false;
+    document.querySelector('#create-btn')!.addEventListener('click', () => {
+      clicked = true;
+    });
+
+    const result = adapter.triggerCreate();
+    expect(result).toBe(true);
+    expect(clicked).toBe(true);
+  });
+
+  it('triggers create button matching aria-label and role=button', () => {
+    document.body.innerHTML = `
+      <main>
+        <div role="button" aria-label="Create Song" id="create-div">Create</div>
+      </main>
+    `;
+
+    const adapter = new SunoAdapter();
+    let clicked = false;
+    document.querySelector('#create-div')!.addEventListener('click', () => {
+      clicked = true;
+    });
+
+    const result = adapter.triggerCreate();
+    expect(result).toBe(true);
+    expect(clicked).toBe(true);
+  });
+
+  it('returns false when create button is disabled', () => {
+    document.body.innerHTML = `
+      <main>
+        <button disabled>作成 10</button>
+      </main>
+    `;
+
+    const adapter = new SunoAdapter();
+    const result = adapter.triggerCreate();
+    expect(result).toBe(false);
+  });
+});
+

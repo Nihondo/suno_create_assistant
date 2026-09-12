@@ -37,7 +37,7 @@ The setting is stored in Chrome local extension storage and restored as the defa
 
 ### Create shortcut and inspiration label
 
-The extension shortens Suno's **インスピレーション** button label to **ひらめき** to prevent the action row from wrapping. In the extension options page (the only thing left there besides this note), select **Set shortcut** to open Chrome's shortcut settings, then assign a key to **Run Suno Create**. No default shortcut is reserved. The shortcut activates the visible enabled Create button in the active Suno Create tab, or the most recently used Suno Create tab.
+On the Suno Create page, press `Cmd + Enter` (macOS) or `Ctrl + Enter` (Windows/Linux) to trigger the **Create** button directly without any configuration. The extension also shortens Suno's **インスピレーション** button label to **ひらめき** to prevent the action row from wrapping.
 
 ## Privacy
 

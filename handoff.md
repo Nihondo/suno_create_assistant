@@ -439,3 +439,30 @@ output/chrome-mv3/content-scripts/suno.js: src/content/suno-ui.css の通知配�
 - tests/adapter.test.ts, tests/e2e/extension.spec.ts: 曲名カード内への配置、折り返し、別行表示を検証
 - CLAUDE.md: 実サイトDOMに基づく正しい曲名カード配置を記録
 - output/chrome-mv3/content-scripts/suno.js: 更新済みコンテンツスクリプトを再ビルド
+
+## [task] 2026-09-12 22:05:21
+
+**Agent:** Antigravity
+**Prompt:** 作成ボタンショートカットの安全化と発動不良の修正
+
+**Changes:**
+- src/suno/adapter.ts: triggerCreateでクレジット数付きボタンやrole=buttonを検出し、main内の作成ボタンを優先クリックするよう改善
+- entrypoints/suno.content.tsx: Suno画面内で直接Cmd+Enter / Ctrl+Enterキーを検知して作成を実行するページ内ショートカットを追加
+- entrypoints/background.ts: 誤爆防止のため、Chromeコマンドによる作成実行をフォーカス中かつアクティブなSunoタブのみに限定
+- src/options/OptionsApp.tsx: ページ内ショートカットの案内とChromeショートカット設定の安全な動作についての説明を更新
+- tests/adapter.test.ts: triggerCreateのクレジット付き・role=button・disabledボタンのテストを追加
+- tests/e2e/extension.spec.ts: ページ内キーボードショートカット(Cmd+Enter/Ctrl+Enter)のE2Eテストを追加
+- README.md / README_ja.md / CLAUDE.md: ショートカット仕様と動作保証範囲を更新
+
+## [task] 2026-09-12 22:10:22
+
+**Agent:** Antigravity
+**Prompt:** 拡張機能オプション設定画面とChromeグローバルショートカットの削除
+
+**Changes:**
+- wxt.config.ts: manifestからoptions_uiおよびcommandsを削除
+- entrypoints/options/ & src/options/: 不要となったオプション画面のソースファイルを削除
+- entrypoints/background.ts: 役割がなくなったバックグラウンドスクリプトを削除
+- entrypoints/suno.content.tsx: backgroundへの通知処理(SUNO_TOUCHED)およびメッセージ受信処理を削除し、純粋なContent Script化
+- tests/e2e/extension.spec.ts: options画面およびservice worker依存のテストを整理
+- README.md / README_ja.md / CLAUDE.md: オプション画面およびChromeショートカット設定に関する記述を削除
