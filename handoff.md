@@ -166,3 +166,38 @@ Each agent can read this file to understand the project context and continue wor
 - tests/e2e/extension.spec.ts: 実際の設定画面で現在値取得後にプリセット作成ボタンが有効化されることを検証
 - README.md, README_ja.md, CLAUDE.md: 現在値取得の条件・内部契約・tabs権限を更新
 - output/chrome-mv3: 修正版をビルド
+
+## [task] 2026-09-12 18:41:01
+
+**Agent:** Claude Sonnet 5 (Claude Code)
+**Prompt:** その他のオプションのプリセットプルダウンをその他のオプション見出し直下へ安全に配置し、設定UIをSuno画面内ダイアログへ移設。プリセット編集不能バグを修正
+
+**Changes:**
+- src/content/mount.ts: 新規。ホストを作り直さず移動・同期再挿入するcreateMounter()。暴走検知(2秒8回)でonThrash通知
+- src/suno/adapter.ts: optionHeaderRow()を新設しoptionsAnchor()の返り値をその他のオプション見出し行に変更。optionPanelAndHeading/optionControlsVisibleを3段階マッチャー化。readOtherOptions()がOtherOptionsCapture{snapshot,unreadable}を返し部分読み取りに対応
+- src/domain/models.ts: OtherOptionsCapture型を追加
+- src/suno/controller.ts: openSettings/closeSettings/captureOptions()を追加。ControllerStateにsettingsを追加
+- src/content/SettingsDialog.tsx: 新規。マスタリング・プリセット管理をSuno画面内のmodal dialogへ移設(OptionsAppから移植)
+- src/content/components.tsx: useStoredListsをexport。管理…導線をcontroller.openSettings()呼び出しに変更
+- entrypoints/suno.content.tsx: createMounterを使用。presetsをoptionsAnchor()直下(フォールバック時は曲名欄の上)へ。settingsダイアログを常時マウント。CAPTURE_OPTIONSハンドラを削除
+- src/options/OptionsApp.tsx / options.css: ショートカット設定のみに縮小。マスタリング/プリセット管理UIと未使用CSSを削除
+- entrypoints/background.ts: CAPTURE_LAST_SUNO/OPEN_OPTIONSハンドラを削除
+- wxt.config.ts: manifest.permissionsからtabsを削除(不要権限の削減)
+- tests/adapter.test.ts, tests/mount.test.ts(新規), tests/e2e/extension.spec.ts: 新設計に合わせて更新
+- README.md, README_ja.md, CLAUDE.md: 配置・管理導線・権限変更を英日一致で反映
+
+## [issue] 2026-09-12 18:41:15
+
+実装直後のcreateMounter().reattach()に「if (!host.isConnected) return;」という早期returnがあり、Sunoがホストを完全削除した最重要ケースで何も復元しない状態だった
+
+## [solution] 2026-09-12 18:41:15
+
+host.isConnected && placedCorrectly(...)の否定を要修復条件とする形に修正。mount.tsのreattach()参照
+
+## [issue] 2026-09-12 18:41:15
+
+observeForm()に追加した自己ミューテーションフィルタ(SUNO-CREATE-ASSISTANT要素の出入りを無視)が、E2Eの「host.remove()後に復元される」テストで検出できず失敗。フィルタは自分の移動とSunoによる削除を区別できないため、後者も一緒に無視してしまっていた
+
+## [solution] 2026-09-12 18:41:15
+
+自己ミューテーションフィルタを撤去し、observeForm()は常にlistenerを呼ぶ設計に変更。reattach()/mount()が冪等(既に正しい配置なら何もしない)なため無限ループにはならないことをE2Eで確認済み。CLAUDE.mdに再導入しないよう明記

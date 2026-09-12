@@ -14,7 +14,7 @@ const sunoFixture = `<!doctype html><html lang="ja"><body>
     <button id="inspiration">＋ インスピレーション</button>
     <section><div data-testid="create-form-styles-wrapper"><textarea></textarea></div><button id="saved-styles" aria-label="保存したスタイルプロンプトを見る">保存したスタイル</button></section>
     <dialog role="dialog" aria-label="保存したスタイル"><div><button aria-label="ARIA">ARIA</button><span>gentle acoustic ensemble</span></div></dialog>
-    <section id="options"><button>その他のオプション</button><input aria-label="スタイルを除外" />
+    <section id="options"><div id="options-header"><button>その他のオプション</button><button aria-label="すべてリセット">すべてリセット</button></div><div id="options-body"><input aria-label="スタイルを除外" />
       <div>ボーカル性別<button>男性</button><button>女性</button></div>
       <div>長さ<button>カスタム</button><button class="hxc-btn-variant-standard">Auto</button></div>
       <div>Maxモード<button class="hxc-btn-variant-standard">オフ</button><button>オン</button></div>
@@ -22,7 +22,7 @@ const sunoFixture = `<!doctype html><html lang="ja"><body>
       <div role="slider" aria-label="スタイルの影響" aria-valuenow="50" style="width:100px;height:20px"></div>
       <div role="slider" aria-label="バリエーション" aria-valuenow="0" style="width:100px;height:20px"></div>
       <div>パーソナライズ<button>マイ・テイスト</button><button class="hxc-btn-variant-standard">オフ</button><button disabled>オン</button></div>
-    </section>
+    </div></section>
     <section><div><input placeholder="曲名(任意)" /></div><div>保存先…<button>Demo Workspace</button></div></section>
     <button id="create">作成</button>
     <script>
@@ -35,7 +35,7 @@ const sunoFixture = `<!doctype html><html lang="ja"><body>
   </main>
 </body></html>`;
 
-test('mounts the three Suno controls and persists the automatic-title switch', async () => {
+test('mounts the Suno controls beside their anchors, survives host removal, and manages settings in-page', async () => {
   const profile = await mkdtemp(join(tmpdir(), 'suno-create-assistant-'));
   const server = createServer({
     key: await readFile(new URL('./fixture-key.pem', import.meta.url)),
@@ -74,23 +74,26 @@ test('mounts the three Suno controls and persists the automatic-title switch', a
     await cdp.send('Runtime.enable');
     await page.goto('https://suno.com/create');
     await page.waitForTimeout(250);
-    expect(await page.locator('suno-create-assistant').count(), extensionErrors.join('\n')).toBe(3);
-    await expect(page.locator('suno-create-assistant[data-suno-create-assistant="presets"]')).toBeVisible();
+    // styles, presets, title, and the always-mounted settings dialog host.
+    expect(await page.locator('suno-create-assistant').count(), extensionErrors.join('\n')).toBe(4);
+
+    // The presets control sits directly under the "その他のオプション" header
+    // row, ahead of the disclosure body - not beside the title field.
+    const presetsHost = page.locator('suno-create-assistant[data-suno-create-assistant="presets"]');
+    await expect(presetsHost).toBeVisible();
+    await expect(page.locator('#options-header + suno-create-assistant[data-suno-create-assistant="presets"]')).toHaveCount(1);
+
     await page.locator('input[placeholder="曲名(任意)"]').dispatchEvent('input');
     await page.waitForTimeout(120);
-    await expect(page.locator('suno-create-assistant[data-suno-create-assistant="presets"]')).toBeVisible();
-    const extensionId = new URL(worker.url()).host;
-    const directCapture = await worker.evaluate(async () => {
-      const [sunoTab] = await chrome.tabs.query({ url: ['https://suno.com/create*'] });
-      if (sunoTab?.id === undefined) throw new Error('Suno fixture tab was not found.');
-      return chrome.tabs.sendMessage(sunoTab.id, { type: 'CAPTURE_OPTIONS' });
-    });
-    expect(directCapture).toMatchObject({ ok: true });
-    const optionsPage = await context.newPage();
-    await optionsPage.goto(`chrome-extension://${extensionId}/options.html`);
-    await optionsPage.getByRole('button', { name: 'Sunoから現在値を取得' }).click();
-    await expect(optionsPage.getByText('Sunoの現在値を取得しました。')).toBeVisible();
-    await expect(optionsPage.getByRole('button', { name: '現在値からプリセットを作成' })).toBeEnabled();
+    await expect(presetsHost).toBeVisible();
+
+    // Suno can delete the extension's host outright during its own
+    // reconciliation; the mounter must put it back without recreating it,
+    // well inside a debounce cycle.
+    await page.evaluate(() => document.querySelector('suno-create-assistant[data-suno-create-assistant="presets"]')?.remove());
+    await expect(presetsHost).toBeVisible({ timeout: 300 });
+    await expect(page.locator('#options-header + suno-create-assistant[data-suno-create-assistant="presets"]')).toHaveCount(1);
+
     await expect(page.locator('#inspiration')).toHaveText('＋ ひらめき');
     await expect(page.getByRole('button', { name: /^プリセット:/ })).toBeVisible();
     await page.getByRole('button', { name: /^スタイル:/ }).click();
@@ -100,6 +103,35 @@ test('mounts the three Suno controls and persists the automatic-title switch', a
     await expect(page.locator('[data-testid="create-form-styles-wrapper"] textarea')).toHaveValue('gentle acoustic ensemble');
     await page.locator('suno-create-assistant').filter({ hasText: '自動設定' }).getByRole('checkbox').check();
     await expect(page.locator('input[placeholder="曲名(任意)"]')).toHaveValue('Demo Workspace (ARIA)');
+
+    // Settings management (masterings and presets) now lives in a modal
+    // dialog inside the Suno page itself, opened from the preset dropdown.
+    await page.getByRole('button', { name: /^プリセット:/ }).click();
+    await page.getByRole('option', { name: 'プリセットを管理…' }).click();
+    const dialog = page.locator('suno-create-assistant[data-suno-create-assistant="settings"]');
+    await expect(dialog.getByRole('heading', { name: 'Suno Create Assistant の設定' })).toBeVisible();
+
+    await dialog.getByRole('button', { name: 'Sunoの現在の設定を取り込む' }).click();
+    await expect(dialog.getByText('現在の設定を取り込みました。')).toBeVisible();
+    await dialog.getByRole('button', { name: '現在値からプリセットを作成' }).click();
+    await dialog.getByRole('textbox', { name: '名前' }).fill('標準');
+    await dialog.getByRole('button', { name: '保存', exact: true }).click();
+    await expect(dialog.getByText('標準')).toBeVisible();
+    await dialog.getByRole('button', { name: '閉じる' }).click();
+    await expect(dialog.getByRole('heading', { name: 'Suno Create Assistant の設定' })).toBeHidden();
+
+    await page.getByRole('button', { name: /^プリセット:/ }).click();
+    await expect(page.getByRole('option', { name: '標準' })).toBeVisible();
+    await page.getByRole('option', { name: '標準' }).click();
+    await expect(page.getByRole('button', { name: 'プリセット: 標準' })).toBeVisible();
+
+    // The extension options page now hosts only the shortcut setting.
+    const extensionId = new URL(worker.url()).host;
+    const optionsPage = await context.newPage();
+    await optionsPage.goto(`chrome-extension://${extensionId}/options.html`);
+    await expect(optionsPage.getByRole('heading', { name: 'キーボードショートカット' })).toBeVisible();
+    await expect(optionsPage.getByRole('button', { name: 'Sunoから現在値を取得' })).toHaveCount(0);
+
     await page.bringToFront();
     const shortcutResult = await worker.evaluate(async () => {
       const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });

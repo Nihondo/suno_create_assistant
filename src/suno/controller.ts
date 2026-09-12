@@ -1,7 +1,9 @@
 import { autoTitle, composePrompt, nextBaseAfterManualEdit } from '../domain/logic';
-import type { ApplyResult, MasteringPrompt, OtherOptionsPreset, SavedStyle } from '../domain/models';
+import type { ApplyResult, MasteringPrompt, OtherOptionsCapture, OtherOptionsPreset, SavedStyle } from '../domain/models';
 import { readStorage, setAutoTitleEnabled, subscribeStorage } from '../storage/repository';
 import { describeSkipped, SunoAdapter } from './adapter';
+
+export type SettingsSection = 'masterings' | 'presets';
 
 export interface ControllerState {
   styles: SavedStyle[];
@@ -12,6 +14,7 @@ export interface ControllerState {
   mastering?: MasteringPrompt;
   preset?: OtherOptionsPreset;
   autoTitleEnabled: boolean;
+  settings?: { section: SettingsSection };
   notice?: string;
   error?: string;
 }
@@ -120,6 +123,40 @@ export class SunoController {
     this.state.notice = result.skipped.length ? `適用できなかった項目: ${describeSkipped(result.skipped)}` : 'プリセットを適用しました。';
     this.emit();
     return result;
+  }
+
+  openSettings(section: SettingsSection): void {
+    this.state.settings = { section };
+    this.state.error = undefined;
+    this.state.notice = undefined;
+    this.emit();
+  }
+
+  closeSettings(): void {
+    this.state.settings = undefined;
+    this.emit();
+  }
+
+  async captureOptions(): Promise<OtherOptionsCapture | undefined> {
+    this.state.error = undefined;
+    this.state.notice = undefined;
+    try {
+      const result = await this.adapter.readOtherOptions();
+      if (!result) {
+        this.state.error = '「その他のオプション」が見つかりませんでした。アドバンストタブが選択されているか確認してください。';
+        this.emit();
+        return undefined;
+      }
+      this.state.notice = result.unreadable.length
+        ? `一部の項目を取り込めませんでした: ${describeSkipped(result.unreadable)}`
+        : '現在の設定を取り込みました。';
+      this.emit();
+      return result;
+    } catch (error) {
+      this.state.error = error instanceof Error ? error.message : '現在の設定を取り込めませんでした。';
+      this.emit();
+      return undefined;
+    }
   }
 
   async setAutoTitle(enabled: boolean): Promise<void> {

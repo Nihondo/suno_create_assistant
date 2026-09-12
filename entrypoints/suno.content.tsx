@@ -1,7 +1,7 @@
-import { createRoot, type Root } from 'react-dom/client';
-import type { ReactNode } from 'react';
 import styleCss from '../src/content/suno-ui.css?inline';
 import { AutoTitleControl, PresetControls, StyleControls } from '../src/content/components';
+import { SettingsDialog } from '../src/content/SettingsDialog';
+import { createMounter } from '../src/content/mount';
 import { SunoController } from '../src/suno/controller';
 
 export default defineContentScript({
@@ -9,51 +9,42 @@ export default defineContentScript({
   runAt: 'document_idle',
   main() {
     const controller = new SunoController();
-    const roots = new Map<string, { host: HTMLElement; root: Root }>();
     let scheduled = false;
-
-    const mount = (key: string, anchor: HTMLElement | undefined, render: () => ReactNode) => {
-      const current = roots.get(key);
-      if (!anchor) {
-        current?.root.unmount();
-        current?.host.remove();
-        roots.delete(key);
-        return;
-      }
-      if (current && current.host.previousElementSibling === anchor) return;
-      current?.root.unmount();
-      current?.host.remove();
-      const host = document.createElement('suno-create-assistant');
-      host.dataset.sunoCreateAssistant = key;
-      const shadow = host.attachShadow({ mode: 'open' });
-      const style = document.createElement('style');
-      style.textContent = styleCss;
-      const container = document.createElement('div');
-      shadow.append(style, container);
-      anchor.insertAdjacentElement('afterend', host);
-      const root = createRoot(container);
-      root.render(render());
-      roots.set(key, { host, root });
-    };
+    // When Suno's own reconciliation deletes the presets host too often
+    // (more than the mounter's thrash threshold within its window), stop
+    // fighting for the option-header anchor and fall back to a spot that
+    // has proven stable: just above the title field.
+    let presetFallback = false;
+    const mounter = createMounter(styleCss, (key) => {
+      if (key === 'presets') presetFallback = true;
+      schedule();
+    });
 
     const refreshMounts = () => {
       scheduled = false;
       controller.adapter.shortenInspirationLabel();
+      // The settings dialog is host-page-tab independent; keep it mounted
+      // regardless of which tab is selected so it never disappears while
+      // the user is interacting with it.
+      mounter.mount('settings', { anchor: document.body, position: 'beforeend' }, () => <SettingsDialog controller={controller} />);
+
       const advanced = [...document.querySelectorAll('[role="tab"]')].some((tab) => {
         const label = tab.textContent ?? '';
         return /アドバンスト|アドバンスド|advanced/i.test(label) && tab.getAttribute('aria-selected') !== 'false';
       });
       if (!advanced) return;
-      mount('styles', controller.adapter.styleAnchor(), () => <StyleControls controller={controller} />);
-      // Suno replaces the complete other-options disclosure during its own
-      // reconciliation. The title input is a verified stable anchor (it also
-      // hosts the automatic-title control), so keep presets beside it rather
-      // than letting the disclosure erase the management menu.
+      mounter.mount('styles', { anchor: controller.adapter.styleAnchor(), position: 'afterend' }, () => <StyleControls controller={controller} />);
       const titleAnchor = controller.adapter.titleAnchor();
-      mount('presets', titleAnchor, () => <PresetControls controller={controller} />);
-      // Use the mounted preset host as the second anchor. That makes both
-      // sibling positions stable through every MutationObserver reconciliation.
-      mount('title', roots.get('presets')?.host ?? titleAnchor, () => <AutoTitleControl controller={controller} />);
+      // Preferred anchor: the "その他のオプション" header row, which Suno
+      // never replaces (see adapter.optionsAnchor). If reattach() reports
+      // the host is being torn down faster than it can be restored there,
+      // fall back to the verified-stable title anchor instead.
+      if (presetFallback) {
+        mounter.mount('presets', { anchor: titleAnchor, position: 'beforebegin' }, () => <PresetControls controller={controller} />);
+      } else {
+        mounter.mount('presets', { anchor: controller.adapter.optionsAnchor() ?? titleAnchor, position: 'afterend' }, () => <PresetControls controller={controller} />);
+      }
+      mounter.mount('title', { anchor: titleAnchor, position: 'afterend' }, () => <AutoTitleControl controller={controller} />);
       controller.reconcile();
     };
     const schedule = () => {
@@ -63,14 +54,14 @@ export default defineContentScript({
     };
 
     void controller.initialize().then(schedule);
-    const unobserve = controller.adapter.observeForm(schedule);
+    const unobserve = controller.adapter.observeForm(() => {
+      // Synchronous reattachment happens inside the MutationObserver
+      // callback itself so a torn-down host is back in place before the
+      // next paint, instead of flickering for a debounce cycle.
+      mounter.reattach();
+      schedule();
+    });
     chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-      if (message?.type === 'CAPTURE_OPTIONS') {
-        void controller.adapter.readOtherOptions()
-          .then((snapshot) => sendResponse(snapshot ? { ok: true, snapshot } : { ok: false, error: 'Sunoのその他オプションを見つけられませんでした。' }))
-          .catch(() => sendResponse({ ok: false, error: 'Sunoのその他オプションを読み取れませんでした。' }));
-        return true;
-      }
       if (message?.type === 'TRIGGER_SUNO_CREATE') {
         const ok = controller.adapter.triggerCreate();
         sendResponse(ok ? { ok: true } : { ok: false, error: '有効な「作成」ボタンが見つかりませんでした。' });
@@ -86,7 +77,7 @@ export default defineContentScript({
       controller.dispose();
       document.removeEventListener('pointerdown', touched, true);
       window.removeEventListener('focus', touched);
-      roots.forEach(({ root, host }) => { root.unmount(); host.remove(); });
+      mounter.dispose();
     };
   },
 });

@@ -48,6 +48,11 @@ export interface ApplyResult {
   skipped: OtherOptionsKey[];
 }
 
+export interface OtherOptionsCapture {
+  snapshot: OtherOptionsSnapshot;
+  unreadable: OtherOptionsKey[];
+}
+
 export const optionLabels: Record<OtherOptionsKey, string> = {
   excludedStyles: 'スタイルを除外',
   vocalGender: 'ボーカル性別',

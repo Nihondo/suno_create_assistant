@@ -13,7 +13,7 @@ A local Chrome extension for the Advanced tab of [Suno Create](https://suno.com/
 
 ### Styles and mastering
 
-Under Suno's Style field, choose a saved Suno style and an optional mastering prompt. The extension writes them to the Style field on separate lines. Use **Manage…** to add, edit, or delete mastering prompts in the extension options page.
+Under Suno's Style field, choose a saved Suno style and an optional mastering prompt. The extension writes them to the Style field on separate lines. Use **Manage…** to add, edit, or delete mastering prompts in an in-page dialog.
 
 The extension reads the saved styles from Suno's existing dialog without storing those prompts. When Suno's saved-style list is opened or changed, the next extension dropdown opening refreshes its in-memory list.
 
@@ -21,9 +21,9 @@ If the combined style and mastering prompt exceeds Suno's 1,000-character limit,
 
 ### Advanced-option presets
 
-The Preset dropdown is shown below **Auto title** in the title card, immediately after the Other options section. Presets can save all or only selected settings: excluded styles, vocal gender, length, Max mode, weirdness, style influence, variation, and personalization.
+The Preset dropdown is shown directly under the **Other options** heading, ahead of its collapsible body, so it stays visible whether the disclosure is open or closed. Presets can save all or only selected settings: excluded styles, vocal gender, length, Max mode, weirdness, style influence, variation, and personalization.
 
-Open **Manage presets…** and use **Get current values from Suno** while a Suno Create tab is open on the Advanced tab. The extension can read the settings even when Other options is collapsed. Choose the settings to store and save the preset. Applying a preset changes only its saved settings.
+Open **Manage presets…** to open an in-page dialog (no separate tab or extension options page needed), then use **Get current values from Suno** while the Advanced tab is selected. The extension can read the settings even when Other options is collapsed; if a control cannot be located, only that setting is left out and reported instead of failing the whole capture. Choose the settings to store and save the preset. Applying a preset changes only its saved settings.
 
 ### Automatic titles
 
@@ -37,7 +37,7 @@ The setting is remembered locally. While enabled, the title field follows destin
 
 ### Create shortcut and inspiration label
 
-The extension shortens Suno's **インスピレーション** button label to **ひらめき** to prevent the action row from wrapping. In the extension options page, select **Set shortcut** to open Chrome's shortcut settings, then assign a key to **Run Suno Create**. No default shortcut is reserved. The shortcut activates the visible enabled Create button in the active Suno Create tab, or the most recently used Suno Create tab.
+The extension shortens Suno's **インスピレーション** button label to **ひらめき** to prevent the action row from wrapping. In the extension options page (the only thing left there besides this note), select **Set shortcut** to open Chrome's shortcut settings, then assign a key to **Run Suno Create**. No default shortcut is reserved. The shortcut activates the visible enabled Create button in the active Suno Create tab, or the most recently used Suno Create tab.
 
 ## Privacy
 

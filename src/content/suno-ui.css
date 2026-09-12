@@ -105,3 +105,100 @@
 @media (max-width: 420px) {
   .suno-assistant__select { min-width: 0; flex: 1 1 135px; }
 }
+
+.suno-assistant__dialog {
+  color: var(--color-foreground-primary, #f5f5f6);
+  background: var(--color-background-secondary, #202025);
+  border: 1px solid var(--color-border-primary, #4a4a50);
+  border-radius: 14px;
+  padding: 0;
+  width: min(560px, calc(100vw - 32px));
+  max-height: calc(100dvh - 48px);
+  font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.suno-assistant__dialog::backdrop {
+  background: rgb(0 0 0 / 55%);
+}
+
+.suno-assistant__dialog-body {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 18px 20px 22px;
+  overflow: auto;
+  max-height: calc(100dvh - 48px);
+}
+
+.suno-assistant__dialog-header {
+  position: sticky;
+  top: -18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: -18px -20px 0;
+  padding: 14px 20px;
+  background: var(--color-background-secondary, #202025);
+  border-bottom: 1px solid color-mix(in srgb, var(--color-border-primary, #4a4a50) 80%, transparent);
+}
+
+.suno-assistant__dialog-header h2 { margin: 0; font-size: 15px; }
+.suno-assistant__dialog-body h3 { margin: 0 0 4px; font-size: 14px; }
+.suno-assistant__hint { margin: 0 0 10px; color: var(--color-foreground-secondary, #b7b7bd); font-size: 12px; }
+
+.suno-assistant__dialog-body label {
+  display: block;
+  margin: 10px 0;
+  font-size: 12px;
+  color: var(--color-foreground-secondary, #b7b7bd);
+}
+
+.suno-assistant__dialog-body input[type="text"],
+.suno-assistant__dialog-body textarea {
+  display: block;
+  width: 100%;
+  margin-top: 4px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--color-border-primary, #4a4a50);
+  background: var(--color-background-tertiary, #27272c);
+  color: var(--color-foreground-primary, #f5f5f6);
+  font: inherit;
+}
+
+.suno-assistant__dialog-body textarea { min-height: 80px; resize: vertical; }
+
+.suno-assistant__list { list-style: none; margin: 8px 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.suno-assistant__list li {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 9px;
+  background: var(--color-background-tertiary, #27272c);
+}
+.suno-assistant__list li p { margin: 2px 0 0; color: var(--color-foreground-secondary, #b7b7bd); font-size: 12px; }
+.suno-assistant__list-actions { display: flex; gap: 6px; flex-shrink: 0; }
+
+.suno-assistant__checks { display: flex; flex-wrap: wrap; gap: 8px 14px; margin: 10px 0; }
+.suno-assistant__checks label { display: inline-flex; align-items: center; gap: 5px; margin: 0; }
+
+.suno-assistant__snapshot dl { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; margin: 10px 0; font-size: 12px; }
+.suno-assistant__snapshot dt { color: var(--color-foreground-secondary, #b7b7bd); }
+.suno-assistant__snapshot dd { margin: 0; }
+
+.suno-assistant__dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
+.suno-assistant__dialog-body button:not(.suno-assistant__button) {
+  appearance: none;
+  border: 0;
+  border-radius: 999px;
+  padding: 6px 12px;
+  color: inherit;
+  background: var(--color-background-quaternary, #34343a);
+  font: inherit;
+  cursor: pointer;
+}

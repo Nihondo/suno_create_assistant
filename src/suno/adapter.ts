@@ -1,4 +1,4 @@
-import type { ApplyResult, OtherOptionsKey, OtherOptionsSnapshot, SavedStyle, VocalGender } from '../domain/models';
+import type { ApplyResult, OtherOptionsCapture, OtherOptionsKey, OtherOptionsSnapshot, SavedStyle, VocalGender } from '../domain/models';
 import { emptyOtherOptions, optionLabels } from '../domain/models';
 import { savedStyleId } from '../domain/logic';
 
@@ -31,13 +31,22 @@ function optionHeading(): HTMLButtonElement | undefined {
     .at(0);
 }
 
+// Ordered from most to least specific so a single relabeled control does not
+// fail the whole lookup: prefer the ancestor that has both known sliders,
+// fall back to any slider, then to any known settings row.
+const PANEL_MATCHERS: Array<(node: HTMLElement) => boolean> = [
+  (node) => !!node.querySelector('[role="slider"][aria-label="奇抜さ"]') && !!node.querySelector('[role="slider"][aria-label="スタイルの影響"]'),
+  (node) => !!node.querySelector('[role="slider"]'),
+  (node) => !!rowFor(node, 'ボーカル性別') || !!rowFor(node, '長さ') || !!rowFor(node, 'Maxモード'),
+];
+
 function optionPanelAndHeading(): { panel: HTMLElement; heading: HTMLButtonElement } | undefined {
   const heading = optionHeading();
   if (!heading) return undefined;
-  let node: HTMLElement | null = heading.parentElement;
-  for (let depth = 0; node && depth < 20; depth += 1, node = node.parentElement) {
-    if (node.querySelector('[role="slider"][aria-label="奇抜さ"]') && node.querySelector('[role="slider"][aria-label="スタイルの影響"]')) {
-      return { panel: node, heading };
+  for (const matches of PANEL_MATCHERS) {
+    let node: HTMLElement | null = heading.parentElement;
+    for (let depth = 0; node && depth < 20; depth += 1, node = node.parentElement) {
+      if (matches(node)) return { panel: node, heading };
     }
   }
 }
@@ -47,7 +56,16 @@ function optionPanel(): HTMLElement | undefined {
 }
 
 function optionControlsVisible(panel: HTMLElement | undefined): boolean {
-  return !!panel && !!slider(panel, '奇抜さ') && !!slider(panel, 'スタイルの影響');
+  // Mirrors PANEL_MATCHERS' specificity levels, but requires the matched
+  // controls to be visible (not merely present in a closed disclosure) so
+  // callers can tell whether the accordion is actually open.
+  if (!panel) return false;
+  if (slider(panel, '奇抜さ') && slider(panel, 'スタイルの影響')) return true;
+  if (visible(panel.querySelectorAll<HTMLElement>('[role="slider"]'))) return true;
+  return ['ボーカル性別', '長さ', 'Maxモード'].some((label) => {
+    const row = rowFor(panel, label);
+    return !!row && !!visible(row.querySelectorAll<HTMLButtonElement>('button'));
+  });
 }
 
 function excludedStylesInput(panel: HTMLElement): HTMLInputElement | undefined {
@@ -121,6 +139,34 @@ function optionHeaderResetButton(): HTMLButtonElement | undefined {
       (button.getAttribute('aria-label') ?? text(button)).trim() === 'すべてリセット'));
     if (reset) return reset;
   }
+}
+
+function containsOptionBody(node: HTMLElement): boolean {
+  return !!node.querySelector('[role="slider"]');
+}
+
+function leavesOptionCard(node: HTMLElement): boolean {
+  return !!node.querySelector(`input[placeholder="${TITLE_PLACEHOLDER}"], ${STYLE_WRAPPER}`);
+}
+
+function optionHeaderRow(): HTMLElement | undefined {
+  // Suno replaces the accordion body (and can replace its outer sibling)
+  // during reconciliation, so the insertion point must be the persistent
+  // header row itself: heading plus, when present, its "すべてリセット"
+  // action. Walk from the heading up to the widest ancestor that still
+  // contains only the header row - stop one step before the body appears
+  // (a slider row) or before we exit the option card entirely.
+  const heading = optionHeading();
+  if (!heading) return undefined;
+  const resetButton = optionHeaderResetButton();
+  let candidate: HTMLElement = heading;
+  let node: HTMLElement | null = heading.parentElement;
+  for (let depth = 0; node && depth < 10; depth += 1, node = node.parentElement) {
+    if (containsOptionBody(node) || leavesOptionCard(node)) break;
+    candidate = node;
+    if (resetButton && node.contains(resetButton)) break;
+  }
+  return candidate;
 }
 
 export class SunoAdapter {
@@ -199,12 +245,13 @@ export class SunoAdapter {
 
   optionsAnchor(): HTMLElement | undefined {
     // The accordion body and even its outer sibling can be replaced by Suno.
-    // Its reset action lives in the persistent header, so insert immediately
-    // after it; this works while the disclosure is closed as well.
-    return optionHeaderResetButton() ?? optionHeading();
+    // The header row (heading plus its reset action) is persistent, so
+    // insert immediately after it; this works while the disclosure is
+    // closed as well.
+    return optionHeaderRow();
   }
 
-  async readOtherOptions(): Promise<OtherOptionsSnapshot | undefined> {
+  async readOtherOptions(): Promise<OtherOptionsCapture | undefined> {
     let panel = optionPanel();
     const heading = optionHeading();
     const shouldOpen = !optionControlsVisible(panel);
@@ -218,22 +265,48 @@ export class SunoAdapter {
     if (!panel || !optionControlsVisible(panel)) return undefined;
 
     const snapshot = emptyOtherOptions();
-    snapshot.excludedStyles = excludedStylesInput(panel)?.value ?? '';
+    const unreadable: OtherOptionsKey[] = [];
+    const readField = (key: OtherOptionsKey, found: boolean, apply: () => void) => {
+      if (found) apply();
+      else unreadable.push(key);
+    };
 
-    if (selected(rowButton(panel, 'ボーカル性別', '男性'))) snapshot.vocalGender = 'male';
-    if (selected(rowButton(panel, 'ボーカル性別', '女性'))) snapshot.vocalGender = 'female';
-    snapshot.duration.mode = selected(rowButton(panel, '長さ', 'カスタム')) ? 'custom' : 'auto';
+    const excludedInput = excludedStylesInput(panel);
+    readField('excludedStyles', !!excludedInput, () => { snapshot.excludedStyles = excludedInput!.value; });
+
+    const vocalRow = rowFor(panel, 'ボーカル性別');
+    readField('vocalGender', !!vocalRow, () => {
+      if (selected(rowButton(panel, 'ボーカル性別', '男性'))) snapshot.vocalGender = 'male';
+      if (selected(rowButton(panel, 'ボーカル性別', '女性'))) snapshot.vocalGender = 'female';
+    });
+
     const durationRow = rowFor(panel, '長さ');
-    const seconds = durationRow?.querySelector<HTMLInputElement>('input[type="number"]')?.value;
-    if (seconds && Number.isFinite(Number(seconds))) snapshot.duration.seconds = Number(seconds);
-    snapshot.maxMode = selected(rowButton(panel, 'Maxモード', 'オン'));
-    snapshot.weirdness = Number(slider(panel, '奇抜さ')?.getAttribute('aria-valuenow') ?? snapshot.weirdness);
-    snapshot.styleInfluence = Number(slider(panel, 'スタイルの影響')?.getAttribute('aria-valuenow') ?? snapshot.styleInfluence);
-    snapshot.variation = Number(slider(panel, 'バリエーション')?.getAttribute('aria-valuenow') ?? snapshot.variation);
-    snapshot.personalization.enabled = selected(rowButton(panel, 'パーソナライズ', 'オン'));
-    snapshot.personalization.tasteName = text(rowButton(panel, 'パーソナライズ', 'マイ・テイスト')) || undefined;
+    readField('duration', !!durationRow, () => {
+      snapshot.duration.mode = selected(rowButton(panel, '長さ', 'カスタム')) ? 'custom' : 'auto';
+      const seconds = durationRow!.querySelector<HTMLInputElement>('input[type="number"]')?.value;
+      if (seconds && Number.isFinite(Number(seconds))) snapshot.duration.seconds = Number(seconds);
+    });
+
+    const maxModeRow = rowFor(panel, 'Maxモード');
+    readField('maxMode', !!maxModeRow, () => { snapshot.maxMode = selected(rowButton(panel, 'Maxモード', 'オン')); });
+
+    const weirdnessSlider = slider(panel, '奇抜さ');
+    readField('weirdness', !!weirdnessSlider, () => { snapshot.weirdness = Number(weirdnessSlider!.getAttribute('aria-valuenow') ?? snapshot.weirdness); });
+
+    const styleInfluenceSlider = slider(panel, 'スタイルの影響');
+    readField('styleInfluence', !!styleInfluenceSlider, () => { snapshot.styleInfluence = Number(styleInfluenceSlider!.getAttribute('aria-valuenow') ?? snapshot.styleInfluence); });
+
+    const variationSlider = slider(panel, 'バリエーション');
+    readField('variation', !!variationSlider, () => { snapshot.variation = Number(variationSlider!.getAttribute('aria-valuenow') ?? snapshot.variation); });
+
+    const personalizationRow = rowFor(panel, 'パーソナライズ');
+    readField('personalization', !!personalizationRow, () => {
+      snapshot.personalization.enabled = selected(rowButton(panel, 'パーソナライズ', 'オン'));
+      snapshot.personalization.tasteName = text(rowButton(panel, 'パーソナライズ', 'マイ・テイスト')) || undefined;
+    });
+
     if (shouldOpen) heading?.click();
-    return snapshot;
+    return { snapshot, unreadable };
   }
 
   applyOtherOptions(partial: Partial<OtherOptionsSnapshot>): ApplyResult {
@@ -322,6 +395,14 @@ export class SunoAdapter {
   }
 
   observeForm(listener: () => void): () => void {
+    // This also fires for the extension's own hosts being moved or
+    // removed-and-reinserted (see mount.ts): a mutation record cannot tell
+    // "we just moved it" apart from "Suno deleted it", and the latter is
+    // exactly what callers need to react to. That is safe to leave
+    // unfiltered because reattach()/mount() are idempotent - once a host is
+    // back in its correct place, re-running them touches nothing, so the
+    // resulting self-triggered pass terminates after one cycle instead of
+    // looping.
     const observer = new MutationObserver(listener);
     observer.observe(document.body, {
       childList: true,
