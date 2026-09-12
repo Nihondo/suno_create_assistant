@@ -114,7 +114,7 @@ export function StyleControls({ controller }: { controller: SunoController }) {
     <Dropdown label="スタイル" valueLabel={state.stylesLoading ? '読み込み中…' : styleLabel} items={styles} disabled={state.stylesLoading} onOpen={() => controller.refreshStyles()} onSelect={(style) => void controller.selectStyle(style)} />
     <Dropdown label="マスタリング" valueLabel={state.mastering?.name ?? '未選択'} items={masteringItems} onSelect={(mastering, manage) => manage ? controller.openSettings('masterings') : void controller.selectMastering(mastering)} />
     <button type="button" className="suno-assistant__button suno-assistant__button--clear" onClick={() => controller.clearStyleAndMastering()}>解除</button>
-    {(state.error || state.notice) && <output className={`suno-assistant__status ${state.error ? 'suno-assistant__status--error' : ''}`}>{state.error ?? state.notice}</output>}
+    {state.styleFeedback && <output className={`suno-assistant__status ${state.styleFeedback.kind === 'error' ? 'suno-assistant__status--error' : ''}`}>{state.styleFeedback.message}</output>}
   </div>;
 }
 
@@ -128,7 +128,7 @@ export function PresetControls({ controller }: { controller: SunoController }) {
   ];
   return <div className="suno-assistant" aria-label="Suno Create Assistant: その他のオプションプリセット">
     <Dropdown label="プリセット" valueLabel={state.preset?.name ?? '未選択'} items={items} onSelect={(preset, manage) => manage ? controller.openSettings('presets') : void controller.applyPreset(preset)} />
-    {(state.error || state.notice) && <output className={`suno-assistant__status ${state.error ? 'suno-assistant__status--error' : ''}`}>{state.error ?? state.notice}</output>}
+    {state.presetFeedback && <output className={`suno-assistant__status ${state.presetFeedback.kind === 'error' ? 'suno-assistant__status--error' : ''}`}>{state.presetFeedback.message}</output>}
   </div>;
 }
 

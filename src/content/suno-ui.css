@@ -58,16 +58,16 @@
 
 * { box-sizing: border-box; }
 
-/* Sized and colored to match Suno's own "スタイルを除外" row exactly (see the
+/* Sized and colored to match Suno's own "スタイルを除外" row (see the
    --sca-fg/--sca-bg-card comment above for the measurements): no border,
-   12px radius, 8px 16px padding. */
+   12px radius, and intentionally tighter 8px inline padding. */
 .suno-assistant {
   position: relative;
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
   align-items: center;
-  padding: 8px 16px;
+  padding: 8px;
   margin-top: 8px;
   border-radius: 12px;
   background: var(--sca-bg-card);
@@ -84,27 +84,12 @@
 }
 
 /* Both the styles row and the presets row sit directly inside one of
-   Suno's own cards as a sibling of Suno's rows, rather than as a child of
-   whatever gives those rows their own inset from the card edges - so they
-   need that same gutter applied themselves: 16px left/right, 8px
-   top/bottom, matching スタイルを除外's own measured row padding. This is
-   `padding` on the host, not `margin` - a `margin` here measured as 0px in
-   getComputedStyle() on the live site despite matching this exact
-   selector (display: block from the same rule did take effect), so
-   something about this particular host/selector combination was
-   collapsing or discarding it. Padding does not have that failure mode:
-   it insets .suno-assistant's own background from the host's outer edge
-   without depending on the host's own box having any particular width. */
-:host([data-suno-create-assistant="styles"]),
-:host([data-suno-create-assistant="presets"]) {
-  display: block;
-  padding: 8px 16px;
-}
-
+   Suno's own cards as siblings of Suno's rows. The visible card is
+   .suno-assistant, not its host. Match the "スタイルを除外" row's inline
+   inset while keeping a measured 12px separation on both axes. */
 :host([data-suno-create-assistant="styles"]) .suno-assistant,
 :host([data-suno-create-assistant="presets"]) .suno-assistant {
-  /* Avoid stacking this on top of the host's own padding above. */
-  margin-top: 0;
+  margin: 12px;
 }
 
 .suno-assistant__select,

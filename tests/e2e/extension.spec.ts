@@ -137,6 +137,8 @@ test('mounts the Suno controls beside their anchors, survives host removal, and 
     await expect(page.getByRole('option', { name: '標準' })).toBeVisible();
     await page.getByRole('option', { name: '標準' }).click();
     await expect(page.getByRole('button', { name: 'プリセット: 標準' })).toBeVisible();
+    await expect(presetsHost.getByText('プリセットを適用しました。')).toBeVisible();
+    await expect(page.locator('suno-create-assistant[data-suno-create-assistant="styles"]')).not.toContainText('プリセットを適用しました。');
 
     // The extension options page now hosts only the shortcut setting.
     const extensionId = new URL(worker.url()).host;

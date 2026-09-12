@@ -108,9 +108,9 @@ export function SettingsDialog({ controller }: { controller: SunoController }) {
         <h2>Suno Create Assistant の設定</h2>
         <button type="button" className="suno-assistant__button" onClick={close}>閉じる</button>
       </div>
-      {(state.error ?? localError ?? state.notice) && (
-        <p className={`suno-assistant__status ${state.error ?? localError ? 'suno-assistant__status--error' : ''}`} role={state.error ?? localError ? 'alert' : 'status'}>
-          {state.error ?? localError ?? state.notice}
+      {(state.settingsFeedback || localError) && (
+        <p className={`suno-assistant__status ${localError || state.settingsFeedback?.kind === 'error' ? 'suno-assistant__status--error' : ''}`} role={localError || state.settingsFeedback?.kind === 'error' ? 'alert' : 'status'}>
+          {localError ?? state.settingsFeedback?.message}
         </p>
       )}
 

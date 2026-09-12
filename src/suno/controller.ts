@@ -5,6 +5,11 @@ import { describeSkipped, SunoAdapter } from './adapter';
 
 export type SettingsSection = 'masterings' | 'presets';
 
+export interface Feedback {
+  message: string;
+  kind: 'error' | 'notice';
+}
+
 export interface ControllerState {
   styles: SavedStyle[];
   stylesLoading: boolean;
@@ -15,8 +20,9 @@ export interface ControllerState {
   preset?: OtherOptionsPreset;
   autoTitleEnabled: boolean;
   settings?: { section: SettingsSection };
-  notice?: string;
-  error?: string;
+  styleFeedback?: Feedback;
+  presetFeedback?: Feedback;
+  settingsFeedback?: Feedback;
 }
 
 type Listener = (state: ControllerState) => void;
@@ -61,7 +67,7 @@ export class SunoController {
   async refreshStyles(): Promise<void> {
     if (!this.state.stylesDirty && this.state.styles.length) return;
     this.state.stylesLoading = true;
-    this.state.error = undefined;
+    this.state.styleFeedback = undefined;
     this.emit();
     try {
       // The adapter opens Suno's native saved-styles dialog to read it.  Its
@@ -70,9 +76,9 @@ export class SunoController {
       const styles = await this.adapter.extractSavedStyles();
       this.state.styles = styles;
       this.state.stylesDirty = false;
-      if (!styles.length) this.state.error = '保存したスタイルが見つかりませんでした。';
+      if (!styles.length) this.state.styleFeedback = { kind: 'error', message: '保存したスタイルが見つかりませんでした。' };
     } catch (error) {
-      this.state.error = error instanceof Error ? error.message : '一覧を更新できませんでした。';
+      this.state.styleFeedback = { kind: 'error', message: error instanceof Error ? error.message : '一覧を更新できませんでした。' };
     } finally {
       this.refreshingStyles = false;
       this.state.stylesLoading = false;
@@ -85,6 +91,7 @@ export class SunoController {
     if (next === undefined) return this.failOverflow();
     this.state.style = style;
     this.state.isCustomStyle = false;
+    this.state.styleFeedback = undefined;
     this.baseStyle = style?.prompt ?? '';
     this.writeStyle(next ?? '');
     this.updateAutoTitle();
@@ -96,6 +103,7 @@ export class SunoController {
     const next = composePrompt(base, mastering?.prompt);
     if (next === undefined) return this.failOverflow();
     this.state.mastering = mastering;
+    this.state.styleFeedback = undefined;
     this.baseStyle = base;
     this.writeStyle(next ?? '');
     this.updateAutoTitle();
@@ -106,6 +114,7 @@ export class SunoController {
     this.state.style = undefined;
     this.state.mastering = undefined;
     this.state.isCustomStyle = false;
+    this.state.styleFeedback = undefined;
     this.baseStyle = '';
     this.writeStyle('');
     this.updateAutoTitle();
@@ -115,6 +124,7 @@ export class SunoController {
   async applyPreset(preset?: OtherOptionsPreset): Promise<ApplyResult | undefined> {
     if (!preset) {
       this.state.preset = undefined;
+      this.state.presetFeedback = undefined;
       this.emit();
       return undefined;
     }
@@ -122,19 +132,26 @@ export class SunoController {
     // adapter.ts's applyOtherOptions), so it can take a moment - show
     // immediate feedback rather than leaving the UI looking unresponsive.
     this.state.preset = preset;
-    this.state.error = undefined;
-    this.state.notice = '適用しています…';
+    this.state.presetFeedback = { kind: 'notice', message: '適用しています…' };
     this.emit();
-    const result = await this.adapter.applyOtherOptions(preset.fields);
-    this.state.notice = result.skipped.length ? `適用できなかった項目: ${describeSkipped(result.skipped)}` : 'プリセットを適用しました。';
-    this.emit();
-    return result;
+    try {
+      const result = await this.adapter.applyOtherOptions(preset.fields);
+      this.state.presetFeedback = {
+        kind: 'notice',
+        message: result.skipped.length ? `適用できなかった項目: ${describeSkipped(result.skipped)}` : 'プリセットを適用しました。',
+      };
+      this.emit();
+      return result;
+    } catch (error) {
+      this.state.presetFeedback = { kind: 'error', message: error instanceof Error ? error.message : 'プリセットを適用できませんでした。' };
+      this.emit();
+      return undefined;
+    }
   }
 
   openSettings(section: SettingsSection): void {
     this.state.settings = { section };
-    this.state.error = undefined;
-    this.state.notice = undefined;
+    this.state.settingsFeedback = undefined;
     this.emit();
   }
 
@@ -144,22 +161,24 @@ export class SunoController {
   }
 
   async captureOptions(): Promise<OtherOptionsCapture | undefined> {
-    this.state.error = undefined;
-    this.state.notice = undefined;
+    this.state.settingsFeedback = undefined;
     try {
       const result = await this.adapter.readOtherOptions();
       if (!result) {
-        this.state.error = '「その他のオプション」が見つかりませんでした。アドバンストタブが選択されているか確認してください。';
+        this.state.settingsFeedback = { kind: 'error', message: '「その他のオプション」が見つかりませんでした。アドバンストタブが選択されているか確認してください。' };
         this.emit();
         return undefined;
       }
-      this.state.notice = result.unreadable.length
-        ? `一部の項目を取り込めませんでした: ${describeSkipped(result.unreadable)}`
-        : '現在の設定を取り込みました。';
+      this.state.settingsFeedback = {
+        kind: 'notice',
+        message: result.unreadable.length
+          ? `一部の項目を取り込めませんでした: ${describeSkipped(result.unreadable)}`
+          : '現在の設定を取り込みました。',
+      };
       this.emit();
       return result;
     } catch (error) {
-      this.state.error = error instanceof Error ? error.message : '現在の設定を取り込めませんでした。';
+      this.state.settingsFeedback = { kind: 'error', message: error instanceof Error ? error.message : '現在の設定を取り込めませんでした。' };
       this.emit();
       return undefined;
     }
@@ -202,7 +221,7 @@ export class SunoController {
 
   private failOverflow(): void {
     const total = [this.baseStyle || this.state.style?.prompt, this.state.mastering?.prompt].filter(Boolean).join('\n').length;
-    this.state.error = `合計${total}文字／上限1000。プロンプトは変更していません。`;
+    this.state.styleFeedback = { kind: 'error', message: `合計${total}文字／上限1000。プロンプトは変更していません。` };
     this.emit();
   }
 

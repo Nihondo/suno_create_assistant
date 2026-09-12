@@ -281,3 +281,63 @@ src/suno/adapter.ts: setSliderDirectly()を完全に撤去し、setSlider()を�
 ## [solution] 2026-09-12 20:40:42
 
 src/content/suno-ui.css: ホスト要素へのmarginをやめ、padding方式に変更(:host([data-suno-create-assistant=styles|presets]) { padding: 8px 16px })。paddingはmarginのように潰れたり無視されたりする心配がなく、.suno-assistantの背景をホストの外周から内側に寄せられる。合わせて内側の.suno-assistant側margin-topは0にして二重加算を防止。スタイル行・プリセット行の両方に同じ処理を適用。ビルド後のファイルにpadding:8px 16pxが含まれることを確認済み
+
+## [task] 2026-09-12 20:44:55
+
+**Agent:** Codex
+**Prompt:** 動的に追加したスタイルプルダウンとプリセットのセクションを親幅から離し、上下8px・左右16pxの余白を設定してほしい
+
+**Changes:**
+- src/content/suno-ui.css: styles/presetsホストの内側paddingを外側margin: 8px 16pxへ変更し、親カード端からセクション自体を離すよう修正
+
+## [task] 2026-09-12 20:52:38
+
+**Agent:** Codex
+**Prompt:** スタイル・プリセットの余白がホスト側ではなく.suno-assistantに入るように修正してほしい
+
+**Changes:**
+- src/content/suno-ui.css: styles/presetsの.suno-assistantへmargin: 8px 16pxを直接設定し、ホスト側のmarginと冗長なmargin-top指定を削除
+
+## [task] 2026-09-12 20:56:22
+
+**Agent:** Codex
+**Prompt:** スタイルを除外の行に合わせ、スタイル・プリセット行の左右余白を減らし上下余白を広げてほしい
+
+**Changes:**
+- src/content/suno-ui.css: styles/presetsの.suno-assistant余白をmargin: 16px 8pxへ調整し、左右をネイティブ行に揃えつつ上下の分離を広げた
+
+## [task] 2026-09-12 20:59:09
+
+**Agent:** Codex
+**Prompt:** スタイル・プリセット行の余白をさらに中間値へ調整してほしい
+
+**Changes:**
+- src/content/suno-ui.css: styles/presetsの.suno-assistant余白をmargin: 12px 16pxへ調整し、横方向を広げ直しながら縦方向の余白を16pxから12pxに縮小
+
+## [task] 2026-09-12 21:00:42
+
+**Agent:** Codex
+**Prompt:** スタイル・プリセット行の左右余白を中間値へ再調整してほしい
+
+**Changes:**
+- src/content/suno-ui.css: styles/presetsの.suno-assistant余白をmargin: 12pxに統一し、上下12pxを保ったまま左右を16pxから12pxに調整
+
+## [task] 2026-09-12 21:03:02
+
+**Agent:** Codex
+**Prompt:** .suno-assistantの内側左右パディングを8pxへ変更してほしい
+
+**Changes:**
+- src/content/suno-ui.css: .suno-assistantのpaddingを8pxに統一し、内側の左右パディングを16pxから8pxへ縮小。外側margin: 12pxは維持
+
+## [task] 2026-09-12 21:06:31
+
+**Agent:** Codex
+**Prompt:** プリセット変更通知がスタイルセクションにも表示される問題を修正し、同様の共有通知漏れを確認してほしい
+
+**Changes:**
+- src/suno/controller.ts: 通知をstyleFeedback/presetFeedback/settingsFeedbackへ発生元別に分離し、プリセット適用失敗もプリセット行だけに表示
+- src/content/components.tsx: スタイル・プリセット各行が対応するフィードバックだけを描画
+- src/content/SettingsDialog.tsx: 設定ダイアログが設定用フィードバックだけを描画
+- tests/controller.test.ts: 3系統の成功・失敗通知が他セクションへ漏れない回帰テストを追加
+- tests/e2e/extension.spec.ts: プリセット適用通知がプリセット行のみへ表示されるE2E回帰テストを追加
