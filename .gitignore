@@ -2,3 +2,5 @@
 .*/
 node_modules/
 docs/
+handoff.md
+test-results/

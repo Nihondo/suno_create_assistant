@@ -71,3 +71,8 @@ You can toggle this automatic collapse behavior using the **"Close lyrics, style
 ## Privacy
  
 All mastering prompts, presets, the Auto title preference, custom title formats, and take counter records are stored in Chrome local extension storage. The extension does not call Suno private APIs, send data to a server, or store Suno saved-style prompts permanently.
+
+## License
+
+[MIT](LICENSE)
+
