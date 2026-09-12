@@ -597,3 +597,31 @@ output/chrome-mv3/content-scripts/suno.js: src/content/suno-ui.css の通知配�
 - src/content/components.tsx & SettingsDialog.tsx: スタイル・プリセット・自動設定・設定ダイアログの全UI文言を多言語辞書連動へ改修
 - tests/locales.test.ts & tests/adapter.test.ts: 言語検知・集約関数テストおよび英語DOM環境でのホスト要素検出・読取・適用の回帰テストを追加
 - README.md, README_ja.md, CLAUDE.md: 英語ローカライズ仕様、多言語アーキテクチャ規約、新言語追加手順を英日同期で更新
+
+## [task] 2026-09-13 00:20:03
+
+**Agent:** Antigravity
+**Prompt:** 歌詞欄にタグを挿入する機能を追加。パレットから角丸矩形ボタン（[ ]省略表示、挿入時は[ ]付き）を選択してクリック挿入、設定画面でタグ編集可能
+
+**Changes:**
+- src/domain/models.ts: DEFAULT_LYRICS_TAGS と StorageSchemaV1.lyricsTags を追加
+- src/domain/logic.ts: displayTagName, normalizedInsertTag, parseLyricsTags, formatLyricsTags, calculateTagInsertion を追加
+- src/storage/repository.ts: getLyricsTags と saveLyricsTags を追加、defaults/readStorage に反映
+- src/locales/types.ts, ja.ts, en.ts: 歌詞タグパレットおよび設定用テキストの多言語定義を追加
+- src/suno/adapter.ts: lyricsAnchor, lyricsEditor, insertLyricsTag を実装（Lexical/textarea両対応、自動アコーディオン展開、キャレット位置維持）
+- src/suno/controller.ts: lyricsTags state、saveLyricsTags、insertLyricsTag メソッドを追加
+- src/content/components.tsx: LyricsTagPalette コンポーネントを追加（onMouseDown preventDefaultでフォーカス維持、設定ボタン付き）
+- src/content/SettingsDialog.tsx: 歌詞タグ編集セクション（textarea、保存、初期値リセット）を追加
+- src/content/suno-ui.css: 歌詞タグパレット、角丸矩形タグボタン、テキストエリアのスタイルを追加
+- entrypoints/suno.content.tsx: LyricsTagPalette のマウントを登録
+- tests/logic.test.ts, adapter.test.ts, controller.test.ts, locales.test.ts, e2e/extension.spec.ts: ユニットテストおよびE2Eテストを追加
+- README.md, README_ja.md, CLAUDE.md: ドキュメントに歌詞タグパレットの説明とストレージ仕様を追加
+
+## [task] 2026-09-13 00:28:08
+
+**Agent:** Antigravity
+**Prompt:** 歌詞欄へのタグ挿入時に改行が追加されない問題を修正
+
+**Changes:**
+- src/suno/adapter.ts: Lexicalエディタおよびcontenteditable向けにpasteイベント合成とinsertParagraph/Enterキーによる独立行挿入・改行処理を実装
+- tests/adapter.test.ts: contenteditableおよびLexicalエディタでのタグ挿入・改行ユニットテストを追加

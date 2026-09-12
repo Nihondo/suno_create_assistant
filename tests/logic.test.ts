@@ -1,10 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import {
   autoTitle,
+  calculateTagInsertion,
   composePrompt,
+  displayTagName,
   extractTakeKey,
+  formatLyricsTags,
   hasTakePlaceholder,
   nextBaseAfterManualEdit,
+  normalizedInsertTag,
+  parseLyricsTags,
   replaceTakePlaceholder,
   validateUniqueName,
 } from '../src/domain/logic';
@@ -80,3 +85,48 @@ describe('names', () => {
     expect(validateUniqueName('master', entries, 'one')).toBeUndefined();
   });
 });
+
+describe('lyrics tags logic', () => {
+  it('displays tag name without brackets', () => {
+    expect(displayTagName('[Verse 1]')).toBe('Verse 1');
+    expect(displayTagName('[Chorus]')).toBe('Chorus');
+    expect(displayTagName('Intro')).toBe('Intro');
+    expect(displayTagName('  [Outro]  ')).toBe('Outro');
+  });
+
+  it('normalizes tag for insertion with brackets', () => {
+    expect(normalizedInsertTag('[Verse 1]')).toBe('[Verse 1]');
+    expect(normalizedInsertTag('Verse 1')).toBe('[Verse 1]');
+    expect(normalizedInsertTag('  [Intro]  ')).toBe('[Intro]');
+    expect(normalizedInsertTag('Intro')).toBe('[Intro]');
+  });
+
+  it('parses and formats lyrics tags', () => {
+    const text = ' [Intro] \n\n [Verse 1] \n [Chorus]\n ';
+    const tags = parseLyricsTags(text);
+    expect(tags).toEqual(['[Intro]', '[Verse 1]', '[Chorus]']);
+    expect(formatLyricsTags(tags)).toBe('[Intro]\n[Verse 1]\n[Chorus]');
+  });
+
+  it('calculates tag insertion in empty text', () => {
+    const res = calculateTagInsertion('', 0, 0, 'Verse 1');
+    expect(res.insertion).toBe('[Verse 1]\n');
+    expect(res.newText).toBe('[Verse 1]\n');
+    expect(res.newCursor).toBe(10);
+  });
+
+  it('calculates tag insertion after existing line', () => {
+    const text = 'Hello world';
+    const res = calculateTagInsertion(text, 11, 11, '[Chorus]');
+    expect(res.newText).toBe('Hello world\n[Chorus]\n');
+    expect(res.newCursor).toBe('Hello world\n[Chorus]\n'.length);
+  });
+
+  it('calculates tag insertion between lines with existing newlines', () => {
+    const text = 'Line 1\nLine 2';
+    const res = calculateTagInsertion(text, 7, 7, 'Bridge');
+    expect(res.newText).toBe('Line 1\n[Bridge]\nLine 2');
+    expect(res.newCursor).toBe('Line 1\n[Bridge]\n'.length);
+  });
+});
+

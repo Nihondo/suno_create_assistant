@@ -199,3 +199,28 @@ describe('SunoController closeDisclosuresOnAdvanced', () => {
     expect(closeSpy).toHaveBeenCalled();
   });
 });
+
+describe('SunoController lyricsTags', () => {
+  it('initializes with default tags and saves new tags', async () => {
+    const controller = new SunoController();
+    const current = watch(controller);
+    await controller.initialize();
+
+    expect(current().lyricsTags.length).toBeGreaterThan(0);
+    expect(current().lyricsTags).toContain('[Verse 1]');
+
+    const newTags = ['[Intro]', '[Outro]'];
+    await controller.saveLyricsTags(newTags);
+    expect(current().lyricsTags).toEqual(newTags);
+  });
+
+  it('delegates insertLyricsTag to adapter', () => {
+    const controller = new SunoController();
+    const insertSpy = vi.spyOn(controller.adapter, 'insertLyricsTag').mockReturnValue(true);
+
+    const res = controller.insertLyricsTag('[Chorus]');
+    expect(res).toBe(true);
+    expect(insertSpy).toHaveBeenCalledWith('[Chorus]');
+  });
+});
+

@@ -1,6 +1,6 @@
 import type { ApplyResult, OtherOptionsCapture, OtherOptionsKey, OtherOptionsSnapshot, SavedStyle } from '../domain/models';
 import { emptyOtherOptions } from '../domain/models';
-import { savedStyleId } from '../domain/logic';
+import { calculateTagInsertion, normalizedInsertTag, savedStyleId } from '../domain/logic';
 import type { Placement } from '../content/mount';
 import {
   getAllDestinationKeywords,
@@ -424,6 +424,28 @@ function lyricsHeading(): HTMLElement | undefined {
     .at(0);
 }
 
+function containsLyricsBody(node: HTMLElement): boolean {
+  return !!node.querySelector('[data-lexical-editor="true"], .lyrics-editor-content, #lyrics-wrapper, textarea');
+}
+
+function leavesLyricsCard(node: HTMLElement): boolean {
+  const placeholders = getAllTitlePlaceholders();
+  const selector = placeholders.map((ph) => `input[placeholder="${ph}"]`).join(', ') + `, ${STYLE_WRAPPER}, #options, [role="slider"]`;
+  return !!node.querySelector(selector);
+}
+
+function lyricsHeaderRow(): HTMLElement | undefined {
+  const heading = lyricsHeading();
+  if (!heading) return undefined;
+  let candidate: HTMLElement = heading;
+  let node: HTMLElement | null = heading.parentElement;
+  for (let depth = 0; node && depth < 10; depth += 1, node = node.parentElement) {
+    if (containsLyricsBody(node) || leavesLyricsCard(node)) break;
+    candidate = node;
+  }
+  return candidate;
+}
+
 function isDisclosureExpanded(heading: HTMLElement, fallback?: () => boolean): boolean {
   const aria = heading.getAttribute('aria-expanded');
   if (aria !== null) return aria === 'true';
@@ -438,6 +460,8 @@ function isDisclosureExpanded(heading: HTMLElement, fallback?: () => boolean): b
 
 function isLyricsExpanded(heading: HTMLElement): boolean {
   return isDisclosureExpanded(heading, () => {
+    const editors = [...document.querySelectorAll<HTMLElement>('[data-lexical-editor="true"], .lyrics-editor-content')];
+    if (visible(editors) !== undefined) return true;
     const textareas = [...document.querySelectorAll<HTMLTextAreaElement>('textarea')].filter((el) => {
       return el.closest('#lyrics-wrapper') || el.getAttribute('placeholder')?.includes('歌詞') || /lyrics/i.test(el.getAttribute('placeholder') ?? '');
     });
@@ -456,9 +480,201 @@ function isOptionExpanded(heading: HTMLElement): boolean {
   return isDisclosureExpanded(heading, () => optionControlsVisible(optionPanel()));
 }
 
+function findDeepestLastChild(node: Node): Node {
+  let curr = node;
+  while (curr.lastChild) {
+    curr = curr.lastChild;
+  }
+  return curr;
+}
+
+function dispatchEnter(target: HTMLElement): boolean {
+  let success = false;
+  try {
+    success = document.execCommand('insertParagraph');
+  } catch {
+    success = false;
+  }
+  if (!success) {
+    const eventInit: KeyboardEventInit = {
+      key: 'Enter',
+      code: 'Enter',
+      keyCode: 13,
+      which: 13,
+      bubbles: true,
+      cancelable: true,
+    };
+    target.dispatchEvent(new KeyboardEvent('keydown', eventInit));
+    target.dispatchEvent(new InputEvent('beforeinput', {
+      inputType: 'insertParagraph',
+      bubbles: true,
+      cancelable: true,
+    }));
+    target.dispatchEvent(new KeyboardEvent('keyup', eventInit));
+  }
+  return success;
+}
+
 export class SunoAdapter {
   lyricsHeading(): HTMLElement | undefined {
     return lyricsHeading();
+  }
+
+  lyricsAnchor(): HTMLElement | undefined {
+    return lyricsHeaderRow();
+  }
+
+  lyricsEditor(includeHidden = false): HTMLElement | undefined {
+    const lexicalEditors = [...document.querySelectorAll<HTMLElement>('[data-lexical-editor="true"], .lyrics-editor-content')];
+    const lexicalMatch = includeHidden ? lexicalEditors[0] : visible(lexicalEditors);
+    if (lexicalMatch) return lexicalMatch;
+
+    const textareas = [...document.querySelectorAll<HTMLTextAreaElement>('textarea')].filter((el) => {
+      return el.closest('#lyrics-wrapper, #lyrics') || el.getAttribute('placeholder')?.includes('歌詞') || /lyrics/i.test(el.getAttribute('placeholder') ?? '');
+    });
+    if (textareas.length > 0) {
+      return includeHidden ? textareas[0] : (visible(textareas) ?? (includeHidden ? textareas[0] : undefined));
+    }
+
+    const contentEditables = [...document.querySelectorAll<HTMLElement>('[contenteditable="true"]')].filter((el) => {
+      const aria = el.getAttribute('aria-label') ?? '';
+      return /歌詞|lyrics/i.test(aria);
+    });
+    return includeHidden ? contentEditables[0] : visible(contentEditables);
+  }
+
+  insertLyricsTag(rawTag: string): boolean {
+    const heading = lyricsHeading();
+    if (heading && !isDisabled(heading) && !isLyricsExpanded(heading)) {
+      heading.click();
+    }
+
+    const editor = this.lyricsEditor();
+    if (!editor) return false;
+
+    if (editor instanceof HTMLTextAreaElement) {
+      const start = editor.selectionStart ?? editor.value.length;
+      const end = editor.selectionEnd ?? editor.value.length;
+      const { newText, newCursor } = calculateTagInsertion(editor.value, start, end, rawTag);
+      nativeSetValue(editor, newText);
+      editor.setSelectionRange(newCursor, newCursor);
+      editor.focus();
+      return true;
+    }
+
+    const selection = window.getSelection();
+    let isInside = false;
+    if (selection && selection.rangeCount > 0) {
+      const range = selection.getRangeAt(0);
+      isInside = editor.contains(range.commonAncestorContainer);
+    }
+
+    if (!isInside && selection) {
+      editor.focus();
+      const range = document.createRange();
+      const lastNode = findDeepestLastChild(editor);
+      if (lastNode.nodeType === Node.TEXT_NODE) {
+        const len = (lastNode.textContent ?? '').length;
+        range.setStart(lastNode, len);
+        range.setEnd(lastNode, len);
+      } else {
+        range.selectNodeContents(lastNode);
+        range.collapse(false);
+      }
+      selection.removeAllRanges();
+      selection.addRange(range);
+    } else {
+      editor.focus();
+    }
+
+    const tag = normalizedInsertTag(rawTag);
+    const text = (editor.innerText ?? editor.textContent ?? '').trim();
+    let atEmptyLine = text.length === 0;
+
+    if (!atEmptyLine && selection && selection.rangeCount > 0) {
+      const range = selection.getRangeAt(0);
+      const container = range.startContainer;
+      const block = (container instanceof HTMLElement ? container : container.parentElement)?.closest('p, div, li');
+      if (block) {
+        const blockText = (block.textContent ?? '').trim();
+        if (blockText.length === 0) {
+          atEmptyLine = true;
+        }
+      }
+    }
+
+    const prefix = atEmptyLine ? '' : '\n';
+    const insertion = `${prefix}${tag}\n`;
+
+    // 1. Preferred strategy for Lexical: dispatch synthetic paste event
+    // Lexical parses text/plain in paste events and converts newline characters into ParagraphNodes.
+    let pasteSuccess = false;
+    try {
+      let dt: { getData: (type: string) => string; setData?: (type: string, val: string) => void; types?: string[] } | null = null;
+      if (typeof DataTransfer !== 'undefined') {
+        const nativeDt = new DataTransfer();
+        nativeDt.setData('text/plain', insertion);
+        dt = nativeDt;
+      } else {
+        dt = {
+          getData: (type: string) => (type === 'text/plain' ? insertion : ''),
+          types: ['text/plain'],
+        };
+      }
+
+      const pasteEvent = typeof ClipboardEvent !== 'undefined'
+        ? new ClipboardEvent('paste', {
+            bubbles: true,
+            cancelable: true,
+            clipboardData: dt as unknown as DataTransfer,
+          })
+        : new Event('paste', {
+            bubbles: true,
+            cancelable: true,
+          });
+
+      if ((pasteEvent as unknown as { clipboardData?: unknown }).clipboardData !== dt) {
+        Object.defineProperty(pasteEvent, 'clipboardData', {
+          value: dt,
+          configurable: true,
+        });
+      }
+      editor.dispatchEvent(pasteEvent);
+      pasteSuccess = pasteEvent.defaultPrevented;
+    } catch {
+      pasteSuccess = false;
+    }
+
+    if (pasteSuccess) {
+      return true;
+    }
+
+    // 2. Fallback for contenteditable: insertParagraph + insertText + insertParagraph
+    try {
+      if (prefix.length > 0) {
+        dispatchEnter(editor);
+      }
+      const textInserted = document.execCommand('insertText', false, tag);
+      if (textInserted) {
+        dispatchEnter(editor);
+        return true;
+      }
+    } catch {
+      // ignore and fallback to DOM
+    }
+
+    // 3. Fallback: Direct DOM manipulation
+    const p = document.createElement('p');
+    p.className = 'lyrics-paragraph';
+    p.textContent = tag;
+    editor.appendChild(p);
+    const nextP = document.createElement('p');
+    nextP.className = 'lyrics-paragraph';
+    nextP.appendChild(document.createElement('br'));
+    editor.appendChild(nextP);
+    editor.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertParagraph' }));
+
+    return true;
   }
 
   styleHeading(): HTMLElement | undefined {

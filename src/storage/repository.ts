@@ -1,5 +1,5 @@
 import { DEFAULT_TITLE_FORMAT } from '../domain/logic';
-import type { MasteringPrompt, OtherOptionsPreset, StorageSchemaV1 } from '../domain/models';
+import { DEFAULT_LYRICS_TAGS, type MasteringPrompt, type OtherOptionsPreset, type StorageSchemaV1 } from '../domain/models';
 
 const STORAGE_KEY = 'sunoCreateAssistant';
 
@@ -11,6 +11,7 @@ const defaults = (): StorageSchemaV1 => ({
   titleFormat: DEFAULT_TITLE_FORMAT,
   takeNumbers: {},
   closeDisclosuresOnAdvanced: true,
+  lyricsTags: [...DEFAULT_LYRICS_TAGS],
 });
 
 function isSchema(value: unknown): value is StorageSchemaV1 {
@@ -29,6 +30,7 @@ export async function readStorage(): Promise<StorageSchemaV1> {
     titleFormat: value.titleFormat || DEFAULT_TITLE_FORMAT,
     takeNumbers: value.takeNumbers ?? {},
     closeDisclosuresOnAdvanced: value.closeDisclosuresOnAdvanced ?? true,
+    lyricsTags: Array.isArray(value.lyricsTags) ? value.lyricsTags : [...DEFAULT_LYRICS_TAGS],
   };
 }
 
@@ -60,6 +62,14 @@ export async function getTitleFormat(): Promise<string> {
 
 export async function saveTitleFormat(titleFormat: string): Promise<void> {
   await updateStorage((current) => ({ ...current, titleFormat }));
+}
+
+export async function getLyricsTags(): Promise<string[]> {
+  return (await readStorage()).lyricsTags ?? [...DEFAULT_LYRICS_TAGS];
+}
+
+export async function saveLyricsTags(lyricsTags: string[]): Promise<void> {
+  await updateStorage((current) => ({ ...current, lyricsTags }));
 }
 
 export async function getNextTakeNumber(key: string): Promise<number> {

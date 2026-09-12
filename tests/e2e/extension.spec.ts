@@ -93,8 +93,8 @@ test('mounts the Suno controls beside their anchors, survives host removal, and 
     await cdp.send('Runtime.enable');
     await page.goto('https://suno.com/create');
     await page.locator('suno-create-assistant').first().waitFor();
-    // styles, presets, title, sidebar, and the always-mounted settings dialog host.
-    expect(await page.locator('suno-create-assistant').count(), extensionErrors.join('\n')).toBe(5);
+    // lyrics, styles, presets, title, sidebar, and the always-mounted settings dialog host.
+    expect(await page.locator('suno-create-assistant').count(), extensionErrors.join('\n')).toBe(6);
 
     // Verify sidebar settings button is mounted after hooks link, in light DOM
     const sidebarHost = page.locator('suno-create-assistant[data-suno-create-assistant="sidebar"]');
@@ -150,10 +150,23 @@ test('mounts the Suno controls beside their anchors, survives host removal, and 
     await expect(page.locator('#styles-header + suno-create-assistant[data-suno-create-assistant="styles"]')).toHaveCount(1);
     await expect(stylesHost).toBeVisible();
 
+    const lyricsHost = page.locator('suno-create-assistant[data-suno-create-assistant="lyrics"]');
+    await expect(page.locator('#lyrics-header + suno-create-assistant[data-suno-create-assistant="lyrics"]')).toHaveCount(1);
+    await expect(lyricsHost).toBeVisible();
+
+    // Verify tag buttons display without brackets
+    const verse1Button = lyricsHost.getByRole('button', { name: 'Verse 1' });
+    await expect(verse1Button).toBeVisible();
+
     // Verify disclosures (lyrics, styles, options) are automatically closed by default on Advanced tab
     await expect(page.locator('#lyrics-header [role="button"]')).toHaveAttribute('aria-expanded', 'false');
     await expect(page.locator('#styles-header [role="button"]')).toHaveAttribute('aria-expanded', 'false');
     await expect(page.locator('#options-header [role="button"]')).toHaveAttribute('aria-expanded', 'false');
+
+    // Clicking a tag button automatically expands the lyrics disclosure and inserts [Verse 1]\n
+    await verse1Button.click();
+    await expect(page.locator('#lyrics-header [role="button"]')).toHaveAttribute('aria-expanded', 'true');
+    await expect(page.locator('#lyrics-wrapper textarea')).toHaveValue('[Verse 1]\n');
 
     // Verify user can manually expand a disclosure and it stays expanded without being re-closed
     await page.locator('#styles-header [role="button"]').click();
@@ -185,6 +198,13 @@ test('mounts the Suno controls beside their anchors, survives host removal, and 
     await expect(dialog.getByRole('heading', { name: '表示設定' })).toBeVisible();
     const closeDisclosuresCheck = dialog.getByRole('checkbox', { name: 'アドバンスドタブを開いた時に歌詞、スタイル、その他のオプションを閉じる' });
     await expect(closeDisclosuresCheck).toBeChecked();
+    await expect(dialog.getByRole('heading', { name: '歌詞タグ' })).toBeVisible();
+    const lyricsTagsTextarea = dialog.locator('textarea.suno-assistant__tags-textarea');
+    await expect(lyricsTagsTextarea).toBeVisible();
+    await expect(lyricsTagsTextarea).toHaveValue(/\[Verse 1\]/);
+    await lyricsTagsTextarea.fill('[Intro]\n[Solo]\n[Outro]');
+    await dialog.getByRole('button', { name: 'タグを保存' }).click();
+    await expect(dialog.locator('.suno-assistant__format-saved', { hasText: '保存しました' })).toBeVisible();
     await expect(dialog.getByRole('button', { name: '現在値からプリセットを作成' })).toHaveCount(0);
 
     await dialog.getByRole('textbox', { name: '名前' }).fill('標準');
@@ -220,6 +240,10 @@ test('mounts the Suno controls beside their anchors, survives host removal, and 
     await dialog.getByRole('button', { name: '閉じる' }).click();
     await expect(dialog.getByRole('heading', { name: 'Suno Create Assistant の設定' })).toBeHidden();
     await expect(sidebarButton).toHaveAttribute('data-inactive', '');
+
+    // Verify lyrics palette updated to the newly saved tags
+    await expect(lyricsHost.getByRole('button', { name: 'Solo' })).toBeVisible();
+    await expect(lyricsHost.getByRole('button', { name: 'Verse 1' })).toHaveCount(0);
 
     // Reload page with setting OFF: disclosures should stay open (aria-expanded="true")
     await page.reload();

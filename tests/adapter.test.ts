@@ -438,6 +438,141 @@ describe('SunoAdapter lyricsHeading', () => {
   });
 });
 
+describe('SunoAdapter lyricsAnchor and lyricsEditor', () => {
+  it('locates lyrics header row as anchor and finds textarea editor', () => {
+    document.body.innerHTML = `
+      <section id="lyrics">
+        <div id="lyrics-header">
+          <div id="lyrics-btn" role="button" tabindex="0" aria-expanded="true">歌詞</div>
+        </div>
+        <div id="lyrics-wrapper">
+          <textarea placeholder="歌詞を入力"></textarea>
+        </div>
+      </section>
+    `;
+
+    const adapter = new SunoAdapter();
+    const anchor = adapter.lyricsAnchor();
+    expect(anchor).toBe(document.querySelector('#lyrics-header'));
+
+    const editor = adapter.lyricsEditor();
+    expect(editor).toBe(document.querySelector('textarea'));
+  });
+
+  it('finds Lexical contenteditable editor', () => {
+    document.body.innerHTML = `
+      <section id="lyrics">
+        <div id="lyrics-header">
+          <button role="button" aria-expanded="true">Lyrics</button>
+        </div>
+        <div class="lyrics-editor-content" contenteditable="true" data-lexical-editor="true">
+          <p class="lyrics-paragraph"><br></p>
+        </div>
+      </section>
+    `;
+
+    const adapter = new SunoAdapter();
+    const editor = adapter.lyricsEditor();
+    expect(editor).toBe(document.querySelector('.lyrics-editor-content'));
+  });
+
+  it('inserts tag into textarea and expands disclosure if closed', () => {
+    document.body.innerHTML = `
+      <section id="lyrics">
+        <div id="lyrics-header">
+          <div id="lyrics-btn" role="button" tabindex="0" aria-expanded="false">歌詞</div>
+        </div>
+        <div id="lyrics-wrapper">
+          <textarea placeholder="歌詞を入力"></textarea>
+        </div>
+      </section>
+    `;
+
+    const btn = document.querySelector('#lyrics-btn')!;
+    btn.addEventListener('click', () => {
+      btn.setAttribute('aria-expanded', 'true');
+    });
+
+    const adapter = new SunoAdapter();
+    const result = adapter.insertLyricsTag('Verse 1');
+    expect(result).toBe(true);
+    expect(btn.getAttribute('aria-expanded')).toBe('true');
+
+    const textarea = document.querySelector('textarea')!;
+    expect(textarea.value).toBe('[Verse 1]\n');
+  });
+
+  it('appends tag after existing text in textarea', () => {
+    document.body.innerHTML = `
+      <section id="lyrics">
+        <div id="lyrics-header">
+          <div role="button" tabindex="0" aria-expanded="true">歌詞</div>
+        </div>
+        <div id="lyrics-wrapper">
+          <textarea placeholder="歌詞を入力">Existing line</textarea>
+        </div>
+      </section>
+    `;
+
+    const textarea = document.querySelector('textarea')!;
+    textarea.selectionStart = textarea.value.length;
+    textarea.selectionEnd = textarea.value.length;
+
+    const adapter = new SunoAdapter();
+    adapter.insertLyricsTag('[Chorus]');
+    expect(textarea.value).toBe('Existing line\n[Chorus]\n');
+  });
+
+  it('inserts tag with line breaks into Lexical contenteditable via paste listener', () => {
+    document.body.innerHTML = `
+      <section id="lyrics">
+        <div id="lyrics-header">
+          <div role="button" tabindex="0" aria-expanded="true">歌詞</div>
+        </div>
+        <div class="lyrics-editor-content" contenteditable="true" data-lexical-editor="true">
+          <p class="lyrics-paragraph">Intro line</p>
+        </div>
+      </section>
+    `;
+
+    const editor = document.querySelector<HTMLElement>('.lyrics-editor-content')!;
+    let pastedText = '';
+    editor.addEventListener('paste', (e) => {
+      e.preventDefault();
+      pastedText = e.clipboardData?.getData('text/plain') ?? '';
+      const p = document.createElement('p');
+      p.className = 'lyrics-paragraph';
+      p.textContent = pastedText.trim();
+      editor.appendChild(p);
+    });
+
+    const adapter = new SunoAdapter();
+    const res = adapter.insertLyricsTag('Verse 1');
+    expect(res).toBe(true);
+    expect(pastedText).toBe('\n[Verse 1]\n');
+    expect(editor.innerHTML).toContain('[Verse 1]');
+  });
+
+  it('inserts tag into contenteditable via DOM fallback if unhandled', () => {
+    document.body.innerHTML = `
+      <section id="lyrics">
+        <div id="lyrics-header">
+          <div role="button" tabindex="0" aria-expanded="true">歌詞</div>
+        </div>
+        <div class="lyrics-editor-content" contenteditable="true">
+          <p class="lyrics-paragraph"><br></p>
+        </div>
+      </section>
+    `;
+
+    const adapter = new SunoAdapter();
+    const res = adapter.insertLyricsTag('Outro');
+    expect(res).toBe(true);
+    const editor = document.querySelector<HTMLElement>('.lyrics-editor-content')!;
+    expect(editor.innerHTML).toContain('[Outro]');
+  });
+});
+
 describe('SunoAdapter isAdvancedTab', () => {
   it('detects advanced tab when selected', () => {
     document.body.innerHTML = `

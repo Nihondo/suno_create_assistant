@@ -30,6 +30,20 @@ export interface OtherOptionsPreset {
   updatedAt: string;
 }
 
+export const DEFAULT_LYRICS_TAGS: string[] = [
+  '[Instrumental]',
+  '[Intro]',
+  '[Verse 1]',
+  '[Verse 2]',
+  '[Pre-Chorus]',
+  '[Chorus]',
+  '[Bridge]',
+  '[Guitar Solo]',
+  '[Instrumental Break]',
+  '[Final Chorus]',
+  '[Outro]',
+];
+
 export interface StorageSchemaV1 {
   schemaVersion: 1;
   masteringPrompts: MasteringPrompt[];
@@ -38,6 +52,7 @@ export interface StorageSchemaV1 {
   titleFormat?: string;
   takeNumbers?: Record<string, number>;
   closeDisclosuresOnAdvanced?: boolean;
+  lyricsTags?: string[];
 }
 
 export interface SavedStyle {

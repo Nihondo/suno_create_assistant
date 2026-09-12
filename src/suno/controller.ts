@@ -7,10 +7,18 @@ import {
   nextBaseAfterManualEdit,
   replaceTakePlaceholder,
 } from '../domain/logic';
-import type { ApplyResult, MasteringPrompt, OtherOptionsCapture, OtherOptionsPreset, SavedStyle } from '../domain/models';
+import {
+  type ApplyResult,
+  DEFAULT_LYRICS_TAGS,
+  type MasteringPrompt,
+  type OtherOptionsCapture,
+  type OtherOptionsPreset,
+  type SavedStyle,
+} from '../domain/models';
 import {
   getNextTakeNumber,
   readStorage,
+  saveLyricsTags,
   saveTitleFormat,
   setAutoTitleEnabled,
   setCloseDisclosuresOnAdvanced,
@@ -19,7 +27,7 @@ import {
 import { describeSkipped, SunoAdapter } from './adapter';
 import { getUiMessages } from '../locales';
 
-export type SettingsSection = 'masterings' | 'presets' | 'titleFormat' | 'display';
+export type SettingsSection = 'masterings' | 'presets' | 'titleFormat' | 'display' | 'lyricsTags';
 export type SettingsAction = 'create-preset';
 
 export interface Feedback {
@@ -38,6 +46,7 @@ export interface ControllerState {
   autoTitleEnabled: boolean;
   titleFormat: string;
   closeDisclosuresOnAdvanced: boolean;
+  lyricsTags: string[];
   settings?: { section: SettingsSection; action?: SettingsAction };
   styleFeedback?: Feedback;
   presetFeedback?: Feedback;
@@ -56,6 +65,7 @@ export class SunoController {
     autoTitleEnabled: false,
     titleFormat: DEFAULT_TITLE_FORMAT,
     closeDisclosuresOnAdvanced: true,
+    lyricsTags: [...DEFAULT_LYRICS_TAGS],
   };
   private listeners = new Set<Listener>();
   private baseStyle = '';
@@ -77,6 +87,7 @@ export class SunoController {
     this.state.autoTitleEnabled = stored.autoTitleEnabled;
     this.state.titleFormat = stored.titleFormat ?? DEFAULT_TITLE_FORMAT;
     this.state.closeDisclosuresOnAdvanced = stored.closeDisclosuresOnAdvanced ?? true;
+    this.state.lyricsTags = stored.lyricsTags ?? [...DEFAULT_LYRICS_TAGS];
     this.adapter.setTitleReadOnly(this.state.autoTitleEnabled);
     this.updateAutoTitle();
     this.unsubscribeStorage = subscribeStorage(async () => {
@@ -89,6 +100,9 @@ export class SunoController {
       }
       if (updated.closeDisclosuresOnAdvanced !== undefined && updated.closeDisclosuresOnAdvanced !== this.state.closeDisclosuresOnAdvanced) {
         this.state.closeDisclosuresOnAdvanced = updated.closeDisclosuresOnAdvanced;
+      }
+      if (updated.lyricsTags && JSON.stringify(updated.lyricsTags) !== JSON.stringify(this.state.lyricsTags)) {
+        this.state.lyricsTags = updated.lyricsTags;
       }
       this.emit();
     });
@@ -255,6 +269,16 @@ export class SunoController {
     if (enabled && this.adapter.isAdvancedTab()) {
       this.adapter.closeDisclosures();
     }
+  }
+
+  async saveLyricsTags(tags: string[]): Promise<void> {
+    this.state.lyricsTags = tags;
+    this.emit();
+    await saveLyricsTags(tags);
+  }
+
+  insertLyricsTag(tag: string): boolean {
+    return this.adapter.insertLyricsTag(tag);
   }
 
   reconcile(): void {

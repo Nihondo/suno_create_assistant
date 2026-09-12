@@ -70,3 +70,49 @@ export function savedStyleId(name: string, prompt: string, index: number): strin
 export function cloneStyle(style: SavedStyle): SavedStyle {
   return { ...style };
 }
+
+export function displayTagName(tag: string): string {
+  const trimmed = tag.trim();
+  const match = trimmed.match(/^\[(.*)\]$/);
+  return match && match[1] !== undefined ? match[1].trim() : trimmed;
+}
+
+export function normalizedInsertTag(tag: string): string {
+  const trimmed = tag.trim();
+  if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+    return trimmed;
+  }
+  return `[${trimmed}]`;
+}
+
+export function parseLyricsTags(text: string): string[] {
+  return text
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0);
+}
+
+export function formatLyricsTags(tags: string[]): string {
+  return tags.join('\n');
+}
+
+export function calculateTagInsertion(
+  currentText: string,
+  cursorStart: number,
+  cursorEnd: number,
+  rawTag: string,
+): { newText: string; newCursor: number; insertion: string } {
+  const tag = normalizedInsertTag(rawTag);
+  const start = Math.max(0, Math.min(cursorStart, currentText.length));
+  const end = Math.max(start, Math.min(cursorEnd, currentText.length));
+
+  const prefix = start > 0 && currentText[start - 1] !== '\n' ? '\n' : '';
+  const suffix = end < currentText.length && currentText[end] === '\n' ? '' : '\n';
+  const insertion = prefix + tag + suffix;
+
+  const newText = currentText.slice(0, start) + insertion + currentText.slice(end);
+  const newCursor = start + insertion.length;
+
+  return { newText, newCursor, insertion };
+}
+

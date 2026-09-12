@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react';
-import { DEFAULT_TITLE_FORMAT, validateUniqueName } from '../domain/logic';
-import { emptyOtherOptions, optionKeys, type MasteringPrompt, type OtherOptionsKey, type OtherOptionsPreset, type OtherOptionsSnapshot, type VocalGender } from '../domain/models';
+import { DEFAULT_TITLE_FORMAT, formatLyricsTags, parseLyricsTags, validateUniqueName } from '../domain/logic';
+import { DEFAULT_LYRICS_TAGS, emptyOtherOptions, optionKeys, type MasteringPrompt, type OtherOptionsKey, type OtherOptionsPreset, type OtherOptionsSnapshot, type VocalGender } from '../domain/models';
 import { deleteMastering, deletePreset, saveMastering, savePreset } from '../storage/repository';
 import type { SunoController } from '../suno/controller';
 import { useController, useStoredLists } from './components';
@@ -43,10 +43,13 @@ export function SettingsDialog({ controller }: { controller: SunoController }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const titleFormatSectionRef = useRef<HTMLElement>(null);
   const displaySectionRef = useRef<HTMLElement>(null);
+  const lyricsTagsSectionRef = useRef<HTMLElement>(null);
   const masteringSectionRef = useRef<HTMLElement>(null);
   const presetSectionRef = useRef<HTMLElement>(null);
   const [titleFormat, setTitleFormat] = useState(state.titleFormat);
   const [formatSavedNotice, setFormatSavedNotice] = useState(false);
+  const [lyricsTagsText, setLyricsTagsText] = useState(formatLyricsTags(state.lyricsTags));
+  const [lyricsTagsSavedNotice, setLyricsTagsSavedNotice] = useState(false);
   const [editingMastering, setEditingMastering] = useState<MasteringPrompt>();
   const [masteringForm, setMasteringForm] = useState<{ name: string; prompt: string }>();
   const [editingPreset, setEditingPreset] = useState<OtherOptionsPreset>();
@@ -67,6 +70,11 @@ export function SettingsDialog({ controller }: { controller: SunoController }) {
     setTitleFormat(state.titleFormat);
     setFormatSavedNotice(false);
   }, [open, state.titleFormat]);
+
+  useEffect(() => {
+    setLyricsTagsText(formatLyricsTags(state.lyricsTags));
+    setLyricsTagsSavedNotice(false);
+  }, [open, state.lyricsTags]);
 
   useEffect(() => {
     if (open) return;
@@ -96,7 +104,9 @@ export function SettingsDialog({ controller }: { controller: SunoController }) {
         ? titleFormatSectionRef.current
         : state.settings?.section === 'display'
           ? displaySectionRef.current
-          : presetSectionRef.current;
+          : state.settings?.section === 'lyricsTags'
+            ? lyricsTagsSectionRef.current
+            : presetSectionRef.current;
     target?.scrollIntoView({ block: 'start' });
   }, [open, state.settings?.section, state.settings?.action, controller]);
 
@@ -156,6 +166,16 @@ export function SettingsDialog({ controller }: { controller: SunoController }) {
     setTitleFormat(DEFAULT_TITLE_FORMAT);
   };
 
+  const handleSaveLyricsTags = async () => {
+    const parsed = parseLyricsTags(lyricsTagsText);
+    await controller.saveLyricsTags(parsed);
+    setLyricsTagsSavedNotice(true);
+    setTimeout(() => setLyricsTagsSavedNotice(false), 2000);
+  };
+  const handleResetLyricsTags = () => {
+    setLyricsTagsText(formatLyricsTags(DEFAULT_LYRICS_TAGS));
+  };
+
   const ui = getUiMessages();
 
   return <dialog ref={dialogRef} className="suno-assistant__dialog" closedby="any" onClose={close} onCancel={close}>
@@ -204,6 +224,26 @@ export function SettingsDialog({ controller }: { controller: SunoController }) {
         <p className="suno-assistant__hint">
           {ui.dialog.closeDisclosuresHint}
         </p>
+      </section>
+
+      <section ref={lyricsTagsSectionRef} aria-labelledby="suno-assistant-lyrics-tags-heading">
+        <h3 id="suno-assistant-lyrics-tags-heading">{ui.dialog.lyricsTagsHeading}</h3>
+        <p className="suno-assistant__hint">
+          {ui.dialog.lyricsTagsHint}
+        </p>
+        <div className="suno-assistant__format-field">
+          <textarea
+            className="suno-assistant__tags-textarea"
+            rows={6}
+            value={lyricsTagsText}
+            onChange={(event) => setLyricsTagsText(event.target.value)}
+          />
+          <div className="suno-assistant__format-actions">
+            <button type="button" onClick={handleResetLyricsTags}>{ui.dialog.resetDefault}</button>
+            <button type="button" onClick={() => void handleSaveLyricsTags()}>{ui.dialog.saveLyricsTags}</button>
+            {lyricsTagsSavedNotice && <span className="suno-assistant__format-saved">{ui.dialog.lyricsTagsSavedNotice}</span>}
+          </div>
+        </div>
       </section>
 
       <section ref={masteringSectionRef} aria-labelledby="suno-assistant-mastering-heading">

@@ -1,5 +1,5 @@
 import styleCss from '../src/content/suno-ui.css?inline';
-import { AutoTitleControl, PresetControls, SidebarSettingsButton, StyleControls } from '../src/content/components';
+import { AutoTitleControl, LyricsTagPalette, PresetControls, SidebarSettingsButton, StyleControls } from '../src/content/components';
 import { SettingsDialog } from '../src/content/SettingsDialog';
 import { createMounter } from '../src/content/mount';
 import { detectSunoTheme } from '../src/content/theme';
@@ -67,6 +67,7 @@ export default defineContentScript({
           autoCloseHandled = true;
         }
       }
+      mounter.mount('lyrics', { anchor: controller.adapter.lyricsAnchor(), position: 'afterend' }, () => <LyricsTagPalette controller={controller} />, theme);
       mounter.mount('styles', { anchor: controller.adapter.styleAnchor(), position: 'afterend' }, () => <StyleControls controller={controller} />, theme);
       const titleAnchor = controller.adapter.titleAnchor();
       // Preferred anchor: the "その他のオプション" header row, which Suno

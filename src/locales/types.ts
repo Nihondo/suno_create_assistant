@@ -78,6 +78,8 @@ export interface UiMessages {
     styleSettings: string;
     presetSettings: string;
     titleFormatInput: string;
+    lyricsTagPalette: string;
+    editLyricsTags: string;
   };
   dialog: {
     title: string;
@@ -96,6 +98,10 @@ export interface UiMessages {
     displayHeading: string;
     closeDisclosuresLabel: string;
     closeDisclosuresHint: string;
+    lyricsTagsHeading: string;
+    lyricsTagsHint: string;
+    saveLyricsTags: string;
+    lyricsTagsSavedNotice: string;
     masteringHeading: string;
     masteringHint: string;
     masteringName: string;

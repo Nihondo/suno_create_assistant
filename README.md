@@ -15,6 +15,14 @@ A local Chrome extension for the Advanced tab of [Suno Create](https://suno.com/
 
 The extension automatically detects Suno's language setting (`en` or `ja`). All host page interactions (Styles, More Options, sliders, toggles, saved styles dialog) function smoothly in both languages, and the extension's UI (dropdowns, buttons, notices, and settings dialog) automatically displays in the matching language.
 
+### Lyrics tag palette
+
+Directly under the **Lyrics** (歌詞) heading, the extension provides a tag palette with rounded rectangular buttons (`Instrumental`, `Intro`, `Verse 1`, `Chorus`, etc.) for quick insertion of song section tags.
+
+- **One-click insertion**: Clicking any tag button inserts the bracketed tag (e.g. `[Verse 1]`) on its own line into the lyrics editor, automatically expanding the lyrics disclosure if it was closed. Caret position and focus are maintained so you can immediately begin typing lyrics.
+- **Clean button labels**: Palette buttons display only the tag name without brackets (e.g. `Verse 1` is displayed on the button, while `[Verse 1]` is inserted).
+- **Customizable in settings**: Click the gear icon (⚙) on the right of the palette or open the in-page settings dialog to edit tags under **Lyrics Tags** (歌詞タグ). Tags can be freely edited, reordered, added, or deleted (one tag per line), or reset to defaults at any time.
+
 ### Styles and mastering
 
 Directly under the **Style** / **Styles** (スタイル) heading, the extension provides style and mastering controls that stay visible whether the style disclosure is open or closed. Choose a saved Suno style and an optional mastering prompt to write them to the Style field on separate lines. Use **Manage…** (管理…) to add, edit, or delete mastering prompts in an in-page dialog.
