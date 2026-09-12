@@ -111,7 +111,7 @@ test('mounts the Suno controls beside their anchors, survives host removal, and 
     await expect(page.getByRole('button', { name: /^プリセット:/ })).toBeVisible();
     await page.getByRole('button', { name: /^スタイル:/ }).click();
     await expect(page.getByRole('option', { name: 'ARIA' })).toBeVisible();
-    await expect(page.getByRole('option', { name: 'ARIA' })).toHaveCSS('color', 'rgb(245, 245, 246)');
+    await expect(page.getByRole('option', { name: 'ARIA' })).toHaveCSS('color', 'rgb(247, 244, 239)');
     await page.getByRole('option', { name: 'ARIA' }).click();
     await expect(page.locator('[data-testid="create-form-styles-wrapper"] textarea')).toHaveValue('gentle acoustic ensemble');
     await page.locator('suno-create-assistant').filter({ hasText: '自動設定' }).getByRole('checkbox').check();

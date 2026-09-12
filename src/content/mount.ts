@@ -49,7 +49,7 @@ function insertAt(host: HTMLElement, placement: Placement): void {
 export function createMounter(styleCss: string, onThrash?: (key: string) => void) {
   const entries = new Map<string, Entry>();
 
-  const mount = (key: string, placement: Placement, render: () => ReactNode): void => {
+  const mount = (key: string, placement: Placement, render: () => ReactNode, theme?: 'light' | 'dark'): void => {
     const current = entries.get(key);
     if (!placement.anchor) {
       if (current) {
@@ -62,11 +62,13 @@ export function createMounter(styleCss: string, onThrash?: (key: string) => void
     if (current) {
       if (!placedCorrectly(current.host, placement)) insertAt(current.host, placement);
       current.placement = placement;
+      if (theme) current.host.dataset.theme = theme;
       current.root.render(render());
       return;
     }
     const host = document.createElement('suno-create-assistant');
     host.dataset.sunoCreateAssistant = key;
+    if (theme) host.dataset.theme = theme;
     const shadow = host.attachShadow({ mode: 'open' });
     const style = document.createElement('style');
     style.textContent = styleCss;

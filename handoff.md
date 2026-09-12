@@ -243,3 +243,41 @@ src/suno/adapter.ts: applyOtherOptions()を各フィールドごとにoptionPane
 ## [solution] 2026-09-12 20:00:48
 
 src/suno/adapter.ts: setSliderDirectly()を完全に撤去し、setSlider()を確実に動作するキー操作方式(setSliderByStepping、settle()で1フレームずつ)のみに戻した。速度より正確性を優先。CLAUDE.mdに『二度と直接入力方式を試みない』旨と、なぜ単独テストでは検出できなかったか(他に再描画のきっかけが無いと巻き戻りが観測されない)を明記。tests/adapter.test.tsから該当テストを削除。pnpm lint/typecheck/test(24件)/build/test:e2e全て成功
+
+## [task] 2026-09-12 20:12:53
+
+**Agent:** Claude Sonnet 5 (Claude Code)
+**Prompt:** 追加したプルダウン(プリセット)のセクションが他セクションとデザインが合わない(サイズが大きい・親幅いっぱいに広がる)。またプルダウンメニューがライトモードに追随しない
+
+**Changes:**
+- src/content/theme.ts: 新規。detectSunoTheme()。Suno独自のCSS変数名は未確認で機能していなかったため、declared color-schemeまたはdocument.body/documentElementの実際の背景色の輝度からlight/darkを判定する方式に変更
+- src/content/mount.ts: mount()にtheme引数を追加し、ホスト要素にdata-theme属性を設定
+- entrypoints/suno.content.tsx: refreshMounts()毎回detectSunoTheme()を呼び全mount()呼び出しに渡す
+- src/content/suno-ui.css: var(--color-*, ハードコードダーク値)への依存を全廃し、:hostに独自トークン(--sca-*)を定義、:host([data-theme=light])で上書きする方式に変更。プリセット行(:host([data-suno-create-assistant=presets]))をwidth:100%の別カード表示から、border/background無しの小型インライン表示に変更
+- tests/theme.test.ts: 新規。detectSunoTheme()の4ケース(colorScheme宣言/背景色輝度/透明背景スキップ/デフォルトdark)。全28件成功
+
+## [task] 2026-09-12 20:24:02
+
+**Agent:** Claude Sonnet 5 (Claude Code)
+**Prompt:** 追加したスタイル/プリセットのプルダウン枠のサイズ・配色がSunoの他セクション(スタイルを除外・ボーカル性別)と合わない
+
+**Changes:**
+- src/content/suno-ui.css: getComputedStyle()でSuno実機の「スタイルを除外」行を実測し(テキストrgb(16,16,18)/rgb(247,244,239)、背景はその逆、border-radius 12px、padding 8px 16px、枠線なし)、--sca-fg/--sca-bg-cardトークンを実測値に更新。.suno-assistantの枠線を撤去しパディングを8px 16pxに変更。ボタンのborder-radiusも実測(8px、擬似ピル999pxではない)に変更。プリセット行は同じ配色のまま、幅だけwidth:100%を撤去してdisplay:inline-blockにして親幅いっぱいに広がらないようにした(前回試した「プリセットだけ枠線/背景を消す」対応は撤回)
+- tests/e2e/extension.spec.ts: 文字色アサーションを実測値rgb(247,244,239)に更新
+- CLAUDE.md: Sunoのクラス名がビルド毎にハッシュ化され再利用できないため、今後も色を合わせる必要が生じたらgetComputedStyle()で実測すること、過去2回(CSS変数名の推測、手打ちの16進数色)は両方とも外れたことを明記
+
+## [task] 2026-09-12 20:29:38
+
+**Agent:** AI Agent
+**Prompt:** プリセット行が上下左右の余白なく隣接要素(その他のオプション見出し・スタイルを除外行)に密着している
+
+**Changes:**
+- src/content/suno-ui.css: プリセットホストをdisplay:block、margin:8px 16px(上下8px・左右16px、スタイルを除外の実測パディングに合わせた値)に変更。内側の.suno-assistantのmargin-topは0にして二重に余白が足されないよう調整
+
+## [issue] 2026-09-12 20:40:42
+
+リロード後もmarginが実機のgetComputedStyleで0px(左右上下すべて)のままだった。display:blockは同じルールから正しく適用されていたが(ただしベースの:hostルールにも既にdisplay:blockがあり判別材料にならなかった)、marginだけが反映されない原因は特定できず
+
+## [solution] 2026-09-12 20:40:42
+
+src/content/suno-ui.css: ホスト要素へのmarginをやめ、padding方式に変更(:host([data-suno-create-assistant=styles|presets]) { padding: 8px 16px })。paddingはmarginのように潰れたり無視されたりする心配がなく、.suno-assistantの背景をホストの外周から内側に寄せられる。合わせて内側の.suno-assistant側margin-topは0にして二重加算を防止。スタイル行・プリセット行の両方に同じ処理を適用。ビルド後のファイルにpadding:8px 16pxが含まれることを確認済み

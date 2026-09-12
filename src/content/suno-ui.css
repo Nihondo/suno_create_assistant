@@ -1,29 +1,77 @@
 :host {
   all: initial;
   display: block;
-  color: var(--color-foreground-primary, #f5f5f6);
   font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+
+  /* Suno's own CSS custom property names for its theme colors are not
+     confirmed, so following its light/dark mode cannot rely on reading
+     them - that was tried and always silently fell back to these same
+     dark values regardless of the page's real theme. These tokens are
+     ours; suno.content.tsx stamps the actual detected theme (see
+     src/content/theme.ts) onto every host's [data-theme] attribute, and
+     the override block below switches them. `all: initial` above resets
+     every other property but leaves custom properties alone, so these
+     survive it.
+
+     --sca-fg and --sca-bg-card are exact values measured with
+     getComputedStyle() directly against Suno's own "スタイルを除外" row
+     (its class names are hashed per build, e.g. css-xxxxx, so they can't
+     be targeted or reused as selectors - only the computed values survive
+     a rebuild): text rgb(16,16,18) light / rgb(247,244,239) dark, row
+     background the reverse of that, border-radius 12px, padding 8px 16px,
+     no border. Suno swaps exactly these two colors between light and dark
+     mode, which is why the token pairs below mirror each other. */
+  --sca-fg: rgb(247, 244, 239);
+  --sca-fg-secondary: color-mix(in srgb, rgb(247, 244, 239) 65%, transparent);
+  --sca-bg-card: rgb(16, 16, 18);
+  --sca-bg-control: #202025;
+  --sca-bg-control-hover: #34343a;
+  --sca-bg-menu: #202025;
+  --sca-bg-menu-hover: #2b2b30;
+  --sca-bg-input: #27272c;
+  --sca-border: rgb(74 74 80 / 80%);
+  --sca-border-solid: #4a4a50;
+  --sca-accent: #3182f6;
+  --sca-accent-strong: #5b9cff;
+  --sca-error: #ff8fa3;
+  --sca-backdrop: rgb(0 0 0 / 55%);
+
+  color: var(--sca-fg);
 }
 
-:host([data-suno-create-assistant="presets"]) {
-  flex: 0 0 100%;
-  width: 100%;
+:host([data-theme="light"]) {
+  --sca-fg: rgb(16, 16, 18);
+  --sca-fg-secondary: color-mix(in srgb, rgb(16, 16, 18) 65%, transparent);
+  --sca-bg-card: rgb(247, 244, 239);
+  --sca-bg-control: #ffffff;
+  --sca-bg-control-hover: #ececf1;
+  --sca-bg-menu: #ffffff;
+  --sca-bg-menu-hover: #f1f1f5;
+  --sca-bg-input: #f5f5f7;
+  --sca-border: rgb(210 210 218 / 90%);
+  --sca-border-solid: #d9d9e0;
+  --sca-accent: #2563eb;
+  --sca-accent-strong: #1d4ed8;
+  --sca-error: #c23652;
+  --sca-backdrop: rgb(0 0 0 / 35%);
 }
 
 * { box-sizing: border-box; }
 
+/* Sized and colored to match Suno's own "スタイルを除外" row exactly (see the
+   --sca-fg/--sca-bg-card comment above for the measurements): no border,
+   12px radius, 8px 16px padding. */
 .suno-assistant {
   position: relative;
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
   align-items: center;
-  padding: 10px 12px;
+  padding: 8px 16px;
   margin-top: 8px;
-  border: 1px solid color-mix(in srgb, var(--color-border-primary, #4a4a50) 80%, transparent);
   border-radius: 12px;
-  background: color-mix(in srgb, var(--color-background-tertiary, #27272c) 80%, transparent);
-  color: var(--color-foreground-primary, #f5f5f6);
+  background: var(--sca-bg-card);
+  color: var(--sca-fg);
   font-size: 13px;
   line-height: 1.35;
 }
@@ -35,15 +83,42 @@
   border: 0;
 }
 
+/* Both the styles row and the presets row sit directly inside one of
+   Suno's own cards as a sibling of Suno's rows, rather than as a child of
+   whatever gives those rows their own inset from the card edges - so they
+   need that same gutter applied themselves: 16px left/right, 8px
+   top/bottom, matching スタイルを除外's own measured row padding. This is
+   `padding` on the host, not `margin` - a `margin` here measured as 0px in
+   getComputedStyle() on the live site despite matching this exact
+   selector (display: block from the same rule did take effect), so
+   something about this particular host/selector combination was
+   collapsing or discarding it. Padding does not have that failure mode:
+   it insets .suno-assistant's own background from the host's outer edge
+   without depending on the host's own box having any particular width. */
+:host([data-suno-create-assistant="styles"]),
+:host([data-suno-create-assistant="presets"]) {
+  display: block;
+  padding: 8px 16px;
+}
+
+:host([data-suno-create-assistant="styles"]) .suno-assistant,
+:host([data-suno-create-assistant="presets"]) .suno-assistant {
+  /* Avoid stacking this on top of the host's own padding above. */
+  margin-top: 0;
+}
+
 .suno-assistant__select,
 .suno-assistant__button {
   appearance: none;
   border: 0;
-  border-radius: 999px;
+  /* Matches Suno's own toggle buttons (measured border-radius: 8px) rather
+     than a fully-rounded pill, which read as visually mismatched next to
+     them. */
+  border-radius: 8px;
   min-height: 32px;
   padding: 6px 11px;
   color: inherit;
-  background: var(--color-background-secondary, #202025);
+  background: var(--sca-bg-control);
   font: inherit;
   cursor: pointer;
 }
@@ -56,13 +131,13 @@
 .suno-assistant__select:focus-visible,
 .suno-assistant__button:focus-visible,
 .suno-assistant__check:focus-visible {
-  outline: 2px solid var(--color-accent-blue, #3182f6);
+  outline: 2px solid var(--sca-accent);
   outline-offset: 2px;
 }
 
 .suno-assistant__button:hover,
-.suno-assistant__select:hover { background: var(--color-background-quaternary, #34343a); }
-.suno-assistant__button--clear { background: transparent; color: var(--color-foreground-secondary, #b7b7bd); }
+.suno-assistant__select:hover { background: var(--sca-bg-control-hover); }
+.suno-assistant__button--clear { background: transparent; color: var(--sca-fg-secondary); }
 
 .suno-assistant__menu {
   position: fixed;
@@ -73,10 +148,10 @@
   max-height: min(360px, calc(100dvh - 16px));
   overflow: auto;
   padding: 5px;
-  border: 1px solid var(--color-border-primary, #4a4a50);
+  border: 1px solid var(--sca-border-solid);
   border-radius: 10px;
-  color: #f5f5f6;
-  background: #202025;
+  color: var(--sca-fg);
+  background: var(--sca-bg-menu);
   box-shadow: 0 12px 30px rgb(0 0 0 / 32%);
 }
 
@@ -86,7 +161,7 @@
   border: 0;
   border-radius: 7px;
   padding: 8px 9px;
-  color: #f5f5f6;
+  color: var(--sca-fg);
   background: transparent;
   font: inherit;
   text-align: left;
@@ -94,12 +169,12 @@
 }
 
 .suno-assistant__menu button:hover,
-.suno-assistant__menu button[aria-selected="true"] { background: var(--color-background-tertiary, #2b2b30); }
-.suno-assistant__menu button.suno-assistant__manage { color: var(--color-accent-blue, #5b9cff); }
-.suno-assistant__status { flex-basis: 100%; color: var(--color-foreground-secondary, #b7b7bd); font-size: 12px; }
-.suno-assistant__status--error { color: #ff8fa3; }
+.suno-assistant__menu button[aria-selected="true"] { background: var(--sca-bg-menu-hover); }
+.suno-assistant__menu button.suno-assistant__manage { color: var(--sca-accent-strong); }
+.suno-assistant__status { flex-basis: 100%; color: var(--sca-fg-secondary); font-size: 12px; }
+.suno-assistant__status--error { color: var(--sca-error); }
 
-.suno-assistant__check { accent-color: var(--color-accent-blue, #3182f6); }
+.suno-assistant__check { accent-color: var(--sca-accent); }
 .suno-assistant__check-label { display: inline-flex; align-items: center; gap: 5px; cursor: pointer; }
 
 @media (max-width: 420px) {
@@ -107,9 +182,9 @@
 }
 
 .suno-assistant__dialog {
-  color: var(--color-foreground-primary, #f5f5f6);
-  background: var(--color-background-secondary, #202025);
-  border: 1px solid var(--color-border-primary, #4a4a50);
+  color: var(--sca-fg);
+  background: var(--sca-bg-control);
+  border: 1px solid var(--sca-border-solid);
   border-radius: 14px;
   padding: 0;
   width: min(560px, calc(100vw - 32px));
@@ -120,7 +195,7 @@
 }
 
 .suno-assistant__dialog::backdrop {
-  background: rgb(0 0 0 / 55%);
+  background: var(--sca-backdrop);
 }
 
 .suno-assistant__dialog-body {
@@ -141,19 +216,19 @@
   gap: 12px;
   margin: -18px -20px 0;
   padding: 14px 20px;
-  background: var(--color-background-secondary, #202025);
-  border-bottom: 1px solid color-mix(in srgb, var(--color-border-primary, #4a4a50) 80%, transparent);
+  background: var(--sca-bg-control);
+  border-bottom: 1px solid var(--sca-border);
 }
 
 .suno-assistant__dialog-header h2 { margin: 0; font-size: 15px; }
 .suno-assistant__dialog-body h3 { margin: 0 0 4px; font-size: 14px; }
-.suno-assistant__hint { margin: 0 0 10px; color: var(--color-foreground-secondary, #b7b7bd); font-size: 12px; }
+.suno-assistant__hint { margin: 0 0 10px; color: var(--sca-fg-secondary); font-size: 12px; }
 
 .suno-assistant__dialog-body label {
   display: block;
   margin: 10px 0;
   font-size: 12px;
-  color: var(--color-foreground-secondary, #b7b7bd);
+  color: var(--sca-fg-secondary);
 }
 
 .suno-assistant__dialog-body input[type="text"],
@@ -163,9 +238,9 @@
   margin-top: 4px;
   padding: 8px 10px;
   border-radius: 8px;
-  border: 1px solid var(--color-border-primary, #4a4a50);
-  background: var(--color-background-tertiary, #27272c);
-  color: var(--color-foreground-primary, #f5f5f6);
+  border: 1px solid var(--sca-border-solid);
+  background: var(--sca-bg-input);
+  color: var(--sca-fg);
   font: inherit;
 }
 
@@ -179,16 +254,16 @@
   gap: 10px;
   padding: 8px 10px;
   border-radius: 9px;
-  background: var(--color-background-tertiary, #27272c);
+  background: var(--sca-bg-input);
 }
-.suno-assistant__list li p { margin: 2px 0 0; color: var(--color-foreground-secondary, #b7b7bd); font-size: 12px; }
+.suno-assistant__list li p { margin: 2px 0 0; color: var(--sca-fg-secondary); font-size: 12px; }
 .suno-assistant__list-actions { display: flex; gap: 6px; flex-shrink: 0; }
 
 .suno-assistant__checks { display: flex; flex-wrap: wrap; gap: 8px 14px; margin: 10px 0; }
 .suno-assistant__checks label { display: inline-flex; align-items: center; gap: 5px; margin: 0; }
 
 .suno-assistant__snapshot dl { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; margin: 10px 0; font-size: 12px; }
-.suno-assistant__snapshot dt { color: var(--color-foreground-secondary, #b7b7bd); }
+.suno-assistant__snapshot dt { color: var(--sca-fg-secondary); }
 .suno-assistant__snapshot dd { margin: 0; }
 
 .suno-assistant__dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
@@ -198,7 +273,7 @@
   border-radius: 999px;
   padding: 6px 12px;
   color: inherit;
-  background: var(--color-background-quaternary, #34343a);
+  background: var(--sca-bg-control-hover);
   font: inherit;
   cursor: pointer;
 }
