@@ -193,12 +193,62 @@ function titleInput(): HTMLInputElement | undefined {
   const candidates = [...document.querySelectorAll<HTMLInputElement>(`input[placeholder="${TITLE_PLACEHOLDER}"]`)]
     .filter((input) => {
       let parent: HTMLElement | null = input.parentElement;
-      for (let depth = 0; parent && depth < 5; depth += 1, parent = parent.parentElement) {
+      for (let depth = 0; depth < 5 && parent; depth += 1, parent = parent.parentElement) {
         if (text(parent).includes('保存先…')) return true;
       }
       return false;
     });
   return visible(candidates) ?? candidates.at(-1);
+}
+
+function audioPlayButton(): HTMLElement | undefined {
+  const candidates = [...document.querySelectorAll<HTMLElement>('button, [role="button"]')]
+    .filter((el) => {
+      if (el.closest('suno-create-assistant, nav, aside, [role="navigation"]')) return false;
+      const aria = (el.getAttribute('aria-label') ?? '').trim();
+      const matchLabel = /^(?:オーディオを(?:再生|一時停止)|(?:Play|Pause)\s*audio)$/i.test(aria)
+        || ((aria.includes('再生') || /play/i.test(aria) || aria.includes('一時停止') || /pause/i.test(aria))
+          && (aria.includes('オーディオ') || /audio/i.test(aria)));
+      if (matchLabel) return true;
+
+      const img = el.querySelector('img[alt]');
+      if (img) {
+        const alt = (img.getAttribute('alt') ?? '').trim();
+        if (/のカバーアート$/i.test(alt) || /cover\s*art$/i.test(alt)) return true;
+      }
+      return false;
+    });
+  return visible(candidates) ?? candidates[0];
+}
+
+function audioTitle(): string {
+  const btn = audioPlayButton();
+  if (!btn) return '';
+
+  const sibling = btn.nextElementSibling as HTMLElement | null;
+  if (sibling) {
+    const children = [...sibling.children] as HTMLElement[];
+    for (const child of children) {
+      const childText = text(child);
+      if (childText && !/^\d{1,2}:\d{2}/.test(childText)) {
+        return childText;
+      }
+    }
+    const candidate = [...sibling.querySelectorAll<HTMLElement>('div, span')]
+      .find((el) => el.children.length === 0 && text(el).length > 0 && !/^\d{1,2}:\d{2}/.test(text(el)));
+    if (candidate) {
+      return text(candidate);
+    }
+  }
+
+  const img = btn.querySelector('img[alt]') ?? btn.parentElement?.querySelector('img[alt]');
+  if (img) {
+    const alt = (img.getAttribute('alt') ?? '').trim();
+    const cleaned = alt.replace(/\s*のカバーアート$/i, '').replace(/\s*cover\s*art$/i, '').trim();
+    if (cleaned) return cleaned;
+  }
+
+  return '';
 }
 
 function optionHeaderResetButton(): HTMLElement | undefined {
@@ -530,6 +580,10 @@ export class SunoAdapter {
       }
     }
     return '';
+  }
+
+  getAudioTitle(): string {
+    return audioTitle();
   }
 
   optionsAnchor(): HTMLElement | undefined {

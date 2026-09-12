@@ -36,6 +36,7 @@ Enable **Auto title** inside the title section to generate a title using the con
 - Customize the format anytime in the in-page settings dialog under **曲名フォーマット**. Available placeholders:
   - `{{WORKSPACE}}`: Destination / workspace name
   - `{{STYLE}}`: Style name (or `カスタム` if manually edited)
+  - `{{AUDIO}}`: Original song title (when remixing or referencing audio)
   - `{{TAKE}}`: Take number
 - When a title contains `{{TAKE}}`, clicking the **Create** button or pressing the shortcut automatically increments the take number stored for that title key in `chrome.storage.local`, fills the take number (1, 2, 3...) into the title input, and submits.
 - Immediately after submission, the title field reverts back to the `{{TAKE}}` template so the next generation is ready for the next take.

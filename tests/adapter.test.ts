@@ -504,4 +504,65 @@ describe('SunoAdapter closeDisclosures', () => {
   });
 });
 
+describe('SunoAdapter getAudioTitle', () => {
+  it('extracts audio title from next sibling of play button as in production DOM', () => {
+    document.body.innerHTML = `
+      <div class="css-qpmetk e5c85y66">
+        <div role="button" tabindex="0" aria-label="オーディオを再生" class="css-bbwqoh e5c85y67" style="border-radius: 8px;">
+          <img alt="ドラゴンクエストII 果てしなき世界 (ROADSHOW)のカバーアート" data-src="https://example.com/art.jpg" src="https://example.com/art.jpg">
+          <div><svg></svg></div>
+        </div>
+        <div class="flex min-w-0 flex-1 flex-col">
+          <div class="css-14p9rp6 e5c85y68">ドラゴンクエストII 果てしなき世界 (ROADSHOW)</div>
+          <div class="css-i9eyaz e5c85y69"><span><span>00:00</span><span>/</span><span>03:20</span></span></div>
+        </div>
+      </div>
+    `;
+
+    const adapter = new SunoAdapter();
+    expect(adapter.getAudioTitle()).toBe('ドラゴンクエストII 果てしなき世界 (ROADSHOW)');
+  });
+
+  it('supports English Play audio label and pause state', () => {
+    document.body.innerHTML = `
+      <div>
+        <button aria-label="Play audio">
+          <img alt="My English Song cover art" src="art.png" />
+        </button>
+        <div>
+          <div>My English Song</div>
+          <div>00:15 / 02:40</div>
+        </div>
+      </div>
+    `;
+
+    const adapter = new SunoAdapter();
+    expect(adapter.getAudioTitle()).toBe('My English Song');
+
+    // Pause state
+    document.querySelector('button')!.setAttribute('aria-label', 'Pause audio');
+    expect(adapter.getAudioTitle()).toBe('My English Song');
+  });
+
+  it('falls back to cover art img alt attribute if sibling text is missing', () => {
+    document.body.innerHTML = `
+      <div>
+        <div role="button" aria-label="オーディオを再生">
+          <img alt="英雄の詩のカバーアート" src="art.png" />
+        </div>
+      </div>
+    `;
+
+    const adapter = new SunoAdapter();
+    expect(adapter.getAudioTitle()).toBe('英雄の詩');
+  });
+
+  it('returns empty string when no audio card exists', () => {
+    document.body.innerHTML = `<div><p>No audio</p></div>`;
+    const adapter = new SunoAdapter();
+    expect(adapter.getAudioTitle()).toBe('');
+  });
+});
+
+
 

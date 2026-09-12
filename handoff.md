@@ -571,3 +571,16 @@ output/chrome-mv3/content-scripts/suno.js: src/content/suno-ui.css の通知配�
 - tests/e2e/extension.spec.ts: 歌詞セクションフィクスチャ、初回ロード時の自動折りたたみ、手動展開保持、設定画面でのチェックボックスON/OFFトグルとリロード復元を検証するE2Eテストを追加
 - README.md / README_ja.md / CLAUDE.md: ディスクロージャ初期折りたたみ機能・設定方法・セッション保護ルールのドキュメントを更新
 - output/chrome-mv3: 更新済み拡張機能を再ビルド
+
+## [task] 2026-09-12 23:40:09
+
+**Agent:** Antigravity
+**Prompt:** リミックス対象の曲が設定されているときに曲名を自動設定できるようにし、新規プレースホルダ {{AUDIO}} を追加する
+
+**Changes:**
+- src/domain/logic.ts: autoTitle に audioTitle 引数を追加し、{{AUDIO}} プレースホルダ置換に対応
+- src/suno/adapter.ts: audioPlayButton/audioTitle ヘルパーおよび getAudioTitle() メソッドを追加してDOMから元曲名を抽出
+- src/suno/controller.ts: updateAutoTitle で adapter.getAudioTitle() を取得して渡すよう更新
+- src/content/SettingsDialog.tsx: 曲名フォーマットの利用可能プレースホルダに {{AUDIO}}（元曲名）を追記
+- README.md / README_ja.md / CLAUDE.md: {{AUDIO}} プレースホルダの仕様とドキュメントを更新
+- tests/logic.test.ts / tests/adapter.test.ts / tests/controller.test.ts: {{AUDIO}} プレースホルダおよび DOM抽出のユニットテストを追加

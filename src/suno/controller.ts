@@ -322,7 +322,8 @@ export class SunoController {
     if (this.isExecutingCreate) return;
     if (!this.state.autoTitleEnabled) return;
     const styleName = this.state.isCustomStyle ? 'カスタム' : this.state.style?.name ?? '';
-    this.adapter.setTitle(autoTitle(this.adapter.getDestinationName(), styleName, this.state.titleFormat));
+    const audioTitle = this.adapter.getAudioTitle();
+    this.adapter.setTitle(autoTitle(this.adapter.getDestinationName(), styleName, this.state.titleFormat, audioTitle));
   }
 
   private failOverflow(): void {

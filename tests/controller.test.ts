@@ -157,6 +157,23 @@ describe('SunoController executeCreateWithTake and title format', () => {
     await controller.saveTitleFormat('{{WORKSPACE}} - {{STYLE}} #{{TAKE}}');
     expect(current().titleFormat).toBe('{{WORKSPACE}} - {{STYLE}} #{{TAKE}}');
   });
+
+  it('updates title with {{AUDIO}} placeholder when audio is present', async () => {
+    const controller = new SunoController();
+    vi.spyOn(controller.adapter, 'getDestinationName').mockReturnValue('My Workspace');
+    vi.spyOn(controller.adapter, 'getAudioTitle').mockReturnValue('ドラゴンクエストII');
+    const setTitleSpy = vi.spyOn(controller.adapter, 'setTitle');
+
+    await controller.setAutoTitle(true);
+    await controller.selectStyle({ id: 's1', name: 'Orchestral', prompt: 'epic orchestral' });
+
+    // With default format, workspace is used
+    expect(setTitleSpy).toHaveBeenLastCalledWith('My Workspace (Orchestral) {{TAKE}}');
+
+    // With {{AUDIO}} format, audio title is used
+    await controller.saveTitleFormat('{{AUDIO}} ({{STYLE}}) {{TAKE}}');
+    expect(setTitleSpy).toHaveBeenLastCalledWith('ドラゴンクエストII (Orchestral) {{TAKE}}');
+  });
 });
 
 describe('SunoController closeDisclosuresOnAdvanced', () => {

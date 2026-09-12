@@ -168,7 +168,7 @@ export function SettingsDialog({ controller }: { controller: SunoController }) {
       <section ref={titleFormatSectionRef} aria-labelledby="suno-assistant-title-format-heading">
         <h3 id="suno-assistant-title-format-heading">曲名フォーマット</h3>
         <p className="suno-assistant__hint">
-          「自動設定」オン時に生成される曲名の書式です。利用可能なプレースホルダ: <code>{'{{WORKSPACE}}'}</code>（保存先）、<code>{'{{STYLE}}'}</code>（スタイル）、<code>{'{{TAKE}}'}</code>（テイク番号）
+          「自動設定」オン時に生成される曲名の書式です。利用可能なプレースホルダ: <code>{'{{WORKSPACE}}'}</code>（保存先）、<code>{'{{STYLE}}'}</code>（スタイル）、<code>{'{{AUDIO}}'}</code>（元曲名）、<code>{'{{TAKE}}'}</code>（テイク番号）
         </p>
         <div className="suno-assistant__format-field">
           <input

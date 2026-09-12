@@ -19,10 +19,16 @@ export function replaceTakePlaceholder(title: string, takeNumber: number): strin
   return title.replaceAll(/\{\{take\}\}/gi, String(takeNumber));
 }
 
-export function autoTitle(destination: string, styleName: string, format = DEFAULT_TITLE_FORMAT): string {
+export function autoTitle(
+  destination: string,
+  styleName: string,
+  format = DEFAULT_TITLE_FORMAT,
+  audioTitle = '',
+): string {
   const ws = destination.trim();
   const st = styleName.trim();
-  if (!ws && !st) return '';
+  const audio = audioTitle.trim();
+  if (!ws && !st && !audio) return '';
 
   if (format === DEFAULT_TITLE_FORMAT) {
     if (ws && st) return `${ws} (${st}) {{TAKE}}`;
@@ -32,6 +38,7 @@ export function autoTitle(destination: string, styleName: string, format = DEFAU
   let result = format;
   result = result.replaceAll(/\{\{workspace\}\}/gi, ws);
   result = result.replaceAll(/\{\{style\}\}/gi, st);
+  result = result.replaceAll(/\{\{audio\}\}/gi, audio);
   result = result.replace(/\(\s*\)/g, '');
   result = result.replace(/\[\s*\]/g, '');
   return result.replace(/\s+/g, ' ').trim();
