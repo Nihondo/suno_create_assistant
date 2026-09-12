@@ -1,21 +1,37 @@
-import { Fragment, useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { validateUniqueName } from '../domain/logic';
-import { optionKeys, optionLabels, type MasteringPrompt, type OtherOptionsKey, type OtherOptionsPreset, type OtherOptionsSnapshot } from '../domain/models';
+import { emptyOtherOptions, optionKeys, optionLabels, type MasteringPrompt, type OtherOptionsKey, type OtherOptionsPreset, type OtherOptionsSnapshot, type VocalGender } from '../domain/models';
 import { deleteMastering, deletePreset, saveMastering, savePreset } from '../storage/repository';
 import type { SunoController } from '../suno/controller';
 import { useController, useStoredLists } from './components';
 
-function formatSnapshot(snapshot: OtherOptionsSnapshot): Array<[string, string]> {
-  return [
-    ['スタイルを除外', snapshot.excludedStyles || 'なし'],
-    ['ボーカル性別', snapshot.vocalGender === 'none' ? '指定なし' : snapshot.vocalGender === 'male' ? '男性' : '女性'],
-    ['長さ', snapshot.duration.mode === 'auto' ? 'Auto' : `カスタム${snapshot.duration.seconds ? ` (${snapshot.duration.seconds})` : ''}`],
-    ['Maxモード', snapshot.maxMode ? 'オン' : 'オフ'],
-    ['奇抜さ', `${snapshot.weirdness}%`],
-    ['スタイルの影響', `${snapshot.styleInfluence}%`],
-    ['バリエーション', String(snapshot.variation)],
-    ['パーソナライズ', snapshot.personalization.enabled ? `オン${snapshot.personalization.tasteName ? ` (${snapshot.personalization.tasteName})` : ''}` : 'オフ'],
-  ];
+type PresetForm = { name: string; fields: Partial<OtherOptionsSnapshot> };
+
+function cloneFields(fields: Partial<OtherOptionsSnapshot>): Partial<OtherOptionsSnapshot> {
+  return {
+    ...fields,
+    ...(fields.duration && { duration: { ...fields.duration } }),
+    ...(fields.personalization && { personalization: { ...fields.personalization } }),
+  };
+}
+
+function capturedFields(snapshot: OtherOptionsSnapshot, unreadable: OtherOptionsKey[]): Partial<OtherOptionsSnapshot> {
+  return Object.fromEntries(optionKeys
+    .filter((key) => !unreadable.includes(key))
+    .map((key) => [key, snapshot[key]])) as Partial<OtherOptionsSnapshot>;
+}
+
+function formatPreset(fields: Partial<OtherOptionsSnapshot>): string {
+  const values: string[] = [];
+  if (fields.excludedStyles !== undefined) values.push(`${optionLabels.excludedStyles}: ${fields.excludedStyles || 'なし'}`);
+  if (fields.vocalGender !== undefined) values.push(`${optionLabels.vocalGender}: ${fields.vocalGender === 'none' ? '指定なし' : fields.vocalGender === 'male' ? '男性' : '女性'}`);
+  if (fields.duration !== undefined) values.push(`${optionLabels.duration}: ${fields.duration.mode === 'auto' ? 'Auto' : `カスタム${fields.duration.seconds ? ` (${fields.duration.seconds}秒)` : ''}`}`);
+  if (fields.maxMode !== undefined) values.push(`${optionLabels.maxMode}: ${fields.maxMode ? 'オン' : 'オフ'}`);
+  if (fields.weirdness !== undefined) values.push(`${optionLabels.weirdness}: ${fields.weirdness}%`);
+  if (fields.styleInfluence !== undefined) values.push(`${optionLabels.styleInfluence}: ${fields.styleInfluence}%`);
+  if (fields.variation !== undefined) values.push(`${optionLabels.variation}: ${fields.variation}`);
+  if (fields.personalization !== undefined) values.push(`${optionLabels.personalization}: ${fields.personalization.enabled ? 'オン' : 'オフ'}`);
+  return values.join(' / ');
 }
 
 export function SettingsDialog({ controller }: { controller: SunoController }) {
@@ -24,13 +40,12 @@ export function SettingsDialog({ controller }: { controller: SunoController }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const masteringSectionRef = useRef<HTMLElement>(null);
   const presetSectionRef = useRef<HTMLElement>(null);
-  const [snapshot, setSnapshot] = useState<OtherOptionsSnapshot>();
-  const [unreadableKeys, setUnreadableKeys] = useState<OtherOptionsKey[]>([]);
   const [editingMastering, setEditingMastering] = useState<MasteringPrompt>();
   const [masteringForm, setMasteringForm] = useState<{ name: string; prompt: string }>();
   const [editingPreset, setEditingPreset] = useState<OtherOptionsPreset>();
-  const [presetForm, setPresetForm] = useState<{ name: string; keys: OtherOptionsKey[] }>();
+  const [presetForm, setPresetForm] = useState<PresetForm>();
   const [localError, setLocalError] = useState<string>();
+  const presetFormId = useId();
 
   const open = !!state.settings;
 
@@ -77,30 +92,38 @@ export function SettingsDialog({ controller }: { controller: SunoController }) {
 
   const startPreset = (item?: OtherOptionsPreset) => {
     setEditingPreset(item);
-    setPresetForm({ name: item?.name ?? '', keys: item ? Object.keys(item.fields) as OtherOptionsKey[] : optionKeys });
+    setPresetForm({ name: item?.name ?? '', fields: item ? cloneFields(item.fields) : {} });
     setLocalError(undefined);
   };
   const cancelPreset = () => { setPresetForm(undefined); setEditingPreset(undefined); };
+  const createPresetFromCurrentOptions = async () => {
+    const result = await controller.captureOptions();
+    if (!result) return;
+    setEditingPreset(undefined);
+    setPresetForm({ name: '', fields: capturedFields(result.snapshot, result.unreadable) });
+    setLocalError(undefined);
+  };
   const saveCurrentPreset = async () => {
     const name = presetForm!.name.trim();
     const issue = validateUniqueName(name, presets, editingPreset?.id)
-      ?? (!snapshot ? '先にSunoの現在の設定を取り込んでください。' : undefined)
-      ?? (!presetForm!.keys.length ? '保存する項目を1つ以上選択してください。' : undefined);
+      ?? (!Object.keys(presetForm!.fields).length ? '保存する項目を1つ以上選択してください。' : undefined);
     if (issue) { setLocalError(issue); return; }
-    const fields = Object.fromEntries(presetForm!.keys.map((key) => [key, snapshot![key]])) as Partial<OtherOptionsSnapshot>;
-    await savePreset({ id: editingPreset?.id, name, fields });
+    await savePreset({ id: editingPreset?.id, name, fields: cloneFields(presetForm!.fields) });
     cancelPreset();
   };
-
-  const capture = async () => {
-    const result = await controller.captureOptions();
-    if (!result) return;
-    setSnapshot(result.snapshot);
-    setUnreadableKeys(result.unreadable);
+  const updatePresetField = <K extends OtherOptionsKey>(key: K, value: OtherOptionsSnapshot[K]) => {
+    setPresetForm((current) => current && { ...current, fields: { ...current.fields, [key]: value } });
   };
-
-  const allSelected = !!presetForm && presetForm.keys.length === optionKeys.length;
-  const savedSnapshot = snapshot ? formatSnapshot(snapshot) : undefined;
+  const setPresetFieldIncluded = (key: OtherOptionsKey, included: boolean) => {
+    setPresetForm((current) => {
+      if (!current) return current;
+      if (included) return { ...current, fields: { ...current.fields, [key]: emptyOtherOptions()[key] } };
+      const fields = { ...current.fields };
+      delete fields[key];
+      return { ...current, fields };
+    });
+  };
+  const allSelected = !!presetForm && optionKeys.every((key) => presetForm.fields[key] !== undefined);
 
   return <dialog ref={dialogRef} className="suno-assistant__dialog" closedby="any" onClose={close} onCancel={close}>
     <div className="suno-assistant__dialog-body">
@@ -142,16 +165,14 @@ export function SettingsDialog({ controller }: { controller: SunoController }) {
 
       <section ref={presetSectionRef} aria-labelledby="suno-assistant-preset-heading">
         <h3 id="suno-assistant-preset-heading">その他のオプションプリセット</h3>
-        <p className="suno-assistant__hint">直近に取り込んだ値のうち、選んだ項目だけを保存します。</p>
-        <button type="button" className="suno-assistant__button" onClick={() => void capture()}>Sunoの現在の設定を取り込む</button>
-        {savedSnapshot && <div className="suno-assistant__snapshot"><dl>{savedSnapshot.map(([key, value]) => <Fragment key={key}><dt>{key}</dt><dd>{value}</dd></Fragment>)}</dl></div>}
+        <p className="suno-assistant__hint">各項目のチェックで保存対象を選び、値を直接編集できます。</p>
         {!presetForm && <>
-          <p><button type="button" disabled={!snapshot} onClick={() => startPreset()}>現在値からプリセットを作成</button></p>
+          <p><button type="button" onClick={() => void createPresetFromCurrentOptions()}>現在値からプリセットを作成</button></p>
           <ul className="suno-assistant__list">
             {presets.map((item) => <li key={item.id}>
-              <div><strong>{item.name}</strong><p>{Object.keys(item.fields).map((key) => optionLabels[key as OtherOptionsKey]).join('、')}</p></div>
+              <div><strong>{item.name}</strong><p>{formatPreset(item.fields)}</p></div>
               <div className="suno-assistant__list-actions">
-                <button type="button" disabled={!snapshot} onClick={() => startPreset(item)}>編集</button>
+                <button type="button" onClick={() => startPreset(item)}>編集</button>
                 <button type="button" onClick={() => void deletePreset(item.id)}>削除</button>
               </div>
             </li>)}
@@ -160,21 +181,24 @@ export function SettingsDialog({ controller }: { controller: SunoController }) {
         </>}
         {presetForm && <form onSubmit={(event) => { event.preventDefault(); void saveCurrentPreset(); }}>
           <label>名前<input type="text" value={presetForm.name} onChange={(event) => setPresetForm((current) => ({ ...current!, name: event.target.value }))} /></label>
-          <div className="suno-assistant__checks">
-            <label><input type="checkbox" checked={allSelected} onChange={(event) => setPresetForm((current) => ({ ...current!, keys: event.target.checked ? optionKeys : [] }))} />全項目</label>
-            {optionKeys.map((key) => <label key={key}>
-              <input
-                type="checkbox"
-                checked={presetForm.keys.includes(key)}
-                disabled={unreadableKeys.includes(key)}
-                onChange={(event) => setPresetForm((current) => ({
-                  ...current!,
-                  keys: event.target.checked ? [...new Set([...current!.keys, key])] : current!.keys.filter((item) => item !== key),
-                }))}
-              />
-              {optionLabels[key]}
-            </label>)}
-          </div>
+          <fieldset className="suno-assistant__preset-fields">
+            <legend>保存する設定</legend>
+            <label className="suno-assistant__preset-field-toggle"><input type="checkbox" checked={allSelected} onChange={(event) => setPresetForm((current) => current && { ...current, fields: event.target.checked ? emptyOtherOptions() : {} })} />全項目</label>
+            {optionKeys.map((key) => {
+              const included = presetForm.fields[key] !== undefined;
+              return <div className="suno-assistant__preset-field" key={key}>
+                <label className="suno-assistant__preset-field-toggle"><input type="checkbox" checked={included} onChange={(event) => setPresetFieldIncluded(key, event.target.checked)} />{optionLabels[key]}</label>
+                {included && <div className="suno-assistant__preset-field-value">
+                  {key === 'excludedStyles' && <label>除外するスタイル<input name={`${presetFormId}-excluded-styles`} type="text" value={presetForm.fields.excludedStyles ?? ''} onChange={(event) => updatePresetField('excludedStyles', event.target.value)} /></label>}
+                  {key === 'vocalGender' && <fieldset><legend>ボーカル性別</legend>{(['none', 'male', 'female'] as VocalGender[]).map((value) => <label key={value}><input name={`${presetFormId}-vocal-gender`} type="radio" checked={presetForm.fields.vocalGender === value} onChange={() => updatePresetField('vocalGender', value)} />{value === 'none' ? '指定なし' : value === 'male' ? '男性' : '女性'}</label>)}</fieldset>}
+                  {key === 'duration' && <fieldset><legend>長さ</legend><label><input name={`${presetFormId}-duration`} type="radio" checked={presetForm.fields.duration?.mode === 'auto'} onChange={() => updatePresetField('duration', { mode: 'auto' })} />Auto</label><label><input name={`${presetFormId}-duration`} type="radio" checked={presetForm.fields.duration?.mode === 'custom'} onChange={() => updatePresetField('duration', { mode: 'custom', seconds: presetForm.fields.duration?.seconds })} />カスタム</label>{presetForm.fields.duration?.mode === 'custom' && <label>秒数<input name={`${presetFormId}-duration-seconds`} type="number" min="1" inputMode="numeric" value={presetForm.fields.duration.seconds ?? ''} onChange={(event) => updatePresetField('duration', { mode: 'custom', seconds: event.target.value ? Number(event.target.value) : undefined })} /></label>}</fieldset>}
+                  {key === 'maxMode' && <label><input name={`${presetFormId}-max-mode`} type="checkbox" checked={presetForm.fields.maxMode ?? false} onChange={(event) => updatePresetField('maxMode', event.target.checked)} />Maxモードをオンにする</label>}
+                  {(key === 'weirdness' || key === 'styleInfluence' || key === 'variation') && (() => { const value = presetForm.fields[key] ?? 0; return <label>{optionLabels[key]}<span className="suno-assistant__range"><input name={`${presetFormId}-${key}`} type="range" min="0" max="100" value={value} onChange={(event) => updatePresetField(key, Number(event.target.value))} /><output>{key === 'variation' ? value : `${value}%`}</output></span></label>; })()}
+                  {key === 'personalization' && <label><input name={`${presetFormId}-personalization`} type="checkbox" checked={presetForm.fields.personalization?.enabled ?? false} onChange={(event) => updatePresetField('personalization', { ...presetForm.fields.personalization, enabled: event.target.checked })} />パーソナライズをオンにする</label>}
+                </div>}
+              </div>;
+            })}
+          </fieldset>
           <div className="suno-assistant__dialog-actions">
             <button type="button" onClick={cancelPreset}>キャンセル</button>
             <button type="submit">保存</button>

@@ -124,12 +124,16 @@ test('mounts the Suno controls beside their anchors, survives host removal, and 
     const dialog = page.locator('suno-create-assistant[data-suno-create-assistant="settings"]');
     await expect(dialog.getByRole('heading', { name: 'Suno Create Assistant の設定' })).toBeVisible();
 
-    await dialog.getByRole('button', { name: 'Sunoの現在の設定を取り込む' }).click();
-    await expect(dialog.getByText('現在の設定を取り込みました。')).toBeVisible();
     await dialog.getByRole('button', { name: '現在値からプリセットを作成' }).click();
     await dialog.getByRole('textbox', { name: '名前' }).fill('標準');
     await dialog.getByRole('button', { name: '保存', exact: true }).click();
     await expect(dialog.getByText('標準')).toBeVisible();
+    await expect(dialog.getByText('奇抜さ: 50%')).toBeVisible();
+    await dialog.getByRole('button', { name: '編集' }).click();
+    await expect(dialog.getByRole('textbox', { name: '名前' })).toHaveValue('標準');
+    await dialog.locator('label').filter({ hasText: /^奇抜さ/ }).locator('input[type="range"]').fill('35');
+    await dialog.getByRole('button', { name: '保存', exact: true }).click();
+    await expect(dialog.getByText('奇抜さ: 35%')).toBeVisible();
     await dialog.getByRole('button', { name: '閉じる' }).click();
     await expect(dialog.getByRole('heading', { name: 'Suno Create Assistant の設定' })).toBeHidden();
 

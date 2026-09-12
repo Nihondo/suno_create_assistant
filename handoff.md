@@ -352,3 +352,15 @@ src/content/suno-ui.css: ホスト要素へのmarginをやめ、padding方式に
 - tests/adapter.test.ts: ネストした名前・プロンプト・保存日の行で本文だけを抽出する回帰テストを追加
 - README.md, README_ja.md, CLAUDE.md: スタイル本文だけを挿入する仕様と実装上の注意を更新
 - output/chrome-mv3/content-scripts/suno.js: 修正済み拡張を再ビルド
+
+## [task] 2026-09-12 21:20:08
+
+**Agent:** Codex
+**Prompt:** プリセット編集画面を、現在値の取り込みと直接値編集を一体化する方向で改善してほしい
+
+**Changes:**
+- src/content/SettingsDialog.tsx: 独立した取り込みボタンと一時スナップショットを廃止し、新規作成時の自動取得・保存済み値からの編集・項目ごとの直接編集を実装
+- src/content/suno-ui.css: プリセットの項目選択、ラジオ、チェック、範囲入力を持つフォームのスタイルを追加
+- tests/e2e/extension.spec.ts: 現在値から作成後に保存済みプリセットを再編集して数値を更新する回帰テストを追加
+- README.md, README_ja.md, CLAUDE.md: 統一されたプリセット作成・編集フローを更新
+- output/chrome-mv3/content-scripts/suno.js: 修正済み拡張を再ビルド

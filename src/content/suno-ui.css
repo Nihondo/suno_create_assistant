@@ -217,6 +217,7 @@
 }
 
 .suno-assistant__dialog-body input[type="text"],
+.suno-assistant__dialog-body input[type="number"],
 .suno-assistant__dialog-body textarea {
   display: block;
   width: 100%;
@@ -247,9 +248,40 @@
 .suno-assistant__checks { display: flex; flex-wrap: wrap; gap: 8px 14px; margin: 10px 0; }
 .suno-assistant__checks label { display: inline-flex; align-items: center; gap: 5px; margin: 0; }
 
-.suno-assistant__snapshot dl { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; margin: 10px 0; font-size: 12px; }
-.suno-assistant__snapshot dt { color: var(--sca-fg-secondary); }
-.suno-assistant__snapshot dd { margin: 0; }
+.suno-assistant__preset-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 14px 0 0;
+  padding: 10px;
+  border: 1px solid var(--sca-border);
+  border-radius: 9px;
+}
+.suno-assistant__preset-fields > legend { padding: 0 4px; color: var(--sca-fg-secondary); font-size: 12px; }
+.suno-assistant__preset-field {
+  padding: 8px;
+  border-radius: 8px;
+  background: var(--sca-bg-input);
+}
+.suno-assistant__preset-field-toggle {
+  display: inline-flex !important;
+  align-items: center;
+  gap: 6px;
+  margin: 0 !important;
+  color: var(--sca-fg) !important;
+  cursor: pointer;
+}
+.suno-assistant__preset-field-value { margin: 8px 0 0 22px; }
+.suno-assistant__preset-field-value fieldset { display: flex; flex-wrap: wrap; gap: 6px 10px; margin: 0; padding: 0; border: 0; }
+.suno-assistant__preset-field-value legend { width: 100%; padding: 0; color: var(--sca-fg-secondary); font-size: 12px; }
+.suno-assistant__preset-field-value fieldset label,
+.suno-assistant__preset-field-value > label { display: inline-flex; align-items: center; gap: 5px; margin: 0; }
+.suno-assistant__preset-field-value > label:has(input[type="text"]),
+.suno-assistant__preset-field-value > label:has(input[type="range"]),
+.suno-assistant__preset-field-value label:has(input[type="number"]) { display: block; }
+.suno-assistant__range { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
+.suno-assistant__range input { flex: 1; accent-color: var(--sca-accent); }
+.suno-assistant__range output { min-width: 38px; color: var(--sca-fg); font-variant-numeric: tabular-nums; }
 
 .suno-assistant__dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
 .suno-assistant__dialog-body button:not(.suno-assistant__button) {

@@ -23,7 +23,7 @@ If the combined style and mastering prompt exceeds Suno's 1,000-character limit,
 
 The Preset dropdown is shown directly under the **Other options** heading, ahead of its collapsible body, so it stays visible whether the disclosure is open or closed. Presets can save all or only selected settings: excluded styles, vocal gender, length, Max mode, weirdness, style influence, variation, and personalization.
 
-Open **Manage presets…** to open an in-page dialog (no separate tab or extension options page needed), then use **Get current values from Suno** while the Advanced tab is selected. The extension can read the settings even when Other options is collapsed; if a control cannot be located, only that setting is left out and reported instead of failing the whole capture. Choose the settings to store and save the preset. Applying a preset changes only its saved settings.
+Open **Manage presets…** to open an in-page dialog (no separate tab or extension options page needed), then choose **Create preset from current values** while the Advanced tab is selected. The extension reads Suno's values directly into an editable form. When editing an existing preset, its saved values are shown without reading Suno again. Select the settings to store, change their values, and save. The extension can read the settings even when Other options is collapsed; if a control cannot be located, only that setting is left out and reported instead of failing the whole capture. Applying a preset changes only its saved settings.
 
 ### Automatic titles
 
