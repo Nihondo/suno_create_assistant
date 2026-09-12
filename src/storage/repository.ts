@@ -10,6 +10,7 @@ const defaults = (): StorageSchemaV1 => ({
   autoTitleEnabled: false,
   titleFormat: DEFAULT_TITLE_FORMAT,
   takeNumbers: {},
+  closeDisclosuresOnAdvanced: true,
 });
 
 function isSchema(value: unknown): value is StorageSchemaV1 {
@@ -27,6 +28,7 @@ export async function readStorage(): Promise<StorageSchemaV1> {
     ...value,
     titleFormat: value.titleFormat || DEFAULT_TITLE_FORMAT,
     takeNumbers: value.takeNumbers ?? {},
+    closeDisclosuresOnAdvanced: value.closeDisclosuresOnAdvanced ?? true,
   };
 }
 
@@ -42,6 +44,14 @@ export async function updateStorage(mutator: (current: StorageSchemaV1) => Stora
 
 export async function setAutoTitleEnabled(autoTitleEnabled: boolean): Promise<void> {
   await updateStorage((current) => ({ ...current, autoTitleEnabled }));
+}
+
+export async function getCloseDisclosuresOnAdvanced(): Promise<boolean> {
+  return (await readStorage()).closeDisclosuresOnAdvanced ?? true;
+}
+
+export async function setCloseDisclosuresOnAdvanced(closeDisclosuresOnAdvanced: boolean): Promise<void> {
+  await updateStorage((current) => ({ ...current, closeDisclosuresOnAdvanced }));
 }
 
 export async function getTitleFormat(): Promise<string> {

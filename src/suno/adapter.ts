@@ -35,7 +35,13 @@ function optionHeading(): HTMLElement | undefined {
   // live site, not a `<button>` - confirmed from production DOM. Match
   // both so a future markup change to a real button keeps working too.
   return [...document.querySelectorAll<HTMLElement>('button, [role="button"]')]
-    .filter((element) => text(element).includes('その他のオプション') && visible([element]) === element)
+    .filter((element) => {
+      if (visible([element]) !== element) return false;
+      const raw = text(element);
+      const aria = element.getAttribute('aria-label') ?? '';
+      return raw.includes('その他のオプション') || aria.includes('その他のオプション')
+        || /other\s*options/i.test(raw) || /other\s*options/i.test(aria);
+    })
     .at(0);
 }
 
@@ -276,7 +282,123 @@ function styleHeaderRow(): HTMLElement | undefined {
   return candidate;
 }
 
+function lyricsHeading(): HTMLElement | undefined {
+  return [...document.querySelectorAll<HTMLElement>('button, [role="button"]')]
+    .filter((element) => {
+      if (visible([element]) !== element) return false;
+      if (element.closest('suno-create-assistant, [role="dialog"], [role="listbox"]')) return false;
+      const aria = element.getAttribute('aria-label') ?? '';
+      const raw = text(element);
+      if (raw.includes('その他のオプション') || aria.includes('その他のオプション')) return false;
+      if (raw.includes('保存したスタイル') || aria.includes('保存したスタイル')) return false;
+      if (raw.includes('スタイル') || aria.includes('スタイル')) return false;
+
+      const firstLine = (raw.split('\n')[0] ?? '').trim().replaceAll(/\s+/g, '');
+      const ariaClean = aria.trim().replaceAll(/\s+/g, '');
+
+      return firstLine === '歌詞' || firstLine === 'Lyrics'
+        || ariaClean === '歌詞' || ariaClean === 'Lyrics'
+        || (firstLine.startsWith('歌詞') && !firstLine.includes('除外') && !firstLine.includes('保存') && !firstLine.includes('作成'));
+    })
+    .at(0);
+}
+
+function isDisclosureExpanded(heading: HTMLElement, fallback?: () => boolean): boolean {
+  const aria = heading.getAttribute('aria-expanded');
+  if (aria !== null) return aria === 'true';
+  const dataState = heading.getAttribute('data-state');
+  if (dataState !== null) return dataState === 'open';
+  const child = heading.querySelector('[aria-expanded]');
+  if (child) return child.getAttribute('aria-expanded') === 'true';
+  const parent = heading.closest('[aria-expanded]');
+  if (parent) return parent.getAttribute('aria-expanded') === 'true';
+  return fallback ? fallback() : false;
+}
+
+function isLyricsExpanded(heading: HTMLElement): boolean {
+  return isDisclosureExpanded(heading, () => {
+    const textareas = [...document.querySelectorAll<HTMLTextAreaElement>('textarea')].filter((el) => {
+      return el.closest('#lyrics-wrapper') || el.getAttribute('placeholder')?.includes('歌詞') || el.getAttribute('placeholder')?.includes('Lyrics');
+    });
+    return visible(textareas) !== undefined;
+  });
+}
+
+function isStyleExpanded(heading: HTMLElement): boolean {
+  return isDisclosureExpanded(heading, () => {
+    const list = [...document.querySelectorAll<HTMLTextAreaElement>(`${STYLE_WRAPPER} textarea`)];
+    return visible(list) !== undefined;
+  });
+}
+
+function isOptionExpanded(heading: HTMLElement): boolean {
+  return isDisclosureExpanded(heading, () => optionControlsVisible(optionPanel()));
+}
+
 export class SunoAdapter {
+  lyricsHeading(): HTMLElement | undefined {
+    return lyricsHeading();
+  }
+
+  styleHeading(): HTMLElement | undefined {
+    return styleHeading();
+  }
+
+  optionHeading(): HTMLElement | undefined {
+    return optionHeading();
+  }
+
+  isDisclosureExpanded(heading: HTMLElement, fallback?: () => boolean): boolean {
+    return isDisclosureExpanded(heading, fallback);
+  }
+
+  isLyricsExpanded(heading: HTMLElement): boolean {
+    return isLyricsExpanded(heading);
+  }
+
+  isStyleExpanded(heading: HTMLElement): boolean {
+    return isStyleExpanded(heading);
+  }
+
+  isOptionExpanded(heading: HTMLElement): boolean {
+    return isOptionExpanded(heading);
+  }
+
+  isAdvancedTab(): boolean {
+    const tabs = [...document.querySelectorAll<HTMLElement>('[role="tab"]')];
+    if (tabs.length === 0) {
+      return !!this.styleAnchor() || !!this.optionsAnchor();
+    }
+    return tabs.some((tab) => {
+      const label = tab.textContent ?? '';
+      return /アドバンスト|アドバンスド|advanced/i.test(label) && tab.getAttribute('aria-selected') !== 'false';
+    });
+  }
+
+  closeDisclosures(): { closedLyrics: boolean; closedStyle: boolean; closedOptions: boolean } {
+    const lyrics = lyricsHeading();
+    const style = styleHeading();
+    const options = optionHeading();
+
+    let closedLyrics = false;
+    let closedStyle = false;
+    let closedOptions = false;
+
+    if (lyrics && !isDisabled(lyrics) && isLyricsExpanded(lyrics)) {
+      lyrics.click();
+      closedLyrics = true;
+    }
+    if (style && !isDisabled(style) && isStyleExpanded(style)) {
+      style.click();
+      closedStyle = true;
+    }
+    if (options && !isDisabled(options) && isOptionExpanded(options)) {
+      options.click();
+      closedOptions = true;
+    }
+
+    return { closedLyrics, closedStyle, closedOptions };
+  }
   styleTextarea(includeHidden = false): HTMLTextAreaElement | undefined {
     const list = [...document.querySelectorAll<HTMLTextAreaElement>(`${STYLE_WRAPPER} textarea`)];
     if (list.length > 0) return includeHidden ? list[0] : (visible(list) ?? (includeHidden ? list[0] : undefined));

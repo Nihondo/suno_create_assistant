@@ -13,11 +13,12 @@ import {
   readStorage,
   saveTitleFormat,
   setAutoTitleEnabled,
+  setCloseDisclosuresOnAdvanced,
   subscribeStorage,
 } from '../storage/repository';
 import { describeSkipped, SunoAdapter } from './adapter';
 
-export type SettingsSection = 'masterings' | 'presets' | 'titleFormat';
+export type SettingsSection = 'masterings' | 'presets' | 'titleFormat' | 'display';
 export type SettingsAction = 'create-preset';
 
 export interface Feedback {
@@ -35,6 +36,7 @@ export interface ControllerState {
   preset?: OtherOptionsPreset;
   autoTitleEnabled: boolean;
   titleFormat: string;
+  closeDisclosuresOnAdvanced: boolean;
   settings?: { section: SettingsSection; action?: SettingsAction };
   styleFeedback?: Feedback;
   presetFeedback?: Feedback;
@@ -52,6 +54,7 @@ export class SunoController {
     isCustomStyle: false,
     autoTitleEnabled: false,
     titleFormat: DEFAULT_TITLE_FORMAT,
+    closeDisclosuresOnAdvanced: true,
   };
   private listeners = new Set<Listener>();
   private baseStyle = '';
@@ -60,10 +63,19 @@ export class SunoController {
   private isExecutingCreate = false;
   private unsubscribeStorage?: () => void;
 
+  get closeDisclosuresOnAdvanced(): boolean {
+    return this.state.closeDisclosuresOnAdvanced;
+  }
+
+  getState(): ControllerState {
+    return { ...this.state };
+  }
+
   async initialize(): Promise<void> {
     const stored = await readStorage();
     this.state.autoTitleEnabled = stored.autoTitleEnabled;
     this.state.titleFormat = stored.titleFormat ?? DEFAULT_TITLE_FORMAT;
+    this.state.closeDisclosuresOnAdvanced = stored.closeDisclosuresOnAdvanced ?? true;
     this.adapter.setTitleReadOnly(this.state.autoTitleEnabled);
     this.updateAutoTitle();
     this.unsubscribeStorage = subscribeStorage(async () => {
@@ -73,6 +85,9 @@ export class SunoController {
       if (updated.titleFormat && updated.titleFormat !== this.state.titleFormat) {
         this.state.titleFormat = updated.titleFormat;
         this.updateAutoTitle();
+      }
+      if (updated.closeDisclosuresOnAdvanced !== undefined && updated.closeDisclosuresOnAdvanced !== this.state.closeDisclosuresOnAdvanced) {
+        this.state.closeDisclosuresOnAdvanced = updated.closeDisclosuresOnAdvanced;
       }
       this.emit();
     });
@@ -224,6 +239,15 @@ export class SunoController {
     this.updateAutoTitle();
     this.emit();
     await setAutoTitleEnabled(enabled);
+  }
+
+  async setCloseDisclosuresOnAdvanced(enabled: boolean): Promise<void> {
+    this.state.closeDisclosuresOnAdvanced = enabled;
+    this.emit();
+    await setCloseDisclosuresOnAdvanced(enabled);
+    if (enabled && this.adapter.isAdvancedTab()) {
+      this.adapter.closeDisclosures();
+    }
   }
 
   reconcile(): void {

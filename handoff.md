@@ -552,3 +552,22 @@ output/chrome-mv3/content-scripts/suno.js: src/content/suno-ui.css の通知配�
 - output/chrome-mv3: 更新済み拡張機能を再ビルド
 
 
+
+## [task] 2026-09-12 23:26:59
+
+**Agent:** Antigravity
+**Prompt:** 歌詞、スタイル、その他のオプション のディスクロージャを閉じた状態をデフォルトとする機能を追加
+
+**Changes:**
+- src/domain/models.ts: StorageSchemaV1 に closeDisclosuresOnAdvanced を追加
+- src/storage/repository.ts: closeDisclosuresOnAdvanced の既定値（true）および get/set 関数を追加
+- src/suno/adapter.ts: lyricsHeading, isDisclosureExpanded, closeDisclosures, isAdvancedTab を新設し、各ディスクロージャの安全な折りたたみとアドバンスドタブ判定を実装
+- src/suno/controller.ts: ControllerState に closeDisclosuresOnAdvanced を追加し、setCloseDisclosuresOnAdvanced での設定保存・即時折りたたみおよびストレージ同期を実装
+- src/content/components.tsx: useController の初期状態に closeDisclosuresOnAdvanced を追加
+- src/content/SettingsDialog.tsx & suno-ui.css: 「表示設定」セクションを新設し、「アドバンスドタブを開いた時に歌詞、スタイル、その他のオプションを閉じる」チェックボックスを実装
+- entrypoints/suno.content.tsx: アドバンスドタブへの切り替えセッションを検知して自動折りたたみを初回のみ実行し、ユーザーの手動展開操作を保護するライフサイクル制御を実装
+- tests/adapter.test.ts: lyricsHeading 検出、isAdvancedTab 判定、closeDisclosures による開状態のみの折りたたみテストを追加
+- tests/controller.test.ts: setCloseDisclosuresOnAdvanced の状態更新・ストレージ保存・発火テストを追加
+- tests/e2e/extension.spec.ts: 歌詞セクションフィクスチャ、初回ロード時の自動折りたたみ、手動展開保持、設定画面でのチェックボックスON/OFFトグルとリロード復元を検証するE2Eテストを追加
+- README.md / README_ja.md / CLAUDE.md: ディスクロージャ初期折りたたみ機能・設定方法・セッション保護ルールのドキュメントを更新
+- output/chrome-mv3: 更新済み拡張機能を再ビルド

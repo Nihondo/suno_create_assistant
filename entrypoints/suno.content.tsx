@@ -16,6 +16,9 @@ export default defineContentScript({
     // fighting for the option-header anchor and fall back to a spot that
     // has proven stable: just above the title field.
     let presetFallback = false;
+    let advancedSessionActive = false;
+    let autoCloseHandled = false;
+    let autoCloseAttempts = 0;
     const mounter = createMounter(styleCss, (key) => {
       if (key === 'presets') presetFallback = true;
       schedule();
@@ -40,11 +43,30 @@ export default defineContentScript({
         mounter.mount('sidebar', sidebarPlacement, () => <SidebarSettingsButton controller={controller} />, theme, { shadow: false });
       }
 
-      const advanced = [...document.querySelectorAll('[role="tab"]')].some((tab) => {
-        const label = tab.textContent ?? '';
-        return /アドバンスト|アドバンスド|advanced/i.test(label) && tab.getAttribute('aria-selected') !== 'false';
-      });
-      if (!advanced) return;
+      const advanced = controller.adapter.isAdvancedTab();
+      if (!advanced) {
+        advancedSessionActive = false;
+        autoCloseHandled = false;
+        autoCloseAttempts = 0;
+        return;
+      }
+
+      if (!advancedSessionActive) {
+        advancedSessionActive = true;
+        autoCloseHandled = false;
+        autoCloseAttempts = 0;
+      }
+
+      if (controller.closeDisclosuresOnAdvanced && !autoCloseHandled) {
+        autoCloseAttempts += 1;
+        controller.adapter.closeDisclosures();
+        const hasLyrics = !!controller.adapter.lyricsHeading();
+        const hasStyle = !!controller.adapter.styleHeading();
+        const hasOptions = !!controller.adapter.optionHeading();
+        if ((hasLyrics && hasStyle && hasOptions) || autoCloseAttempts >= 3) {
+          autoCloseHandled = true;
+        }
+      }
       mounter.mount('styles', { anchor: controller.adapter.styleAnchor(), position: 'afterend' }, () => <StyleControls controller={controller} />, theme);
       const titleAnchor = controller.adapter.titleAnchor();
       // Preferred anchor: the "その他のオプション" header row, which Suno

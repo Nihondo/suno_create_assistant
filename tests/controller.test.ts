@@ -158,3 +158,27 @@ describe('SunoController executeCreateWithTake and title format', () => {
     expect(current().titleFormat).toBe('{{WORKSPACE}} - {{STYLE}} #{{TAKE}}');
   });
 });
+
+describe('SunoController closeDisclosuresOnAdvanced', () => {
+  it('updates state and storage when setCloseDisclosuresOnAdvanced is called', async () => {
+    const controller = new SunoController();
+    const current = watch(controller);
+
+    await controller.setCloseDisclosuresOnAdvanced(false);
+    expect(current().closeDisclosuresOnAdvanced).toBe(false);
+
+    await controller.setCloseDisclosuresOnAdvanced(true);
+    expect(current().closeDisclosuresOnAdvanced).toBe(true);
+  });
+
+  it('triggers closeDisclosures when enabled and advanced tab is active', async () => {
+    const controller = new SunoController();
+    vi.spyOn(controller.adapter, 'isAdvancedTab').mockReturnValue(true);
+    const closeSpy = vi.spyOn(controller.adapter, 'closeDisclosures').mockReturnValue({
+      closedLyrics: true, closedStyle: true, closedOptions: true,
+    });
+
+    await controller.setCloseDisclosuresOnAdvanced(true);
+    expect(closeSpy).toHaveBeenCalled();
+  });
+});

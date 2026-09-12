@@ -39,6 +39,7 @@ export function SettingsDialog({ controller }: { controller: SunoController }) {
   const { masterings, presets } = useStoredLists();
   const dialogRef = useRef<HTMLDialogElement>(null);
   const titleFormatSectionRef = useRef<HTMLElement>(null);
+  const displaySectionRef = useRef<HTMLElement>(null);
   const masteringSectionRef = useRef<HTMLElement>(null);
   const presetSectionRef = useRef<HTMLElement>(null);
   const [titleFormat, setTitleFormat] = useState(state.titleFormat);
@@ -90,7 +91,9 @@ export function SettingsDialog({ controller }: { controller: SunoController }) {
       ? masteringSectionRef.current
       : state.settings?.section === 'titleFormat'
         ? titleFormatSectionRef.current
-        : presetSectionRef.current;
+        : state.settings?.section === 'display'
+          ? displaySectionRef.current
+          : presetSectionRef.current;
     target?.scrollIntoView({ block: 'start' });
   }, [open, state.settings?.section, state.settings?.action, controller]);
 
@@ -180,6 +183,22 @@ export function SettingsDialog({ controller }: { controller: SunoController }) {
             {formatSavedNotice && <span className="suno-assistant__format-saved">保存しました</span>}
           </div>
         </div>
+      </section>
+
+      <section ref={displaySectionRef} aria-labelledby="suno-assistant-display-heading">
+        <h3 id="suno-assistant-display-heading">表示設定</h3>
+        <label className="suno-assistant__dialog-toggle-label">
+          <input
+            type="checkbox"
+            className="suno-assistant__check"
+            checked={state.closeDisclosuresOnAdvanced}
+            onChange={(event) => void controller.setCloseDisclosuresOnAdvanced(event.target.checked)}
+          />
+          アドバンスドタブを開いた時に歌詞、スタイル、その他のオプションを閉じる
+        </label>
+        <p className="suno-assistant__hint">
+          アドバンスドタブを開いた際、各入力欄（歌詞・スタイル・その他のオプション）を閉じた状態をデフォルトにします。
+        </p>
       </section>
 
       <section ref={masteringSectionRef} aria-labelledby="suno-assistant-mastering-heading">

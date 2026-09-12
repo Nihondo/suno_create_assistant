@@ -395,4 +395,113 @@ describe('SunoAdapter sidebarPlacement', () => {
   });
 });
 
+describe('SunoAdapter lyricsHeading', () => {
+  it('finds role="button" or button element with 歌詞 or Lyrics', () => {
+    document.body.innerHTML = `
+      <section id="lyrics">
+        <div id="lyrics-btn" role="button" tabindex="0" aria-expanded="true">歌詞</div>
+      </section>
+      <section id="styles">
+        <div role="button" tabindex="0">スタイル</div>
+      </section>
+    `;
+
+    const adapter = new SunoAdapter();
+    const heading = adapter.lyricsHeading();
+    expect(heading).toBe(document.querySelector('#lyrics-btn'));
+  });
+
+  it('finds English Lyrics heading', () => {
+    document.body.innerHTML = `
+      <section id="lyrics">
+        <button id="lyrics-btn" aria-expanded="true">Lyrics</button>
+      </section>
+    `;
+
+    const adapter = new SunoAdapter();
+    const heading = adapter.lyricsHeading();
+    expect(heading).toBe(document.querySelector('#lyrics-btn'));
+  });
+
+  it('ignores elements inside suno-create-assistant or dialog', () => {
+    document.body.innerHTML = `
+      <suno-create-assistant>
+        <button>歌詞</button>
+      </suno-create-assistant>
+      <dialog role="dialog">
+        <button>歌詞</button>
+      </dialog>
+    `;
+
+    const adapter = new SunoAdapter();
+    expect(adapter.lyricsHeading()).toBeUndefined();
+  });
+});
+
+describe('SunoAdapter isAdvancedTab', () => {
+  it('detects advanced tab when selected', () => {
+    document.body.innerHTML = `
+      <div>
+        <button role="tab" aria-selected="false">シンプル</button>
+        <button role="tab" aria-selected="true">アドバンスト</button>
+      </div>
+    `;
+
+    const adapter = new SunoAdapter();
+    expect(adapter.isAdvancedTab()).toBe(true);
+  });
+
+  it('returns false when advanced tab is not selected', () => {
+    document.body.innerHTML = `
+      <div>
+        <button role="tab" aria-selected="true">シンプル</button>
+        <button role="tab" aria-selected="false">アドバンスト</button>
+      </div>
+    `;
+
+    const adapter = new SunoAdapter();
+    expect(adapter.isAdvancedTab()).toBe(false);
+  });
+
+  it('falls back to anchors when no tabs exist', () => {
+    document.body.innerHTML = `
+      <section id="styles-card">
+        <div id="styles-header"><button>スタイル</button></div>
+        <div data-testid="create-form-styles-wrapper"><textarea></textarea></div>
+      </section>
+    `;
+
+    const adapter = new SunoAdapter();
+    expect(adapter.isAdvancedTab()).toBe(true);
+  });
+});
+
+describe('SunoAdapter closeDisclosures', () => {
+  it('clicks only expanded disclosures and leaves closed ones alone', () => {
+    document.body.innerHTML = `
+      <section id="lyrics">
+        <div id="lyrics-head" role="button" aria-expanded="true">歌詞</div>
+      </section>
+      <section id="styles">
+        <div id="styles-head" role="button" aria-expanded="false">スタイル</div>
+      </section>
+      <section id="options">
+        <div id="options-head" role="button" aria-expanded="true">その他のオプション</div>
+      </section>
+    `;
+
+    const adapter = new SunoAdapter();
+    const clicks: string[] = [];
+    document.querySelector('#lyrics-head')!.addEventListener('click', () => { clicks.push('lyrics'); });
+    document.querySelector('#styles-head')!.addEventListener('click', () => { clicks.push('styles'); });
+    document.querySelector('#options-head')!.addEventListener('click', () => { clicks.push('options'); });
+
+    const result = adapter.closeDisclosures();
+    expect(result.closedLyrics).toBe(true);
+    expect(result.closedStyle).toBe(false); // already false
+    expect(result.closedOptions).toBe(true);
+    expect(clicks).toEqual(['lyrics', 'options']);
+  });
+});
+
 

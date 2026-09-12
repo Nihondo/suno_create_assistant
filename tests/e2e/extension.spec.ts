@@ -25,6 +25,7 @@ const sunoFixture = `<!doctype html><html lang="ja"><body>
   <main>
     <button role="tab" aria-selected="true">アドバンスト</button>
     <button id="inspiration">＋ インスピレーション</button>
+    <section id="lyrics"><div id="lyrics-header"><div role="button" tabindex="0" aria-expanded="true">歌詞</div></div><div id="lyrics-wrapper"><textarea placeholder="歌詞を入力"></textarea></div></section>
     <section id="styles"><div id="styles-header"><div role="button" tabindex="0" aria-expanded="true">スタイル</div></div><div data-testid="create-form-styles-wrapper"><textarea></textarea></div><button id="saved-styles" aria-label="保存したスタイルプロンプトを見る">保存したスタイル</button></section>
     <dialog role="dialog" aria-label="保存したスタイル"><div><button aria-label="ARIA">ARIA</button><span>gentle acoustic ensemble</span></div></dialog>
     <section id="options"><div id="options-header"><div role="button" tabindex="0" aria-expanded="true">その他のオプション</div><button aria-label="すべてリセット">すべてリセット</button></div><div id="options-body"><input aria-label="スタイルを除外" />
@@ -46,6 +47,12 @@ const sunoFixture = `<!doctype html><html lang="ja"><body>
       document.querySelector('#saved-styles').addEventListener('click', () => {
         const dialog = document.querySelector('[role="dialog"]');
         dialog.open ? dialog.close() : dialog.showModal();
+      });
+      document.querySelectorAll('#lyrics-header [role="button"], #styles-header [role="button"], #options-header [role="button"]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const expanded = btn.getAttribute('aria-expanded') === 'true';
+          btn.setAttribute('aria-expanded', String(!expanded));
+        });
       });
     </script>
   </main>
@@ -143,12 +150,17 @@ test('mounts the Suno controls beside their anchors, survives host removal, and 
     await expect(page.locator('#styles-header + suno-create-assistant[data-suno-create-assistant="styles"]')).toHaveCount(1);
     await expect(stylesHost).toBeVisible();
 
-    // Verify styles host stays visible even when the styles section is closed/hidden
-    await page.evaluate(() => {
-      document.querySelector('#styles-header [role="button"]')?.setAttribute('aria-expanded', 'false');
-      const wrapper = document.querySelector<HTMLElement>('[data-testid="create-form-styles-wrapper"]');
-      if (wrapper) wrapper.style.display = 'none';
-    });
+    // Verify disclosures (lyrics, styles, options) are automatically closed by default on Advanced tab
+    await expect(page.locator('#lyrics-header [role="button"]')).toHaveAttribute('aria-expanded', 'false');
+    await expect(page.locator('#styles-header [role="button"]')).toHaveAttribute('aria-expanded', 'false');
+    await expect(page.locator('#options-header [role="button"]')).toHaveAttribute('aria-expanded', 'false');
+
+    // Verify user can manually expand a disclosure and it stays expanded without being re-closed
+    await page.locator('#styles-header [role="button"]').click();
+    await expect(page.locator('#styles-header [role="button"]')).toHaveAttribute('aria-expanded', 'true');
+    await page.waitForTimeout(100);
+    await expect(page.locator('#styles-header [role="button"]')).toHaveAttribute('aria-expanded', 'true');
+
     await expect(stylesHost).toBeVisible();
 
     await expect(page.locator('#inspiration')).toHaveText('＋ ひらめき');
@@ -170,6 +182,9 @@ test('mounts the Suno controls beside their anchors, survives host removal, and 
     await expect(dialog.getByRole('heading', { name: 'Suno Create Assistant の設定' })).toBeVisible();
     await expect(dialog.getByRole('heading', { name: '曲名フォーマット' })).toBeVisible();
     await expect(dialog.getByRole('textbox', { name: '曲名フォーマット' })).toHaveValue('{{WORKSPACE}} ({{STYLE}}) {{TAKE}}');
+    await expect(dialog.getByRole('heading', { name: '表示設定' })).toBeVisible();
+    const closeDisclosuresCheck = dialog.getByRole('checkbox', { name: 'アドバンスドタブを開いた時に歌詞、スタイル、その他のオプションを閉じる' });
+    await expect(closeDisclosuresCheck).toBeChecked();
     await expect(dialog.getByRole('button', { name: '現在値からプリセットを作成' })).toHaveCount(0);
 
     await dialog.getByRole('textbox', { name: '名前' }).fill('標準');
@@ -197,6 +212,32 @@ test('mounts the Suno controls beside their anchors, survives host removal, and 
     await sidebarButton.click();
     await expect(dialog.getByRole('heading', { name: 'Suno Create Assistant の設定' })).toBeVisible();
     await expect(sidebarButton).toHaveAttribute('data-active', '');
+
+    // Toggle closeDisclosuresOnAdvanced setting off
+    await closeDisclosuresCheck.uncheck();
+    await expect(closeDisclosuresCheck).not.toBeChecked();
+
+    await dialog.getByRole('button', { name: '閉じる' }).click();
+    await expect(dialog.getByRole('heading', { name: 'Suno Create Assistant の設定' })).toBeHidden();
+    await expect(sidebarButton).toHaveAttribute('data-inactive', '');
+
+    // Reload page with setting OFF: disclosures should stay open (aria-expanded="true")
+    await page.reload();
+    await page.locator('suno-create-assistant').first().waitFor();
+    await expect(page.locator('#lyrics-header [role="button"]')).toHaveAttribute('aria-expanded', 'true');
+    await expect(page.locator('#styles-header [role="button"]')).toHaveAttribute('aria-expanded', 'true');
+    await expect(page.locator('#options-header [role="button"]')).toHaveAttribute('aria-expanded', 'true');
+
+    // Turn setting back ON from sidebar
+    await sidebarButton.click();
+    await expect(closeDisclosuresCheck).not.toBeChecked();
+    await closeDisclosuresCheck.check();
+    await expect(closeDisclosuresCheck).toBeChecked();
+    // Turning ON while on Advanced tab closes them immediately
+    await expect(page.locator('#lyrics-header [role="button"]')).toHaveAttribute('aria-expanded', 'false');
+    await expect(page.locator('#styles-header [role="button"]')).toHaveAttribute('aria-expanded', 'false');
+    await expect(page.locator('#options-header [role="button"]')).toHaveAttribute('aria-expanded', 'false');
+
     await dialog.getByRole('button', { name: '閉じる' }).click();
     await expect(dialog.getByRole('heading', { name: 'Suno Create Assistant の設定' })).toBeHidden();
     await expect(sidebarButton).toHaveAttribute('data-inactive', '');

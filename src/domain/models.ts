@@ -37,6 +37,7 @@ export interface StorageSchemaV1 {
   autoTitleEnabled: boolean;
   titleFormat?: string;
   takeNumbers?: Record<string, number>;
+  closeDisclosuresOnAdvanced?: boolean;
 }
 
 export interface SavedStyle {

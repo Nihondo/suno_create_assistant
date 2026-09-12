@@ -224,6 +224,16 @@
   color: var(--sca-fg-secondary);
 }
 
+.suno-assistant__dialog-body .suno-assistant__dialog-toggle-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0 4px;
+  color: var(--sca-fg);
+  font-size: 13px;
+  cursor: pointer;
+}
+
 .suno-assistant__dialog-body input[type="text"],
 .suno-assistant__dialog-body input[type="number"],
 .suno-assistant__dialog-body textarea {

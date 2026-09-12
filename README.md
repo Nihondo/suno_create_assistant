@@ -48,7 +48,13 @@ On the Suno Create page, press `Cmd + Enter` (macOS) or `Ctrl + Enter` (Windows/
 ### Sidebar "拡張設定" (Extension settings) menu
 
 The extension injects an **拡張設定** (Extension settings) item with a gear icon into Suno's sidebar navigation (right below Hooks and above the profile item). Clicking it opens the in-page settings dialog where you can manage song title formats, mastering prompts, and presets. While the settings dialog is open, the menu item highlights in an active state. When the sidebar is collapsed/minimized, the text automatically hides and leaves only the gear icon visible, exactly mirroring Suno's native navigation items.
- 
+
+### Default-collapsed disclosures (Display settings)
+
+When opening the Advanced tab, the "Lyrics", "Style", and "Other options" disclosure sections (accordions) default to a collapsed state. Because the extension's dropdown controls (Style, Mastering, Presets) are permanently anchored to the header rows, you can operate them without expanding the full native sections, keeping your workspace clean and compact.
+
+You can toggle this automatic collapse behavior using the **"アドバンスドタブを開いた時に歌詞、スタイル、その他のオプションを閉じる"** (Close lyrics, styles, and other options when opening the Advanced tab) checkbox in the settings dialog under **表示設定** (Display settings) (enabled by default). Once collapsed upon opening the tab, any section you manually click to open stays open while you edit without being unexpectedly re-closed.
+
 ## Privacy
  
 All mastering prompts, presets, the Auto title preference, custom title formats, and take counter records are stored in Chrome local extension storage. The extension does not call Suno private APIs, send data to a server, or store Suno saved-style prompts permanently.
