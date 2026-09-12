@@ -25,9 +25,16 @@ function nativeSetValue(element: HTMLInputElement | HTMLTextAreaElement, value: 
   element.dispatchEvent(new Event('change', { bubbles: true }));
 }
 
-function optionHeading(): HTMLButtonElement | undefined {
-  return [...document.querySelectorAll<HTMLButtonElement>('button')]
-    .filter((button) => text(button).includes('その他のオプション') && visible([button]) === button)
+function isDisabled(element: HTMLElement): boolean {
+  return (element as HTMLButtonElement).disabled === true || element.getAttribute('aria-disabled') === 'true';
+}
+
+function optionHeading(): HTMLElement | undefined {
+  // The disclosure trigger is a `<div role="button" tabindex="0">` on the
+  // live site, not a `<button>` - confirmed from production DOM. Match
+  // both so a future markup change to a real button keeps working too.
+  return [...document.querySelectorAll<HTMLElement>('button, [role="button"]')]
+    .filter((element) => text(element).includes('その他のオプション') && visible([element]) === element)
     .at(0);
 }
 
@@ -40,7 +47,7 @@ const PANEL_MATCHERS: Array<(node: HTMLElement) => boolean> = [
   (node) => !!rowFor(node, 'ボーカル性別') || !!rowFor(node, '長さ') || !!rowFor(node, 'Maxモード'),
 ];
 
-function optionPanelAndHeading(): { panel: HTMLElement; heading: HTMLButtonElement } | undefined {
+function optionPanelAndHeading(): { panel: HTMLElement; heading: HTMLElement } | undefined {
   const heading = optionHeading();
   if (!heading) return undefined;
   for (const matches of PANEL_MATCHERS) {
@@ -89,7 +96,14 @@ function rowFor(panel: HTMLElement, label: string): HTMLElement | undefined {
 }
 
 function selected(button: HTMLButtonElement | undefined): boolean {
-  return !!button?.className.includes('hxc-btn-variant-standard');
+  if (!button) return false;
+  // Confirmed from production DOM: the toggle buttons carry
+  // data-selected="true"/"false" directly. Prefer that stable attribute
+  // over the button's class list, whose "selected" variant name has
+  // already changed at least once (hxc-btn-variant-standard is stale).
+  const dataSelected = button.getAttribute('data-selected');
+  if (dataSelected !== null) return dataSelected === 'true';
+  return button.className.includes('hxc-btn-variant-standard');
 }
 
 function rowButton(panel: HTMLElement, rowLabel: string, buttonText: string): HTMLButtonElement | undefined {
@@ -131,12 +145,15 @@ function titleInput(): HTMLInputElement | undefined {
   return visible(candidates) ?? candidates.at(-1);
 }
 
-function optionHeaderResetButton(): HTMLButtonElement | undefined {
+function optionHeaderResetButton(): HTMLElement | undefined {
+  // Confirmed a real <button aria-label="すべてリセット"> on the live site;
+  // also matching [role="button"] costs nothing and guards against Suno
+  // moving it to the same custom-control pattern as the heading.
   const heading = optionHeading();
   if (!heading) return undefined;
   for (let node: HTMLElement | null = heading.parentElement; node; node = node.parentElement) {
-    const reset = visible([...node.querySelectorAll<HTMLButtonElement>('button')].filter((button) =>
-      (button.getAttribute('aria-label') ?? text(button)).trim() === 'すべてリセット'));
+    const reset = visible([...node.querySelectorAll<HTMLElement>('button, [role="button"]')].filter((element) =>
+      (element.getAttribute('aria-label') ?? text(element)).trim() === 'すべてリセット'));
     if (reset) return reset;
   }
 }
@@ -255,7 +272,7 @@ export class SunoAdapter {
     let panel = optionPanel();
     const heading = optionHeading();
     const shouldOpen = !optionControlsVisible(panel);
-    if (shouldOpen && heading && !heading.disabled) {
+    if (shouldOpen && heading && !isDisabled(heading)) {
       heading.click();
       for (let attempt = 0; attempt < 20 && !optionControlsVisible(panel); attempt += 1) {
         await new Promise((resolve) => setTimeout(resolve, 50));

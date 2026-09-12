@@ -201,3 +201,19 @@ observeForm()に追加した自己ミューテーションフィルタ(SUNO-CREA
 ## [solution] 2026-09-12 18:41:15
 
 自己ミューテーションフィルタを撤去し、observeForm()は常にlistenerを呼ぶ設計に変更。reattach()/mount()が冪等(既に正しい配置なら何もしない)なため無限ループにはならないことをE2Eで確認済み。CLAUDE.mdに再導入しないよう明記
+
+## [issue] 2026-09-12 18:51:36
+
+実際にSunoのcreate画面を読み込むと固まる(フリーズ)と報告あり。原因: SettingsDialogのホストをdocument.bodyの「最後の子要素」として維持する配置ロジックが、Suno自身が画面に動的追加するポータル要素(ツールチップ・トースト等、Reactアプリでは一般的)と最後の子の座を奪い合い、reattach()がMutationObserverコールバック内で無条件に再挿入を行うため、再挿入→新たな変異検知→再挿入…という同期的マイクロタスクの無限連鎖が発生し描画・入力処理が完全に停止していた
+
+## [solution] 2026-09-12 18:51:56
+
+src/content/mount.ts: 1) placedCorrectly()のbeforeend判定を「anchorの最後の子」から「anchorの子であること」に緩和し、他要素の追加と競合しないようにした。2) reattach()に回路遮断器を追加: 直近2秒間に8回以上の再挿入が発生したキーは、ウィンドウが自然に経過するまで再挿入を止める(onThrashは1回だけ通知)。3) 修正前のコード(ユーザーが直前にコミットしたHEAD版)に対してtests/mount.test.tsの新規回帰テスト2件が実際に失敗することをgit stashで検証し、修正適用後に成功することを確認済み
+
+## [issue] 2026-09-12 19:08:19
+
+実サイトで「その他のオプションが見つかりませんでした」再発。ユーザーにDevTools Consoleで実DOM構造をダンプしてもらい確認したところ、その他のオプションの開閉見出しは<button>ではなく<div role="button" tabindex="0" aria-expanded>であり、optionHeading()がbuttonタグしか探していなかったため常に検出失敗していた。加えて男性/女性等のトグルボタンの選択状態はdata-selected="true"/"false"属性で表現されており、コードが見ていたclassName.includes('hxc-btn-variant-standard')は既に古いクラス名で常にfalseを返していた(プリセット読取・適用の両方に影響)。リセットボタン(aria-label=すべてリセット)は実際にbuttonタグで問題なし
+
+## [solution] 2026-09-12 19:08:19
+
+src/suno/adapter.ts: 1) optionHeading()のクエリを'button'から'button, [role="button"]'に拡張し型もHTMLElementに変更。2) selected()をdata-selected属性優先(存在すればそれで判定、無ければ旧クラス名にフォールバック)に変更。3) heading.disabledの参照をisDisabled()ヘルパー(aria-disabledとdisabledプロパティ両対応)に置き換え。4) optionHeaderResetButton()もbutton,[role="button"]両対応に拡張(現状は実button確認済みだが将来の変更に備えた防御)。tests/adapter.test.tsに実DOM形状(role=button見出し、data-selected属性)の回帰テストを追加し、修正前コードでは実際に失敗することをgit stashで検証済み。tests/e2e/extension.spec.tsのフィクスチャも実DOM形状に合わせて更新

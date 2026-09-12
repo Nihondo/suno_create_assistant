@@ -44,6 +44,20 @@ describe('SunoAdapter options mount anchor', () => {
     expect(adapter.optionsAnchor()).toBe(document.querySelector('button'));
   });
 
+  it('finds a role="button" div heading - confirmed production markup, not a real <button>', () => {
+    // Verified against the live site: the disclosure trigger is
+    // `<div role="button" tabindex="0" aria-expanded="...">`, never a
+    // `<button>`. A selector limited to `button` finds nothing there.
+    document.body.innerHTML = `
+      <div tabindex="0" role="button" aria-expanded="true">
+        <div>その他のオプション</div><div>バリエーション</div>
+      </div>
+      <input placeholder="曲名(任意)" />
+    `;
+    const adapter = new SunoAdapter();
+    expect(adapter.optionsAnchor()).toBe(document.querySelector('[role="button"]'));
+  });
+
   it('notifies the listener when its own host is removed, so callers can restore it', async () => {
     // A mutation record cannot distinguish "we just moved this host" from
     // "Suno deleted it"; the extension needs the latter to reach the
@@ -66,15 +80,17 @@ describe('SunoAdapter options mount anchor', () => {
 });
 
 function optionsPanelFixture(): string {
+  // data-selected="true"/"false" and the role="button" heading below are
+  // both confirmed from the live site's DOM, not assumed.
   return `
-    <section id="options"><button>その他のオプション</button>
+    <section id="options"><div role="button" aria-expanded="true">その他のオプション</div>
       <input placeholder="スタイルを除外" />
-      <div>ボーカル性別<button>男性</button><button>女性</button></div>
-      <div>長さ<button>カスタム</button><button class="hxc-btn-variant-standard">Auto</button></div>
-      <div>Maxモード<button class="hxc-btn-variant-standard">オフ</button><button>オン</button></div>
+      <div>ボーカル性別<button data-selected="false">男性</button><button data-selected="false">女性</button></div>
+      <div>長さ<button data-selected="false">カスタム</button><button data-selected="true">Auto</button></div>
+      <div>Maxモード<button data-selected="true">オフ</button><button data-selected="false">オン</button></div>
       <div role="slider" aria-label="奇抜さ" aria-valuenow="50"></div>
       <div role="slider" aria-label="バリエーション" aria-valuenow="0"></div>
-      <div>パーソナライズ<button>マイ・テイスト</button><button class="hxc-btn-variant-standard">オフ</button><button disabled>オン</button></div>
+      <div>パーソナライズ<button data-selected="false">マイ・テイスト</button><button data-selected="true">オフ</button><button data-selected="false" disabled>オン</button></div>
     </section>
   `;
 }
@@ -93,6 +109,21 @@ describe('SunoAdapter.readOtherOptions', () => {
     expect(result!.snapshot.weirdness).toBe(50);
     expect(result!.snapshot.variation).toBe(0);
     expect(result!.snapshot.maxMode).toBe(false);
+  });
+
+  it('reads selection state via the data-selected attribute, not a class name', async () => {
+    // Regression test: the toggle buttons' "selected" class name
+    // (hxc-btn-variant-standard) is stale on the live site, which now
+    // conveys selection only through data-selected="true"/"false". Relying
+    // on the class name alone silently misread every toggle's state.
+    document.body.innerHTML = optionsPanelFixture();
+    const adapter = new SunoAdapter();
+    const result = await adapter.readOtherOptions();
+
+    expect(result!.snapshot.vocalGender).toBe('none');
+    expect(result!.snapshot.duration.mode).toBe('auto');
+    expect(result!.snapshot.maxMode).toBe(false);
+    expect(result!.snapshot.personalization.enabled).toBe(false);
   });
 
   it('returns undefined only when the options heading itself cannot be found', async () => {

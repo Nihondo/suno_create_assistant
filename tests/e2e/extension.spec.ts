@@ -14,14 +14,14 @@ const sunoFixture = `<!doctype html><html lang="ja"><body>
     <button id="inspiration">＋ インスピレーション</button>
     <section><div data-testid="create-form-styles-wrapper"><textarea></textarea></div><button id="saved-styles" aria-label="保存したスタイルプロンプトを見る">保存したスタイル</button></section>
     <dialog role="dialog" aria-label="保存したスタイル"><div><button aria-label="ARIA">ARIA</button><span>gentle acoustic ensemble</span></div></dialog>
-    <section id="options"><div id="options-header"><button>その他のオプション</button><button aria-label="すべてリセット">すべてリセット</button></div><div id="options-body"><input aria-label="スタイルを除外" />
-      <div>ボーカル性別<button>男性</button><button>女性</button></div>
-      <div>長さ<button>カスタム</button><button class="hxc-btn-variant-standard">Auto</button></div>
-      <div>Maxモード<button class="hxc-btn-variant-standard">オフ</button><button>オン</button></div>
+    <section id="options"><div id="options-header"><div role="button" tabindex="0" aria-expanded="true">その他のオプション</div><button aria-label="すべてリセット">すべてリセット</button></div><div id="options-body"><input aria-label="スタイルを除外" />
+      <div>ボーカル性別<button data-selected="false">男性</button><button data-selected="false">女性</button></div>
+      <div>長さ<button data-selected="false">カスタム</button><button data-selected="true">Auto</button></div>
+      <div>Maxモード<button data-selected="true">オフ</button><button data-selected="false">オン</button></div>
       <div role="slider" aria-label="奇抜さ" aria-valuenow="50" style="width:100px;height:20px"></div>
       <div role="slider" aria-label="スタイルの影響" aria-valuenow="50" style="width:100px;height:20px"></div>
       <div role="slider" aria-label="バリエーション" aria-valuenow="0" style="width:100px;height:20px"></div>
-      <div>パーソナライズ<button>マイ・テイスト</button><button class="hxc-btn-variant-standard">オフ</button><button disabled>オン</button></div>
+      <div>パーソナライズ<button data-selected="false">マイ・テイスト</button><button data-selected="true">オフ</button><button data-selected="false" disabled>オン</button></div>
     </div></section>
     <section><div><input placeholder="曲名(任意)" /></div><div>保存先…<button>Demo Workspace</button></div></section>
     <button id="create">作成</button>
@@ -76,6 +76,19 @@ test('mounts the Suno controls beside their anchors, survives host removal, and 
     await page.waitForTimeout(250);
     // styles, presets, title, and the always-mounted settings dialog host.
     expect(await page.locator('suno-create-assistant').count(), extensionErrors.join('\n')).toBe(4);
+
+    // Regression: the settings dialog host used to require staying
+    // document.body's *last* child. Anything else that also appends to
+    // body (tooltips, toasts, portals - all common in a React SPA) would
+    // then fight it for that position forever, freezing the page via an
+    // unbounded MutationObserver-triggered reinsertion loop. Simulate such
+    // portaled siblings and confirm the main thread is still free to run
+    // script promptly afterward (a frozen page would time this out).
+    await page.evaluate(() => {
+      for (let i = 0; i < 50; i += 1) document.body.append(document.createElement('div'));
+    });
+    await expect.poll(() => page.evaluate(() => 1 + 1), { timeout: 2000 }).toBe(2);
+    await expect(page.locator('suno-create-assistant[data-suno-create-assistant="settings"]')).toHaveCount(1);
 
     // The presets control sits directly under the "その他のオプション" header
     // row, ahead of the disclosure body - not beside the title field.

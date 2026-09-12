@@ -13,6 +13,7 @@ interface Entry {
   root: Root;
   placement: Placement;
   reattachTimestamps: number[];
+  thrashNotified: boolean;
 }
 
 const THRASH_WINDOW_MS = 2000;
@@ -23,8 +24,14 @@ function placedCorrectly(host: HTMLElement, placement: Placement): boolean {
   if (!anchor) return false;
   if (position === 'afterend') return host.previousElementSibling === anchor;
   if (position === 'beforebegin') return host.nextElementSibling === anchor;
-  // 'beforeend': host must be the last child of anchor.
-  return host.parentElement === anchor && anchor.lastElementChild === host;
+  // 'beforeend': merely being a child of anchor is enough. Requiring it to
+  // stay the *last* child would fight anything else that also appends to
+  // the same anchor (e.g. Suno's own portaled tooltips/toasts on
+  // document.body): each of their appends would displace us, our reinsert
+  // would displace them back, and - because both sides react via
+  // MutationObserver - that exchange can become an unbounded synchronous
+  // mutate/react/mutate microtask chain that starves rendering entirely.
+  return host.parentElement === anchor;
 }
 
 function insertAt(host: HTMLElement, placement: Placement): void {
@@ -68,7 +75,7 @@ export function createMounter(styleCss: string, onThrash?: (key: string) => void
     insertAt(host, placement);
     const root = createRoot(container);
     root.render(render());
-    entries.set(key, { host, root, placement, reattachTimestamps: [] });
+    entries.set(key, { host, root, placement, reattachTimestamps: [], thrashNotified: false });
   };
 
   const reattach = (): boolean => {
@@ -81,10 +88,26 @@ export function createMounter(styleCss: string, onThrash?: (key: string) => void
       // both are fixed the same way, by reinserting at the placement.
       if (host.isConnected && placedCorrectly(host, placement)) return;
       if (!placement.anchor?.isConnected) return;
+      entry.reattachTimestamps = entry.reattachTimestamps.filter((timestamp) => now - timestamp < THRASH_WINDOW_MS);
+      if (entry.reattachTimestamps.length >= THRASH_LIMIT) {
+        // Circuit breaker: an anchor that is genuinely being fought over
+        // (by Suno, or by anything else) would otherwise have every
+        // reinsertion trigger a fresh MutationObserver record, which
+        // triggers another reinsertion, forever - a synchronous microtask
+        // chain that starves rendering. Stop reinserting for this key
+        // until the window ages out on its own; the debounced
+        // refreshMounts() (at most every 80ms) still gets a chance to pick
+        // a different placement (see suno.content.tsx's onThrash handling).
+        if (!entry.thrashNotified) {
+          entry.thrashNotified = true;
+          onThrash?.(key);
+        }
+        return;
+      }
+      entry.thrashNotified = false;
       insertAt(host, placement);
       moved = true;
-      entry.reattachTimestamps = [...entry.reattachTimestamps.filter((timestamp) => now - timestamp < THRASH_WINDOW_MS), now];
-      if (entry.reattachTimestamps.length > THRASH_LIMIT) onThrash?.(key);
+      entry.reattachTimestamps.push(now);
     });
     return moved;
   };

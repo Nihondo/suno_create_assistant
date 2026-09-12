@@ -81,6 +81,54 @@ describe('createMounter', () => {
     mounter.dispose();
   });
 
+  it('treats "beforeend" as correctly placed even once other siblings are appended after it', () => {
+    // Regression test: requiring the host to stay the *last* child of a
+    // shared anchor (e.g. document.body) would fight anything else that
+    // also appends there - such as Suno's own portaled tooltips/toasts -
+    // since each side's append displaces the other, forever. Being any
+    // child of the anchor must be enough.
+    document.body.innerHTML = '<div id="anchor"></div>';
+    const anchor = document.querySelector<HTMLElement>('#anchor')!;
+    const mounter = createMounter('');
+    mounter.mount('settings', { anchor, position: 'beforeend' }, () => null);
+    const host = mounter.hostOf('settings')!;
+    expect(host.parentElement).toBe(anchor);
+
+    anchor.append(document.createElement('div'));
+    expect(mounter.reattach()).toBe(false);
+    expect(host.parentElement).toBe(anchor);
+
+    mounter.dispose();
+  });
+
+  it('stops reinserting a host once thrashing is detected, instead of fighting forever', () => {
+    // Regression test: reattach() runs synchronously inside the
+    // MutationObserver callback. If something keeps displacing the host
+    // (a genuinely contested anchor) and reattach() kept reinserting on
+    // every single call, each reinsertion would itself trigger a new
+    // mutation record, and the observer would call reattach() again -
+    // an unbounded microtask chain that never lets the browser render or
+    // handle input. The breaker must make it stop trying instead.
+    document.body.innerHTML = '<div id="a"></div><div id="other"></div>';
+    const anchor = document.querySelector<HTMLElement>('#a')!;
+    const other = document.querySelector<HTMLElement>('#other')!;
+    const mounter = createMounter('');
+    mounter.mount('presets', { anchor, position: 'afterend' }, () => null);
+    const host = mounter.hostOf('presets')!;
+
+    for (let i = 0; i < 8; i += 1) {
+      other.append(host);
+      mounter.reattach();
+    }
+    expect(host.previousElementSibling).toBe(anchor);
+
+    other.append(host);
+    expect(mounter.reattach()).toBe(false);
+    expect(host.parentElement).toBe(other);
+
+    mounter.dispose();
+  });
+
   it('unmounts and removes the host once the anchor is withdrawn', () => {
     document.body.innerHTML = '<div id="a"></div>';
     const anchor = document.querySelector<HTMLElement>('#a')!;
