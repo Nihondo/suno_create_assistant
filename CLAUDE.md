@@ -46,6 +46,30 @@ Run `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm test:e2e`, and `pnpm build
 - **The sidebar settings button mounts in the Light DOM (`shadow: false`) with `display: contents` on `<suno-create-assistant>`.** This allows Suno's native Tailwind CSS classes (`hxc-btn-base`, `hxc-btn-variant-tertiary-legacy`, `text-foreground-tertiary`, `hover:text-foreground-primary`, etc.) and the sidebar collapse state (`group-data-[show-content=false]/sidebar:opacity-0`) to apply directly and seamlessly without breaking across Shadow DOM boundaries. `SunoAdapter.sidebarPlacement()` searches in order: (1) `afterend` of `a[href="/hooks"]`, (2) `beforebegin` of the profile split row (`.group\/profile-row` or `a[href^="/@"]`), (3) `beforeend` of the sidebar nav container. While the settings dialog is open, the button reflects `data-active=""` to highlight, reverting to `data-inactive=""` on close.
 - **Disclosures (Lyrics, Style, Other Options) can be auto-collapsed upon activating the Advanced tab without interfering with manual user interaction.** When `closeDisclosuresOnAdvanced` is enabled (default `true`), `refreshMounts()` checks `isAdvancedTab()` and collapses expanded disclosures (`aria-expanded="true"`) on session entry. An `advancedSessionActive` and `autoCloseHandled` flag ensures this auto-collapse executes only once per tab activation session; subsequent manual user expansion is preserved across reactive re-renders and keystrokes until the user leaves and returns to the Advanced tab.
 
+## Internationalization and multi-language architecture
+
+- **Locale definitions live in `src/locales/`**:
+  - `src/locales/types.ts`: Core types including `SupportedLanguage` (`'ja' | 'en'`), `SunoHostLocale` (host DOM selectors, headings, labels, regex patterns for Suno's native UI), `UiMessages` (extension UI strings and formatters), and `LocaleDefinition`.
+  - `src/locales/ja.ts` & `src/locales/en.ts`: Language definitions for Japanese and English based on verified DOM dumps (`docs/alldom_ja.txt` and `docs/alldom_en.txt`).
+  - `src/locales/index.ts`: Locale registry (`SUPPORTED_LOCALES`), language detection (`detectLanguage()`), getters (`getLocale()`, `getHostLocale()`, `getUiMessages()`), and cross-locale fallback query helpers (`getAllTitlePlaceholders()`, `getAllOptionResetLabels()`, `getAllSavedStyleTriggerLabels()`, `getSliderLabels()`, `getRowLabels()`).
+- **Language detection**: `detectLanguage()` inspects `document.documentElement.lang` (e.g. `'ja'`, `'en-US'`) or `document.documentElement.dataset.language`, falling back to `'ja'`.
+- **Hybrid fallback architecture for host DOM queries**: `SunoAdapter` queries using the detected host locale (`this.hostLocale`), but also leverages aggregated cross-locale patterns (e.g. searching all known title placeholders or reset labels) when inspecting inputs or headers. This guarantees that host controls can be found even during asynchronous language switches, hydration delays, or when Suno renders mixed-language strings.
+- **Extension UI localization**: Content script components (`src/content/components.tsx`, `SettingsDialog.tsx`) and the controller (`src/suno/controller.ts`) retrieve localized copy via `getUiMessages(this.lang)`.
+- **Confirmed English host DOM specifics (from `docs/alldom_en.txt`)**:
+  - "その他のオプション" disclosure heading is **`More Options`** (not "Other Options"), and its reset action is `Reset All`.
+  - Styles heading is `Styles` (with child `<div>Styles</div>` followed by prompt text); Lyrics heading is `Lyrics`.
+  - Title input placeholder is `Song Title (Optional)`.
+  - Excluded styles placeholder is `Exclude styles`.
+  - Sliders `aria-label`: `Weirdness`, `Style Influence`, `Variety` (variation), `Audio Influence`.
+  - Toggle button rows: `Vocal Gender` (`Male`, `Female`), `Duration` (`Custom`, `Auto`), `Max Mode` (`On`, `Off`), `Personalize` (`On`, `Off`, `My Taste`).
+  - Saved Styles: trigger `aria-label="View saved style prompts"`, dialog `aria-label="Saved Styles"`, action buttons (`Delete`, `Rename`, `Grid View`) excluded from leaf prompt extraction.
+- **Adding a new language**:
+  1. Create `src/locales/<lang>.ts` implementing `LocaleDefinition` (`host` and `ui`).
+  2. Add the language code to `SupportedLanguage` in `src/locales/types.ts`.
+  3. Register the definition in `SUPPORTED_LOCALES` in `src/locales/index.ts`.
+  4. Add unit test assertions in `tests/locales.test.ts`.
+
 ## Storage
 
 `chrome.storage.local` holds schema version 1, mastering prompts, option presets, the Auto title preference, the custom song title format (`titleFormat`), take numbers (`takeNumbers`), and the disclosure auto-collapse preference (`closeDisclosuresOnAdvanced`). Tab-local selection state and saved-style caches must remain ephemeral.
+

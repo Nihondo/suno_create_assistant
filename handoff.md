@@ -584,3 +584,16 @@ output/chrome-mv3/content-scripts/suno.js: src/content/suno-ui.css の通知配�
 - src/content/SettingsDialog.tsx: 曲名フォーマットの利用可能プレースホルダに {{AUDIO}}（元曲名）を追記
 - README.md / README_ja.md / CLAUDE.md: {{AUDIO}} プレースホルダの仕様とドキュメントを更新
 - tests/logic.test.ts / tests/adapter.test.ts / tests/controller.test.ts: {{AUDIO}} プレースホルダおよび DOM抽出のユニットテストを追加
+
+## [task] 2026-09-12 23:58:08
+
+**Agent:** Antigravity
+**Prompt:** docs/alldom_ja.txtとdocs/alldom_en.txtに基づく英語ローカライズと他言語拡張基盤の導入
+
+**Changes:**
+- src/locales/: types.ts, ja.ts, en.ts, index.ts を新設し、SunoホストDOM定義・UIメッセージ辞書・言語自動検知および集約フォールバック探索関数を実装
+- src/suno/adapter.ts: ハードコードされた日本語文字列を排除し、言語別ホスト定義(More Options, Reset All, Styles, Weirdness, Vocal Gender等)とフォールバック探索による多言語対応へ改修
+- src/suno/controller.ts: エラーおよび通知フィードバックをgetUiMessages()経由の多言語化へ改修
+- src/content/components.tsx & SettingsDialog.tsx: スタイル・プリセット・自動設定・設定ダイアログの全UI文言を多言語辞書連動へ改修
+- tests/locales.test.ts & tests/adapter.test.ts: 言語検知・集約関数テストおよび英語DOM環境でのホスト要素検出・読取・適用の回帰テストを追加
+- README.md, README_ja.md, CLAUDE.md: 英語ローカライズ仕様、多言語アーキテクチャ規約、新言語追加手順を英日同期で更新

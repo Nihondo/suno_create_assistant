@@ -1,9 +1,10 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { DEFAULT_TITLE_FORMAT, validateUniqueName } from '../domain/logic';
-import { emptyOtherOptions, optionKeys, optionLabels, type MasteringPrompt, type OtherOptionsKey, type OtherOptionsPreset, type OtherOptionsSnapshot, type VocalGender } from '../domain/models';
+import { emptyOtherOptions, optionKeys, type MasteringPrompt, type OtherOptionsKey, type OtherOptionsPreset, type OtherOptionsSnapshot, type VocalGender } from '../domain/models';
 import { deleteMastering, deletePreset, saveMastering, savePreset } from '../storage/repository';
 import type { SunoController } from '../suno/controller';
 import { useController, useStoredLists } from './components';
+import { getUiMessages, type UiMessages } from '../locales';
 
 type PresetForm = { name: string; fields: Partial<OtherOptionsSnapshot> };
 
@@ -21,16 +22,18 @@ function capturedFields(snapshot: OtherOptionsSnapshot, unreadable: OtherOptions
     .map((key) => [key, snapshot[key]])) as Partial<OtherOptionsSnapshot>;
 }
 
-function formatPreset(fields: Partial<OtherOptionsSnapshot>): string {
+function formatPreset(fields: Partial<OtherOptionsSnapshot>, ui: UiMessages): string {
   const values: string[] = [];
-  if (fields.excludedStyles !== undefined) values.push(`${optionLabels.excludedStyles}: ${fields.excludedStyles || 'なし'}`);
-  if (fields.vocalGender !== undefined) values.push(`${optionLabels.vocalGender}: ${fields.vocalGender === 'none' ? '指定なし' : fields.vocalGender === 'male' ? '男性' : '女性'}`);
-  if (fields.duration !== undefined) values.push(`${optionLabels.duration}: ${fields.duration.mode === 'auto' ? 'Auto' : `カスタム${fields.duration.seconds ? ` (${fields.duration.seconds}秒)` : ''}`}`);
-  if (fields.maxMode !== undefined) values.push(`${optionLabels.maxMode}: ${fields.maxMode ? 'オン' : 'オフ'}`);
-  if (fields.weirdness !== undefined) values.push(`${optionLabels.weirdness}: ${fields.weirdness}%`);
-  if (fields.styleInfluence !== undefined) values.push(`${optionLabels.styleInfluence}: ${fields.styleInfluence}%`);
-  if (fields.variation !== undefined) values.push(`${optionLabels.variation}: ${fields.variation}`);
-  if (fields.personalization !== undefined) values.push(`${optionLabels.personalization}: ${fields.personalization.enabled ? 'オン' : 'オフ'}`);
+  if (fields.excludedStyles !== undefined) values.push(`${ui.optionLabels.excludedStyles}: ${fields.excludedStyles || ui.dialog.noneOption}`);
+  if (fields.vocalGender !== undefined) values.push(`${ui.optionLabels.vocalGender}: ${fields.vocalGender === 'none' ? ui.dialog.noneOption : fields.vocalGender === 'male' ? ui.dialog.maleOption : ui.dialog.femaleOption}`);
+  if (fields.duration !== undefined) values.push(`${ui.optionLabels.duration}: ${fields.duration.mode === 'auto' ? 'Auto' : `${ui.custom}${fields.duration.seconds ? ` (${fields.duration.seconds}${ui.dialog.secondsLabel})` : ''}`}`);
+  const onText = ui.optionLabels.vocalGender === 'ボーカル性別' ? 'オン' : 'On';
+  const offText = ui.optionLabels.vocalGender === 'ボーカル性別' ? 'オフ' : 'Off';
+  if (fields.maxMode !== undefined) values.push(`${ui.optionLabels.maxMode}: ${fields.maxMode ? onText : offText}`);
+  if (fields.weirdness !== undefined) values.push(`${ui.optionLabels.weirdness}: ${fields.weirdness}%`);
+  if (fields.styleInfluence !== undefined) values.push(`${ui.optionLabels.styleInfluence}: ${fields.styleInfluence}%`);
+  if (fields.variation !== undefined) values.push(`${ui.optionLabels.variation}: ${fields.variation}`);
+  if (fields.personalization !== undefined) values.push(`${ui.optionLabels.personalization}: ${fields.personalization.enabled ? onText : offText}`);
   return values.join(' / ');
 }
 
@@ -153,11 +156,13 @@ export function SettingsDialog({ controller }: { controller: SunoController }) {
     setTitleFormat(DEFAULT_TITLE_FORMAT);
   };
 
+  const ui = getUiMessages();
+
   return <dialog ref={dialogRef} className="suno-assistant__dialog" closedby="any" onClose={close} onCancel={close}>
     <div className="suno-assistant__dialog-body">
       <div className="suno-assistant__dialog-header">
-        <h2>Suno Create Assistant の設定</h2>
-        <button type="button" className="suno-assistant__button" onClick={close}>閉じる</button>
+        <h2>{ui.dialog.title}</h2>
+        <button type="button" className="suno-assistant__button" onClick={close}>{ui.dialog.close}</button>
       </div>
       {(state.settingsFeedback || localError) && (
         <p className={`suno-assistant__status ${localError || state.settingsFeedback?.kind === 'error' ? 'suno-assistant__status--error' : ''}`} role={localError || state.settingsFeedback?.kind === 'error' ? 'alert' : 'status'}>
@@ -166,27 +171,27 @@ export function SettingsDialog({ controller }: { controller: SunoController }) {
       )}
 
       <section ref={titleFormatSectionRef} aria-labelledby="suno-assistant-title-format-heading">
-        <h3 id="suno-assistant-title-format-heading">曲名フォーマット</h3>
+        <h3 id="suno-assistant-title-format-heading">{ui.dialog.titleFormatHeading}</h3>
         <p className="suno-assistant__hint">
-          「自動設定」オン時に生成される曲名の書式です。利用可能なプレースホルダ: <code>{'{{WORKSPACE}}'}</code>（保存先）、<code>{'{{STYLE}}'}</code>（スタイル）、<code>{'{{AUDIO}}'}</code>（元曲名）、<code>{'{{TAKE}}'}</code>（テイク番号）
+          {ui.dialog.titleFormatHint}
         </p>
         <div className="suno-assistant__format-field">
           <input
             type="text"
-            aria-label="曲名フォーマット"
+            aria-label={ui.aria.titleFormatInput}
             value={titleFormat}
             onChange={(event) => setTitleFormat(event.target.value)}
           />
           <div className="suno-assistant__format-actions">
-            <button type="button" onClick={handleResetTitleFormat}>初期値に戻す</button>
-            <button type="button" onClick={() => void handleSaveTitleFormat()}>フォーマットを保存</button>
-            {formatSavedNotice && <span className="suno-assistant__format-saved">保存しました</span>}
+            <button type="button" onClick={handleResetTitleFormat}>{ui.dialog.resetDefault}</button>
+            <button type="button" onClick={() => void handleSaveTitleFormat()}>{ui.dialog.saveFormat}</button>
+            {formatSavedNotice && <span className="suno-assistant__format-saved">{ui.dialog.savedNotice}</span>}
           </div>
         </div>
       </section>
 
       <section ref={displaySectionRef} aria-labelledby="suno-assistant-display-heading">
-        <h3 id="suno-assistant-display-heading">表示設定</h3>
+        <h3 id="suno-assistant-display-heading">{ui.dialog.displayHeading}</h3>
         <label className="suno-assistant__dialog-toggle-label">
           <input
             type="checkbox"
@@ -194,77 +199,77 @@ export function SettingsDialog({ controller }: { controller: SunoController }) {
             checked={state.closeDisclosuresOnAdvanced}
             onChange={(event) => void controller.setCloseDisclosuresOnAdvanced(event.target.checked)}
           />
-          アドバンスドタブを開いた時に歌詞、スタイル、その他のオプションを閉じる
+          {ui.dialog.closeDisclosuresLabel}
         </label>
         <p className="suno-assistant__hint">
-          アドバンスドタブを開いた際、各入力欄（歌詞・スタイル・その他のオプション）を閉じた状態をデフォルトにします。
+          {ui.dialog.closeDisclosuresHint}
         </p>
       </section>
 
       <section ref={masteringSectionRef} aria-labelledby="suno-assistant-mastering-heading">
-        <h3 id="suno-assistant-mastering-heading">マスタリングプロンプト</h3>
-        <p className="suno-assistant__hint">スタイル本文の後ろに改行で追加する独自プロンプトです。</p>
+        <h3 id="suno-assistant-mastering-heading">{ui.dialog.masteringHeading}</h3>
+        <p className="suno-assistant__hint">{ui.dialog.masteringHint}</p>
         {!masteringForm && <>
           <ul className="suno-assistant__list">
             {masterings.map((item) => <li key={item.id}>
               <div><strong>{item.name}</strong><p>{item.prompt}</p></div>
               <div className="suno-assistant__list-actions">
-                <button type="button" onClick={() => startMastering(item)}>編集</button>
-                <button type="button" onClick={() => void deleteMastering(item.id)}>削除</button>
+                <button type="button" onClick={() => startMastering(item)}>{ui.dialog.edit}</button>
+                <button type="button" onClick={() => void deleteMastering(item.id)}>{ui.dialog.delete}</button>
               </div>
             </li>)}
           </ul>
-          {!masterings.length && <p className="suno-assistant__hint">まだ登録されていません。</p>}
-          <button type="button" className="suno-assistant__button" onClick={() => startMastering()}>追加</button>
+          {!masterings.length && <p className="suno-assistant__hint">{ui.dialog.notRegisteredYet}</p>}
+          <button type="button" className="suno-assistant__button" onClick={() => startMastering()}>{ui.dialog.add}</button>
         </>}
         {masteringForm && <form onSubmit={(event) => { event.preventDefault(); void saveCurrentMastering(); }}>
-          <label>名前<input type="text" value={masteringForm.name} onChange={(event) => setMasteringForm((current) => ({ ...current!, name: event.target.value }))} /></label>
-          <label>プロンプト<textarea value={masteringForm.prompt} maxLength={1000} onChange={(event) => setMasteringForm((current) => ({ ...current!, prompt: event.target.value }))} /></label>
+          <label>{ui.dialog.masteringName}<input type="text" value={masteringForm.name} onChange={(event) => setMasteringForm((current) => ({ ...current!, name: event.target.value }))} /></label>
+          <label>{ui.dialog.masteringPrompt}<textarea value={masteringForm.prompt} maxLength={1000} onChange={(event) => setMasteringForm((current) => ({ ...current!, prompt: event.target.value }))} /></label>
           <div className="suno-assistant__dialog-actions">
-            <button type="button" onClick={cancelMastering}>キャンセル</button>
-            <button type="submit">保存</button>
+            <button type="button" onClick={cancelMastering}>{ui.dialog.cancel}</button>
+            <button type="submit">{ui.dialog.save}</button>
           </div>
         </form>}
       </section>
 
       <section ref={presetSectionRef} aria-labelledby="suno-assistant-preset-heading">
-        <h3 id="suno-assistant-preset-heading">その他のオプションプリセット</h3>
-        <p className="suno-assistant__hint">各項目のチェックで保存対象を選び、値を直接編集できます。</p>
+        <h3 id="suno-assistant-preset-heading">{ui.dialog.presetHeading}</h3>
+        <p className="suno-assistant__hint">{ui.dialog.presetHint}</p>
         {!presetForm && <>
           <ul className="suno-assistant__list">
             {presets.map((item) => <li key={item.id}>
-              <div><strong>{item.name}</strong><p>{formatPreset(item.fields)}</p></div>
+              <div><strong>{item.name}</strong><p>{formatPreset(item.fields, ui)}</p></div>
               <div className="suno-assistant__list-actions">
-                <button type="button" onClick={() => startPreset(item)}>編集</button>
-                <button type="button" onClick={() => void deletePreset(item.id)}>削除</button>
+                <button type="button" onClick={() => startPreset(item)}>{ui.dialog.edit}</button>
+                <button type="button" onClick={() => void deletePreset(item.id)}>{ui.dialog.delete}</button>
               </div>
             </li>)}
           </ul>
-          {!presets.length && <p className="suno-assistant__hint">まだ登録されていません。</p>}
+          {!presets.length && <p className="suno-assistant__hint">{ui.dialog.notRegisteredYet}</p>}
         </>}
         {presetForm && <form onSubmit={(event) => { event.preventDefault(); void saveCurrentPreset(); }}>
-          <label>名前<input type="text" value={presetForm.name} onChange={(event) => setPresetForm((current) => ({ ...current!, name: event.target.value }))} /></label>
+          <label>{ui.dialog.presetName}<input type="text" value={presetForm.name} onChange={(event) => setPresetForm((current) => ({ ...current!, name: event.target.value }))} /></label>
           <fieldset className="suno-assistant__preset-fields">
-            <legend>保存する設定</legend>
-            <label className="suno-assistant__preset-field-toggle"><input type="checkbox" checked={allSelected} onChange={(event) => setPresetForm((current) => current && { ...current, fields: event.target.checked ? emptyOtherOptions() : {} })} />全項目</label>
+            <legend>{ui.dialog.presetFieldsLegend}</legend>
+            <label className="suno-assistant__preset-field-toggle"><input type="checkbox" checked={allSelected} onChange={(event) => setPresetForm((current) => current && { ...current, fields: event.target.checked ? emptyOtherOptions() : {} })} />{ui.dialog.allFields}</label>
             {optionKeys.map((key) => {
               const included = presetForm.fields[key] !== undefined;
               return <div className="suno-assistant__preset-field" key={key}>
-                <label className="suno-assistant__preset-field-toggle"><input type="checkbox" checked={included} onChange={(event) => setPresetFieldIncluded(key, event.target.checked)} />{optionLabels[key]}</label>
+                <label className="suno-assistant__preset-field-toggle"><input type="checkbox" checked={included} onChange={(event) => setPresetFieldIncluded(key, event.target.checked)} />{ui.optionLabels[key]}</label>
                 {included && <div className="suno-assistant__preset-field-value">
-                  {key === 'excludedStyles' && <label>除外するスタイル<input name={`${presetFormId}-excluded-styles`} type="text" value={presetForm.fields.excludedStyles ?? ''} onChange={(event) => updatePresetField('excludedStyles', event.target.value)} /></label>}
-                  {key === 'vocalGender' && <fieldset><legend>ボーカル性別</legend>{(['none', 'male', 'female'] as VocalGender[]).map((value) => <label key={value}><input name={`${presetFormId}-vocal-gender`} type="radio" checked={presetForm.fields.vocalGender === value} onChange={() => updatePresetField('vocalGender', value)} />{value === 'none' ? '指定なし' : value === 'male' ? '男性' : '女性'}</label>)}</fieldset>}
-                  {key === 'duration' && <fieldset><legend>長さ</legend><label><input name={`${presetFormId}-duration`} type="radio" checked={presetForm.fields.duration?.mode === 'auto'} onChange={() => updatePresetField('duration', { mode: 'auto' })} />Auto</label><label><input name={`${presetFormId}-duration`} type="radio" checked={presetForm.fields.duration?.mode === 'custom'} onChange={() => updatePresetField('duration', { mode: 'custom', seconds: presetForm.fields.duration?.seconds })} />カスタム</label>{presetForm.fields.duration?.mode === 'custom' && <label className="suno-assistant__duration-seconds"><span>秒数</span><input name={`${presetFormId}-duration-seconds`} type="number" min="1" inputMode="numeric" value={presetForm.fields.duration.seconds ?? ''} onChange={(event) => updatePresetField('duration', { mode: 'custom', seconds: event.target.value ? Number(event.target.value) : undefined })} /></label>}</fieldset>}
-                  {key === 'maxMode' && <label><input name={`${presetFormId}-max-mode`} type="checkbox" checked={presetForm.fields.maxMode ?? false} onChange={(event) => updatePresetField('maxMode', event.target.checked)} />Maxモードをオンにする</label>}
-                  {(key === 'weirdness' || key === 'styleInfluence' || key === 'variation') && (() => { const value = presetForm.fields[key] ?? 0; return <label>{optionLabels[key]}<span className="suno-assistant__range"><input name={`${presetFormId}-${key}`} type="range" min="0" max="100" value={value} onChange={(event) => updatePresetField(key, Number(event.target.value))} /><output>{key === 'variation' ? value : `${value}%`}</output></span></label>; })()}
-                  {key === 'personalization' && <label><input name={`${presetFormId}-personalization`} type="checkbox" checked={presetForm.fields.personalization?.enabled ?? false} onChange={(event) => updatePresetField('personalization', { ...presetForm.fields.personalization, enabled: event.target.checked })} />パーソナライズをオンにする</label>}
+                  {key === 'excludedStyles' && <label>{ui.dialog.excludeStylesLabel}<input name={`${presetFormId}-excluded-styles`} type="text" value={presetForm.fields.excludedStyles ?? ''} onChange={(event) => updatePresetField('excludedStyles', event.target.value)} /></label>}
+                  {key === 'vocalGender' && <fieldset><legend>{ui.optionLabels.vocalGender}</legend>{(['none', 'male', 'female'] as VocalGender[]).map((value) => <label key={value}><input name={`${presetFormId}-vocal-gender`} type="radio" checked={presetForm.fields.vocalGender === value} onChange={() => updatePresetField('vocalGender', value)} />{value === 'none' ? ui.dialog.noneOption : value === 'male' ? ui.dialog.maleOption : ui.dialog.femaleOption}</label>)}</fieldset>}
+                  {key === 'duration' && <fieldset><legend>{ui.optionLabels.duration}</legend><label><input name={`${presetFormId}-duration`} type="radio" checked={presetForm.fields.duration?.mode === 'auto'} onChange={() => updatePresetField('duration', { mode: 'auto' })} />Auto</label><label><input name={`${presetFormId}-duration`} type="radio" checked={presetForm.fields.duration?.mode === 'custom'} onChange={() => updatePresetField('duration', { mode: 'custom', seconds: presetForm.fields.duration?.seconds })} />{ui.custom}</label>{presetForm.fields.duration?.mode === 'custom' && <label className="suno-assistant__duration-seconds"><span>{ui.dialog.secondsLabel}</span><input name={`${presetFormId}-duration-seconds`} type="number" min="1" inputMode="numeric" value={presetForm.fields.duration.seconds ?? ''} onChange={(event) => updatePresetField('duration', { mode: 'custom', seconds: event.target.value ? Number(event.target.value) : undefined })} /></label>}</fieldset>}
+                  {key === 'maxMode' && <label><input name={`${presetFormId}-max-mode`} type="checkbox" checked={presetForm.fields.maxMode ?? false} onChange={(event) => updatePresetField('maxMode', event.target.checked)} />{ui.dialog.maxModeToggle}</label>}
+                  {(key === 'weirdness' || key === 'styleInfluence' || key === 'variation') && (() => { const value = presetForm.fields[key] ?? 0; return <label>{ui.optionLabels[key]}<span className="suno-assistant__range"><input name={`${presetFormId}-${key}`} type="range" min="0" max="100" value={value} onChange={(event) => updatePresetField(key, Number(event.target.value))} /><output>{key === 'variation' ? value : `${value}%`}</output></span></label>; })()}
+                  {key === 'personalization' && <label><input name={`${presetFormId}-personalization`} type="checkbox" checked={presetForm.fields.personalization?.enabled ?? false} onChange={(event) => updatePresetField('personalization', { ...presetForm.fields.personalization, enabled: event.target.checked })} />{ui.dialog.personalizationToggle}</label>}
                 </div>}
               </div>;
             })}
           </fieldset>
           <div className="suno-assistant__dialog-actions">
-            <button type="button" onClick={cancelPreset}>キャンセル</button>
-            <button type="submit">保存</button>
+            <button type="button" onClick={cancelPreset}>{ui.dialog.cancel}</button>
+            <button type="submit">{ui.dialog.save}</button>
           </div>
         </form>}
       </section>

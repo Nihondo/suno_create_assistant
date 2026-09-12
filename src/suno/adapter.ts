@@ -1,10 +1,25 @@
-import type { ApplyResult, OtherOptionsCapture, OtherOptionsKey, OtherOptionsSnapshot, SavedStyle, VocalGender } from '../domain/models';
-import { emptyOtherOptions, optionLabels } from '../domain/models';
+import type { ApplyResult, OtherOptionsCapture, OtherOptionsKey, OtherOptionsSnapshot, SavedStyle } from '../domain/models';
+import { emptyOtherOptions } from '../domain/models';
 import { savedStyleId } from '../domain/logic';
 import type { Placement } from '../content/mount';
+import {
+  getAllDestinationKeywords,
+  getAllExcludedStylesPlaceholders,
+  getAllHostLocales,
+  getAllOptionResetLabels,
+  getAllSavedStyleDialogLabels,
+  getAllSavedStyleTriggerLabels,
+  getAllTitlePlaceholders,
+  getHostLocale,
+  getRowLabels,
+  getSliderLabels,
+  getUiMessages,
+  isSavedStyleDateString,
+  type SunoHostSliders,
+  type SupportedLanguage,
+} from '../locales';
 
 const STYLE_WRAPPER = '[data-testid="create-form-styles-wrapper"]';
-const TITLE_PLACEHOLDER = '曲名(任意)';
 
 function visible<T extends Element>(elements: Iterable<T>): T | undefined {
   return [...elements].find((element) => {
@@ -40,7 +55,7 @@ function optionHeading(): HTMLElement | undefined {
       const raw = text(element);
       const aria = element.getAttribute('aria-label') ?? '';
       return raw.includes('その他のオプション') || aria.includes('その他のオプション')
-        || /other\s*options/i.test(raw) || /other\s*options/i.test(aria);
+        || /(?:more|other)\s*options/i.test(raw) || /(?:more|other)\s*options/i.test(aria);
     })
     .at(0);
 }
@@ -49,9 +64,15 @@ function optionHeading(): HTMLElement | undefined {
 // fail the whole lookup: prefer the ancestor that has both known sliders,
 // fall back to any slider, then to any known settings row.
 const PANEL_MATCHERS: Array<(node: HTMLElement) => boolean> = [
-  (node) => !!node.querySelector('[role="slider"][aria-label="奇抜さ"]') && !!node.querySelector('[role="slider"][aria-label="スタイルの影響"]'),
+  (node) => {
+    const weirdnessLabels = getSliderLabels('weirdness');
+    const styleLabels = getSliderLabels('styleInfluence');
+    const hasWeirdness = weirdnessLabels.some((l) => node.querySelector(`[role="slider"][aria-label="${l}"]`));
+    const hasStyle = styleLabels.some((l) => node.querySelector(`[role="slider"][aria-label="${l}"]`));
+    return hasWeirdness && hasStyle;
+  },
   (node) => !!node.querySelector('[role="slider"]'),
-  (node) => !!rowFor(node, 'ボーカル性別') || !!rowFor(node, '長さ') || !!rowFor(node, 'Maxモード'),
+  (node) => !!rowFor(node, 'vocalGender') || !!rowFor(node, 'duration') || !!rowFor(node, 'maxMode'),
 ];
 
 function optionPanelAndHeading(): { panel: HTMLElement; heading: HTMLElement } | undefined {
@@ -74,23 +95,29 @@ function optionControlsVisible(panel: HTMLElement | undefined): boolean {
   // controls to be visible (not merely present in a closed disclosure) so
   // callers can tell whether the accordion is actually open.
   if (!panel) return false;
-  if (slider(panel, '奇抜さ') && slider(panel, 'スタイルの影響')) return true;
+  if (slider(panel, 'weirdness') && slider(panel, 'styleInfluence')) return true;
   if (visible(panel.querySelectorAll<HTMLElement>('[role="slider"]'))) return true;
-  return ['ボーカル性別', '長さ', 'Maxモード'].some((label) => {
-    const row = rowFor(panel, label);
+  return (['vocalGender', 'duration', 'maxMode'] as const).some((key) => {
+    const row = rowFor(panel, key);
     return !!row && !!visible(row.querySelectorAll<HTMLButtonElement>('button'));
   });
 }
 
 function excludedStylesInput(panel: HTMLElement): HTMLInputElement | undefined {
-  const named = visible(panel.querySelectorAll<HTMLInputElement>('input[placeholder="スタイルを除外"]'));
-  if (named) return named;
+  for (const ph of getAllExcludedStylesPlaceholders()) {
+    const named = visible(panel.querySelectorAll<HTMLInputElement>(`input[placeholder="${ph}"]`));
+    if (named) return named;
+  }
   return visible([...panel.querySelectorAll<HTMLInputElement>('input')].filter((input) => !input.type || input.type === 'text'));
 }
 
 function savedStylesDialog(includeHidden = false): HTMLElement | undefined {
+  const dialogLabels = getAllSavedStyleDialogLabels();
   const dialogs = [...document.querySelectorAll<HTMLElement>('[role="dialog"]')]
-    .filter((dialog) => (dialog.getAttribute('aria-label') ?? '').includes('保存したスタイル'));
+    .filter((dialog) => {
+      const aria = dialog.getAttribute('aria-label') ?? '';
+      return dialogLabels.some((label) => aria.includes(label) || new RegExp(label, 'i').test(aria));
+    });
   return includeHidden ? dialogs[0] : visible(dialogs);
 }
 
@@ -106,16 +133,18 @@ function savedStylePrompt(row: HTMLElement, name: string): string {
 }
 
 function isSavedStyleDate(value: string): boolean {
-  const normalized = value.trim();
-  return /^(?:保存(?:日|済み|された日)?|作成(?:日)?|更新(?:日)?|saved|created|updated)\s*[:：]?/i.test(normalized)
-    || /^(?:\d{4}[/-]\d{1,2}[/-]\d{1,2}|\d{4}年\d{1,2}月\d{1,2}日|(?:今日|昨日)|\d+\s*(?:分|時間|日|weeks?|days?|hours?|minutes?)\s*(?:前|ago)?)$/i.test(normalized);
+  return isSavedStyleDateString(value);
 }
 
-function rowFor(panel: HTMLElement, label: string): HTMLElement | undefined {
+function rowFor(panel: HTMLElement, target: 'vocalGender' | 'duration' | 'maxMode' | 'personalization' | string): HTMLElement | undefined {
   const candidates = [...panel.querySelectorAll<HTMLElement>('div')];
+  const labels = (target === 'vocalGender' || target === 'duration' || target === 'maxMode' || target === 'personalization')
+    ? getRowLabels(target)
+    : [target];
+
   return candidates.find((candidate) => {
     const compact = text(candidate).replaceAll(/\s+/g, '');
-    return compact.startsWith(label.replaceAll(/\s+/g, '')) && candidate.querySelector('button');
+    return labels.some((label) => compact.startsWith(label.replaceAll(/\s+/g, ''))) && candidate.querySelector('button');
   });
 }
 
@@ -130,8 +159,8 @@ function selected(button: HTMLButtonElement | undefined): boolean {
   return button.className.includes('hxc-btn-variant-standard');
 }
 
-function rowButton(panel: HTMLElement, rowLabel: string, buttonText: string): HTMLButtonElement | undefined {
-  const row = rowFor(panel, rowLabel);
+function rowButton(panel: HTMLElement, rowTarget: 'vocalGender' | 'duration' | 'maxMode' | 'personalization' | string, buttonText: string): HTMLButtonElement | undefined {
+  const row = rowFor(panel, rowTarget);
   return visible([...row?.querySelectorAll<HTMLButtonElement>('button') ?? []].filter((button) => text(button) === buttonText));
 }
 
@@ -141,8 +170,16 @@ function clickIfNeeded(button: HTMLButtonElement | undefined, needed: boolean): 
   return true;
 }
 
-function slider(panel: HTMLElement, label: string): HTMLElement | undefined {
-  return visible(panel.querySelectorAll<HTMLElement>(`[role="slider"][aria-label="${label}"]`));
+function slider(panel: HTMLElement, target: keyof SunoHostSliders | string): HTMLElement | undefined {
+  const labels = (target === 'weirdness' || target === 'styleInfluence' || target === 'variation' || target === 'audioInfluence')
+    ? getSliderLabels(target)
+    : [target];
+
+  for (const label of labels) {
+    const match = visible(panel.querySelectorAll<HTMLElement>(`[role="slider"][aria-label="${label}"]`));
+    if (match) return match;
+  }
+  return undefined;
 }
 
 async function settle(): Promise<void> {
@@ -172,11 +209,11 @@ async function settle(): Promise<void> {
 // guards against Suno replacing the slider's DOM node between steps.
 const SLIDER_STEP_GUARD = 200;
 
-async function setSlider(label: string, value: number): Promise<boolean> {
+async function setSlider(target: keyof SunoHostSliders | string, value: number): Promise<boolean> {
   let moved = false;
   for (let guard = 0; guard < SLIDER_STEP_GUARD; guard += 1) {
     const panel = optionPanel();
-    const element = panel && slider(panel, label);
+    const element = panel && slider(panel, target);
     if (!element || element.getAttribute('aria-disabled') === 'true') return moved;
     const current = Number(element.getAttribute('aria-valuenow'));
     if (!Number.isFinite(current)) return moved;
@@ -190,16 +227,23 @@ async function setSlider(label: string, value: number): Promise<boolean> {
 }
 
 function titleInput(): HTMLInputElement | undefined {
-  const candidates = [...document.querySelectorAll<HTMLInputElement>(`input[placeholder="${TITLE_PLACEHOLDER}"]`)]
+  const placeholders = getAllTitlePlaceholders();
+  const destKeywords = getAllDestinationKeywords();
+
+  const candidates = [...document.querySelectorAll<HTMLInputElement>('input')]
     .filter((input) => {
+      const ph = input.getAttribute('placeholder') ?? '';
+      if (!placeholders.some((p) => ph.includes(p))) return false;
       let parent: HTMLElement | null = input.parentElement;
       for (let depth = 0; depth < 5 && parent; depth += 1, parent = parent.parentElement) {
-        if (text(parent).includes('保存先…')) return true;
+        const parentText = text(parent);
+        if (destKeywords.some((kw) => parentText.includes(kw))) return true;
       }
       return false;
     });
   return visible(candidates) ?? candidates.at(-1);
 }
+
 
 function audioPlayButton(): HTMLElement | undefined {
   const candidates = [...document.querySelectorAll<HTMLElement>('button, [role="button"]')]
@@ -257,9 +301,12 @@ function optionHeaderResetButton(): HTMLElement | undefined {
   // moving it to the same custom-control pattern as the heading.
   const heading = optionHeading();
   if (!heading) return undefined;
+  const resetLabels = getAllOptionResetLabels();
   for (let node: HTMLElement | null = heading.parentElement; node; node = node.parentElement) {
-    const reset = visible([...node.querySelectorAll<HTMLElement>('button, [role="button"]')].filter((element) =>
-      (element.getAttribute('aria-label') ?? text(element)).trim() === 'すべてリセット'));
+    const reset = visible([...node.querySelectorAll<HTMLElement>('button, [role="button"]')].filter((element) => {
+      const label = (element.getAttribute('aria-label') ?? text(element)).trim();
+      return resetLabels.some((rl) => label === rl || label.includes(rl));
+    }));
     if (reset) return reset;
   }
 }
@@ -269,7 +316,9 @@ function containsOptionBody(node: HTMLElement): boolean {
 }
 
 function leavesOptionCard(node: HTMLElement): boolean {
-  return !!node.querySelector(`input[placeholder="${TITLE_PLACEHOLDER}"], ${STYLE_WRAPPER}`);
+  const placeholders = getAllTitlePlaceholders();
+  const selector = placeholders.map((ph) => `input[placeholder="${ph}"]`).join(', ') + `, ${STYLE_WRAPPER}`;
+  return !!node.querySelector(selector);
 }
 
 function optionHeaderRow(): HTMLElement | undefined {
@@ -293,21 +342,31 @@ function optionHeaderRow(): HTMLElement | undefined {
 }
 
 function styleHeading(): HTMLElement | undefined {
+  const optionRegex = /(?:その他のオプション|More\s*Options|Other\s*Options)/i;
+  const savedStylesRegex = /(?:保存したスタイル|Saved\s*Styles?)/i;
+  const excludeStylesRegex = /(?:スタイルを除外|Exclude\s*styles?)/i;
+
   return [...document.querySelectorAll<HTMLElement>('button, [role="button"]')]
     .filter((element) => {
       if (visible([element]) !== element) return false;
       const aria = element.getAttribute('aria-label') ?? '';
       const raw = text(element);
-      if (raw.includes('その他のオプション') || aria.includes('その他のオプション')) return false;
-      if (raw.includes('保存したスタイル') || aria.includes('保存したスタイル')) return false;
-      if (raw.includes('スタイルを除外') || aria.includes('スタイルを除外')) return false;
+      if (optionRegex.test(raw) || optionRegex.test(aria)) return false;
+      if (savedStylesRegex.test(raw) || savedStylesRegex.test(aria)) return false;
+      if (excludeStylesRegex.test(raw) || excludeStylesRegex.test(aria)) return false;
+
+      const innerTexts = [...element.querySelectorAll<HTMLElement>('div, span')]
+        .filter((el) => el.children.length === 0)
+        .map((el) => text(el));
 
       const firstLine = (raw.split('\n')[0] ?? '').trim().replaceAll(/\s+/g, '');
       const ariaClean = aria.trim().replaceAll(/\s+/g, '');
 
-      return firstLine === 'スタイル' || firstLine === 'Style' || firstLine === 'Styles'
-        || ariaClean === 'スタイル' || ariaClean === 'Style' || ariaClean === 'Styles'
-        || (firstLine.startsWith('スタイル') && !firstLine.includes('除外') && !firstLine.includes('保存'));
+      return firstLine === 'スタイル' || /^Styles?$/i.test(firstLine)
+        || ariaClean === 'スタイル' || /^Styles?$/i.test(ariaClean)
+        || innerTexts.some((t) => t === 'スタイル' || /^Styles?$/i.test(t))
+        || (firstLine.startsWith('スタイル') && !firstLine.includes('除外') && !firstLine.includes('保存'))
+        || (firstLine.startsWith('Style') && !/Exclude|Saved/i.test(firstLine));
     })
     .at(0);
 }
@@ -317,7 +376,9 @@ function containsStyleBody(node: HTMLElement): boolean {
 }
 
 function leavesStyleCard(node: HTMLElement): boolean {
-  return !!node.querySelector(`input[placeholder="${TITLE_PLACEHOLDER}"], #options, [role="slider"]`);
+  const placeholders = getAllTitlePlaceholders();
+  const selector = placeholders.map((ph) => `input[placeholder="${ph}"]`).join(', ') + ', #options, [role="slider"]';
+  return !!node.querySelector(selector);
 }
 
 function styleHeaderRow(): HTMLElement | undefined {
@@ -333,22 +394,32 @@ function styleHeaderRow(): HTMLElement | undefined {
 }
 
 function lyricsHeading(): HTMLElement | undefined {
+  const optionRegex = /(?:その他のオプション|More\s*Options|Other\s*Options)/i;
+  const savedStylesRegex = /(?:保存したスタイル|Saved\s*Styles?)/i;
+  const styleRegex = /(?:スタイル|Styles?)/i;
+
   return [...document.querySelectorAll<HTMLElement>('button, [role="button"]')]
     .filter((element) => {
       if (visible([element]) !== element) return false;
       if (element.closest('suno-create-assistant, [role="dialog"], [role="listbox"]')) return false;
       const aria = element.getAttribute('aria-label') ?? '';
       const raw = text(element);
-      if (raw.includes('その他のオプション') || aria.includes('その他のオプション')) return false;
-      if (raw.includes('保存したスタイル') || aria.includes('保存したスタイル')) return false;
-      if (raw.includes('スタイル') || aria.includes('スタイル')) return false;
+      if (optionRegex.test(raw) || optionRegex.test(aria)) return false;
+      if (savedStylesRegex.test(raw) || savedStylesRegex.test(aria)) return false;
+      if (styleRegex.test(raw) || styleRegex.test(aria)) return false;
+
+      const innerTexts = [...element.querySelectorAll<HTMLElement>('div, span')]
+        .filter((el) => el.children.length === 0)
+        .map((el) => text(el));
 
       const firstLine = (raw.split('\n')[0] ?? '').trim().replaceAll(/\s+/g, '');
       const ariaClean = aria.trim().replaceAll(/\s+/g, '');
 
-      return firstLine === '歌詞' || firstLine === 'Lyrics'
-        || ariaClean === '歌詞' || ariaClean === 'Lyrics'
-        || (firstLine.startsWith('歌詞') && !firstLine.includes('除外') && !firstLine.includes('保存') && !firstLine.includes('作成'));
+      return firstLine === '歌詞' || /^Lyrics?$/i.test(firstLine)
+        || ariaClean === '歌詞' || /^Lyrics?$/i.test(ariaClean)
+        || innerTexts.some((t) => t === '歌詞' || /^Lyrics?$/i.test(t))
+        || (firstLine.startsWith('歌詞') && !firstLine.includes('除外') && !firstLine.includes('保存') && !firstLine.includes('作成'))
+        || (firstLine.startsWith('Lyric') && !/Exclude|Saved|Create/i.test(firstLine));
     })
     .at(0);
 }
@@ -368,7 +439,7 @@ function isDisclosureExpanded(heading: HTMLElement, fallback?: () => boolean): b
 function isLyricsExpanded(heading: HTMLElement): boolean {
   return isDisclosureExpanded(heading, () => {
     const textareas = [...document.querySelectorAll<HTMLTextAreaElement>('textarea')].filter((el) => {
-      return el.closest('#lyrics-wrapper') || el.getAttribute('placeholder')?.includes('歌詞') || el.getAttribute('placeholder')?.includes('Lyrics');
+      return el.closest('#lyrics-wrapper') || el.getAttribute('placeholder')?.includes('歌詞') || /lyrics/i.test(el.getAttribute('placeholder') ?? '');
     });
     return visible(textareas) !== undefined;
   });
@@ -570,12 +641,14 @@ export class SunoAdapter {
   getDestinationName(): string {
     const input = titleInput();
     if (!input) return '';
+    const destKeywords = getAllDestinationKeywords();
     let node: HTMLElement | null = input.parentElement;
     for (let depth = 0; node && depth < 5; depth += 1, node = node.parentElement) {
-      if (text(node).includes('保存先…')) {
+      const parentText = text(node);
+      if (destKeywords.some((kw) => parentText.includes(kw))) {
         const candidates = [...node.querySelectorAll<HTMLButtonElement>('button')]
           .map((button) => text(button))
-          .filter((value) => value && value !== '保存先…');
+          .filter((value) => value && !destKeywords.some((kw) => value.includes(kw)));
         return candidates.at(-1) ?? '';
       }
     }
@@ -617,35 +690,54 @@ export class SunoAdapter {
     const excludedInput = excludedStylesInput(panel);
     readField('excludedStyles', !!excludedInput, () => { snapshot.excludedStyles = excludedInput!.value; });
 
-    const vocalRow = rowFor(panel, 'ボーカル性別');
+    const vocalRow = rowFor(panel, 'vocalGender');
     readField('vocalGender', !!vocalRow, () => {
-      if (selected(rowButton(panel, 'ボーカル性別', '男性'))) snapshot.vocalGender = 'male';
-      if (selected(rowButton(panel, 'ボーカル性別', '女性'))) snapshot.vocalGender = 'female';
+      const maleButtons = getAllHostLocales().map((l) => l.rows.vocalGender.male);
+      const femaleButtons = getAllHostLocales().map((l) => l.rows.vocalGender.female);
+      const isMale = maleButtons.some((bText) => selected(rowButton(panel, 'vocalGender', bText)));
+      const isFemale = femaleButtons.some((bText) => selected(rowButton(panel, 'vocalGender', bText)));
+      if (isMale) snapshot.vocalGender = 'male';
+      if (isFemale) snapshot.vocalGender = 'female';
     });
 
-    const durationRow = rowFor(panel, '長さ');
+    const durationRow = rowFor(panel, 'duration');
     readField('duration', !!durationRow, () => {
-      snapshot.duration.mode = selected(rowButton(panel, '長さ', 'カスタム')) ? 'custom' : 'auto';
+      const customButtons = getAllHostLocales().map((l) => l.rows.duration.custom);
+      const isCustom = customButtons.some((bText) => selected(rowButton(panel, 'duration', bText)));
+      snapshot.duration.mode = isCustom ? 'custom' : 'auto';
       const seconds = durationRow!.querySelector<HTMLInputElement>('input[type="number"]')?.value;
       if (seconds && Number.isFinite(Number(seconds))) snapshot.duration.seconds = Number(seconds);
     });
 
-    const maxModeRow = rowFor(panel, 'Maxモード');
-    readField('maxMode', !!maxModeRow, () => { snapshot.maxMode = selected(rowButton(panel, 'Maxモード', 'オン')); });
+    const maxModeRow = rowFor(panel, 'maxMode');
+    readField('maxMode', !!maxModeRow, () => {
+      const onButtons = getAllHostLocales().map((l) => l.rows.maxMode.on);
+      snapshot.maxMode = onButtons.some((bText) => selected(rowButton(panel, 'maxMode', bText)));
+    });
 
-    const weirdnessSlider = slider(panel, '奇抜さ');
+    const weirdnessSlider = slider(panel, 'weirdness');
     readField('weirdness', !!weirdnessSlider, () => { snapshot.weirdness = Number(weirdnessSlider!.getAttribute('aria-valuenow') ?? snapshot.weirdness); });
 
-    const styleInfluenceSlider = slider(panel, 'スタイルの影響');
+    const styleInfluenceSlider = slider(panel, 'styleInfluence');
     readField('styleInfluence', !!styleInfluenceSlider, () => { snapshot.styleInfluence = Number(styleInfluenceSlider!.getAttribute('aria-valuenow') ?? snapshot.styleInfluence); });
 
-    const variationSlider = slider(panel, 'バリエーション');
+    const variationSlider = slider(panel, 'variation');
     readField('variation', !!variationSlider, () => { snapshot.variation = Number(variationSlider!.getAttribute('aria-valuenow') ?? snapshot.variation); });
 
-    const personalizationRow = rowFor(panel, 'パーソナライズ');
+    const personalizationRow = rowFor(panel, 'personalization');
     readField('personalization', !!personalizationRow, () => {
-      snapshot.personalization.enabled = selected(rowButton(panel, 'パーソナライズ', 'オン'));
-      snapshot.personalization.tasteName = text(rowButton(panel, 'パーソナライズ', 'マイ・テイスト')) || undefined;
+      const onButtons = getAllHostLocales().map((l) => l.rows.personalization.on);
+      const myTasteButtons = getAllHostLocales().map((l) => l.rows.personalization.myTaste);
+      snapshot.personalization.enabled = onButtons.some((bText) => selected(rowButton(panel, 'personalization', bText)));
+      let tasteName: string | undefined;
+      for (const bText of myTasteButtons) {
+        const btn = rowButton(panel, 'personalization', bText);
+        if (btn && text(btn)) {
+          tasteName = text(btn);
+          break;
+        }
+      }
+      snapshot.personalization.tasteName = tasteName;
     });
 
     if (shouldOpen) heading?.click();
@@ -678,12 +770,26 @@ export class SunoAdapter {
       if (!panel) {
         skipped.push('vocalGender');
       } else {
-        const target: Record<VocalGender, string | undefined> = { none: undefined, male: '男性', female: '女性' };
-        const button = target[partial.vocalGender] ? rowButton(panel, 'ボーカル性別', target[partial.vocalGender]!) : undefined;
-        if (partial.vocalGender === 'none') {
-          const active = [rowButton(panel, 'ボーカル性別', '男性'), rowButton(panel, 'ボーカル性別', '女性')].find(selected);
+        const loc = getHostLocale();
+        const targetGender = partial.vocalGender;
+        const getGenderBtn = (gender: 'male' | 'female'): HTMLButtonElement | undefined => {
+          const primary = loc.rows.vocalGender[gender];
+          const btn = rowButton(panel, 'vocalGender', primary);
+          if (btn) return btn;
+          for (const otherLoc of getAllHostLocales()) {
+            const fallbackBtn = rowButton(panel, 'vocalGender', otherLoc.rows.vocalGender[gender]);
+            if (fallbackBtn) return fallbackBtn;
+          }
+          return undefined;
+        };
+
+        if (targetGender === 'none') {
+          const maleBtn = getGenderBtn('male');
+          const femaleBtn = getGenderBtn('female');
+          const active = [maleBtn, femaleBtn].find(selected);
           success('vocalGender', !active || clickIfNeeded(active, true));
         } else {
+          const button = getGenderBtn(targetGender);
           success('vocalGender', clickIfNeeded(button, !selected(button)));
         }
       }
@@ -694,14 +800,27 @@ export class SunoAdapter {
       if (!panel) {
         skipped.push('duration');
       } else {
-        const modeButton = rowButton(panel, '長さ', partial.duration.mode === 'custom' ? 'カスタム' : 'Auto');
+        const loc = getHostLocale();
+        const mode = partial.duration.mode;
+        const getDurationBtn = (m: 'custom' | 'auto'): HTMLButtonElement | undefined => {
+          const primary = loc.rows.duration[m];
+          const btn = rowButton(panel, 'duration', primary);
+          if (btn) return btn;
+          for (const otherLoc of getAllHostLocales()) {
+            const fallbackBtn = rowButton(panel, 'duration', otherLoc.rows.duration[m]);
+            if (fallbackBtn) return fallbackBtn;
+          }
+          return undefined;
+        };
+
+        const modeButton = getDurationBtn(mode);
         let okay = clickIfNeeded(modeButton, !selected(modeButton));
         if (partial.duration.mode === 'custom' && partial.duration.seconds !== undefined) {
           await settle();
           // The seconds input can only appear once the mode switch above
           // has actually rendered, so look it up fresh again afterward.
           const freshPanel = optionPanel() ?? panel;
-          const input = rowFor(freshPanel, '長さ')?.querySelector<HTMLInputElement>('input[type="number"]');
+          const input = rowFor(freshPanel, 'duration')?.querySelector<HTMLInputElement>('input[type="number"]');
           if (input) nativeSetValue(input, String(partial.duration.seconds));
           else okay = false;
         }
@@ -714,21 +833,33 @@ export class SunoAdapter {
       if (!panel) {
         skipped.push('maxMode');
       } else {
-        const button = rowButton(panel, 'Maxモード', partial.maxMode ? 'オン' : 'オフ');
+        const loc = getHostLocale();
+        const stateKey = partial.maxMode ? 'on' : 'off';
+        const getMaxModeBtn = (): HTMLButtonElement | undefined => {
+          const primary = loc.rows.maxMode[stateKey];
+          const btn = rowButton(panel, 'maxMode', primary);
+          if (btn) return btn;
+          for (const otherLoc of getAllHostLocales()) {
+            const fallbackBtn = rowButton(panel, 'maxMode', otherLoc.rows.maxMode[stateKey]);
+            if (fallbackBtn) return fallbackBtn;
+          }
+          return undefined;
+        };
+        const button = getMaxModeBtn();
         success('maxMode', clickIfNeeded(button, !selected(button)));
       }
       await settle();
     }
     if (partial.weirdness !== undefined) {
-      success('weirdness', await setSlider('奇抜さ', partial.weirdness));
+      success('weirdness', await setSlider('weirdness', partial.weirdness));
       await settle();
     }
     if (partial.styleInfluence !== undefined) {
-      success('styleInfluence', await setSlider('スタイルの影響', partial.styleInfluence));
+      success('styleInfluence', await setSlider('styleInfluence', partial.styleInfluence));
       await settle();
     }
     if (partial.variation !== undefined) {
-      success('variation', await setSlider('バリエーション', partial.variation));
+      success('variation', await setSlider('variation', partial.variation));
       await settle();
     }
     if (partial.personalization !== undefined) {
@@ -736,7 +867,19 @@ export class SunoAdapter {
       if (!panel) {
         skipped.push('personalization');
       } else {
-        const button = rowButton(panel, 'パーソナライズ', partial.personalization.enabled ? 'オン' : 'オフ');
+        const loc = getHostLocale();
+        const stateKey = partial.personalization.enabled ? 'on' : 'off';
+        const getPersonalizationBtn = (): HTMLButtonElement | undefined => {
+          const primary = loc.rows.personalization[stateKey];
+          const btn = rowButton(panel, 'personalization', primary);
+          if (btn) return btn;
+          for (const otherLoc of getAllHostLocales()) {
+            const fallbackBtn = rowButton(panel, 'personalization', otherLoc.rows.personalization[stateKey]);
+            if (fallbackBtn) return fallbackBtn;
+          }
+          return undefined;
+        };
+        const button = getPersonalizationBtn();
         success('personalization', clickIfNeeded(button, !selected(button)));
       }
     }
@@ -745,15 +888,21 @@ export class SunoAdapter {
 
   async extractSavedStyles(): Promise<SavedStyle[]> {
     const existing = savedStylesDialog();
-    const trigger = visible([...document.querySelectorAll<HTMLButtonElement>('button')].filter((button) =>
-      (button.getAttribute('aria-label') ?? '').includes('保存したスタイルプロンプトを見る')));
+    const triggerLabels = getAllSavedStyleTriggerLabels();
+    const trigger = visible([...document.querySelectorAll<HTMLButtonElement>('button')].filter((button) => {
+      const aria = button.getAttribute('aria-label') ?? '';
+      return triggerLabels.some((label) => aria.includes(label));
+    }));
     let dialog = existing;
     let openedHere = false;
     let suppressor: HTMLStyleElement | undefined;
     if (!dialog && trigger) {
       suppressor = document.createElement('style');
       suppressor.dataset.sunoCreateAssistant = 'style-dialog-suppressor';
-      suppressor.textContent = '[role="dialog"][aria-label="保存したスタイル"] { visibility: hidden !important; }';
+      const dialogSelectors = getAllSavedStyleDialogLabels()
+        .map((label) => `[role="dialog"][aria-label*="${label}"]`)
+        .join(', ');
+      suppressor.textContent = `${dialogSelectors} { visibility: hidden !important; }`;
       document.head.append(suppressor);
       trigger.click();
       openedHere = true;
@@ -765,11 +914,13 @@ export class SunoAdapter {
       }
     }
     try {
-      if (!dialog) throw new Error('保存したスタイル一覧を開けませんでした。');
+      const ui = getUiMessages();
+      if (!dialog) throw new Error(ui.feedback.cannotOpenSavedStyles);
+      const excludedRegex = /^(?:削除|名前を変更|グリッド表示|delete|rename|grid\s*view)$/i;
       const rows = [...dialog.querySelectorAll<HTMLButtonElement>('button[aria-label]')]
         .filter((button) => {
-          const label = button.getAttribute('aria-label') ?? '';
-          return label && !label.includes('削除') && !label.includes('名前を変更') && label !== 'グリッド表示';
+          const label = (button.getAttribute('aria-label') ?? '').trim();
+          return label && !excludedRegex.test(label);
         });
       return rows.map((button, index) => {
         const row = button.parentElement;
@@ -827,6 +978,8 @@ export class SunoAdapter {
   }
 }
 
-export function describeSkipped(keys: OtherOptionsKey[]): string {
-  return keys.map((key) => optionLabels[key]).join('、');
+export function describeSkipped(keys: OtherOptionsKey[], lang?: SupportedLanguage): string {
+  const ui = getUiMessages(lang);
+  return keys.map((key) => ui.optionLabels[key]).join(ui.separator);
 }
+

@@ -564,5 +564,239 @@ describe('SunoAdapter getAudioTitle', () => {
   });
 });
 
+describe('SunoAdapter English DOM localization (docs/alldom_en.txt)', () => {
+  it('detects English More Options heading and reset button', () => {
+    document.documentElement.lang = 'en';
+    document.body.innerHTML = `
+      <section id="options-card">
+        <div id="options-header">
+          <div role="button" tabindex="0" aria-expanded="false">
+            <span><svg></svg></span>
+            <div>
+              <div>More Options</div>
+              <div>Exclude "acordion", Variety</div>
+            </div>
+          </div>
+          <button type="button" aria-label="Reset All">Reset All</button>
+        </div>
+        <div id="options-body">
+          <div role="slider" aria-label="Weirdness" aria-valuenow="50"></div>
+          <div role="slider" aria-label="Style Influence" aria-valuenow="50"></div>
+        </div>
+      </section>
+    `;
+
+    const adapter = new SunoAdapter();
+    expect(adapter.optionHeading()).toBeDefined();
+    expect(adapter.optionHeading()?.textContent).toContain('More Options');
+    expect(adapter.optionsAnchor()).toBe(document.querySelector('#options-header'));
+  });
+
+  it('detects English Styles and Lyrics headings', () => {
+    document.documentElement.lang = 'en';
+    document.body.innerHTML = `
+      <section id="lyrics-card">
+        <div role="button" tabindex="0" aria-expanded="false">
+          <span><svg></svg></span>
+          <div>Lyrics</div>
+        </div>
+      </section>
+      <section id="styles-card">
+        <div role="button" tabindex="0" aria-expanded="false">
+          <span><svg></svg></span>
+          <div>
+            <div>Styles</div>
+            <div>Romantic orchestral ensemble...</div>
+          </div>
+        </div>
+      </section>
+    `;
+
+    const adapter = new SunoAdapter();
+    expect(adapter.lyricsHeading()).toBeDefined();
+    expect(adapter.lyricsHeading()?.textContent).toContain('Lyrics');
+    expect(adapter.styleHeading()).toBeDefined();
+    expect(adapter.styleHeading()?.textContent).toContain('Styles');
+  });
+
+  it('locates English Title input and workspace destination', () => {
+    document.documentElement.lang = 'en';
+    document.body.innerHTML = `
+      <section id="title-card">
+        <div id="title-row"><input placeholder="Song Title (Optional)" /></div>
+        <div>Save to...<button>Dragon Quest II</button></div>
+      </section>
+    `;
+
+    const adapter = new SunoAdapter();
+    expect(adapter.titleAnchor()).toBe(document.querySelector('#title-row'));
+    expect(adapter.titleControlAnchor()).toBe(document.querySelector('#title-row'));
+    expect(adapter.getDestinationName()).toBe('Dragon Quest II');
+  });
+
+  it('reads all English Other Options panel values', async () => {
+    document.documentElement.lang = 'en';
+    document.body.innerHTML = `
+      <section id="options-card">
+        <div role="button" tabindex="0" aria-expanded="true">
+          <div>More Options</div>
+        </div>
+        <div id="options-body">
+          <div><input placeholder="Exclude styles" value="techno, metal" /></div>
+          <div>
+            Vocal Gender
+            <div>
+              <button data-selected="false">Male</button>
+              <button data-selected="true">Female</button>
+            </div>
+          </div>
+          <div>
+            Duration
+            <div>
+              <button data-selected="true">Custom</button>
+              <button data-selected="false">Auto</button>
+            </div>
+            <input type="number" value="150" />
+          </div>
+          <div>
+            Max Mode
+            <div>
+              <button data-selected="false">Off</button>
+              <button data-selected="true">On</button>
+            </div>
+          </div>
+          <div>
+            <div role="slider" aria-label="Weirdness" aria-valuenow="65"></div>
+            <div role="slider" aria-label="Style Influence" aria-valuenow="80"></div>
+            <div role="slider" aria-label="Variety" aria-valuenow="10"></div>
+          </div>
+          <div>
+            Personalize
+            <div>
+              <button>My Taste</button>
+              <button data-selected="false">Off</button>
+              <button data-selected="true">On</button>
+            </div>
+          </div>
+        </div>
+      </section>
+    `;
+
+    const adapter = new SunoAdapter();
+    const result = await adapter.readOtherOptions();
+    expect(result).toBeDefined();
+    expect(result!.unreadable).toEqual([]);
+    expect(result!.snapshot).toEqual({
+      excludedStyles: 'techno, metal',
+      vocalGender: 'female',
+      duration: { mode: 'custom', seconds: 150 },
+      maxMode: true,
+      weirdness: 65,
+      styleInfluence: 80,
+      variation: 10,
+      personalization: { enabled: true, tasteName: 'My Taste' },
+    });
+  });
+
+  it('applies values to English Other Options panel', async () => {
+    document.documentElement.lang = 'en';
+    document.body.innerHTML = `
+      <section id="options-card">
+        <div role="button" tabindex="0" aria-expanded="true">
+          <div>More Options</div>
+        </div>
+        <div id="options-body">
+          <div><input placeholder="Exclude styles" value="" /></div>
+          <div>
+            Vocal Gender
+            <div>
+              <button id="male-btn" data-selected="false">Male</button>
+              <button id="female-btn" data-selected="false">Female</button>
+            </div>
+          </div>
+          <div>
+            Duration
+            <div>
+              <button id="custom-btn" data-selected="false">Custom</button>
+              <button id="auto-btn" data-selected="true">Auto</button>
+            </div>
+            <input type="number" value="" />
+          </div>
+          <div>
+            Max Mode
+            <div>
+              <button id="off-btn" data-selected="true">Off</button>
+              <button id="on-btn" data-selected="false">On</button>
+            </div>
+          </div>
+          <div>
+            <div role="slider" aria-label="Weirdness" aria-valuenow="50"></div>
+            <div role="slider" aria-label="Style Influence" aria-valuenow="50"></div>
+            <div role="slider" aria-label="Variety" aria-valuenow="0"></div>
+          </div>
+          <div>
+            Personalize
+            <div>
+              <button>My Taste</button>
+              <button id="pers-off" data-selected="true">Off</button>
+              <button id="pers-on" data-selected="false">On</button>
+            </div>
+          </div>
+        </div>
+      </section>
+    `;
+
+    const maleBtn = document.querySelector<HTMLButtonElement>('#male-btn')!;
+    maleBtn.addEventListener('click', () => { maleBtn.setAttribute('data-selected', 'true'); });
+
+    const onBtn = document.querySelector<HTMLButtonElement>('#on-btn')!;
+    onBtn.addEventListener('click', () => { onBtn.setAttribute('data-selected', 'true'); });
+
+    const adapter = new SunoAdapter();
+    const result = await adapter.applyOtherOptions({
+      excludedStyles: 'synthwave',
+      vocalGender: 'male',
+      maxMode: true,
+      weirdness: 50,
+      styleInfluence: 50,
+      variation: 0,
+    });
+
+    expect(result.skipped).toEqual([]);
+    expect(document.querySelector<HTMLInputElement>('input[placeholder="Exclude styles"]')!.value).toBe('synthwave');
+    expect(maleBtn.getAttribute('data-selected')).toBe('true');
+    expect(onBtn.getAttribute('data-selected')).toBe('true');
+  });
+
+  it('extracts saved styles from English dialog and ignores actions', async () => {
+    document.documentElement.lang = 'en';
+    document.body.innerHTML = `
+      <button aria-label="View saved style prompts">Open</button>
+      <div role="dialog" aria-label="Saved Styles">
+        <div>
+          <button aria-label="Delete">Delete</button>
+          <button aria-label="Rename">Rename</button>
+          <button aria-label="Grid View">Grid</button>
+        </div>
+        <div>
+          <button aria-label="Cyberpunk Jazz">
+            <span>Cyberpunk Jazz</span>
+          </button>
+          <span>
+            <span>Heavy electronic bass with soprano sax and vocoder</span>
+            <span>saved: 3 days ago</span>
+          </span>
+        </div>
+      </div>
+    `;
+
+    const adapter = new SunoAdapter();
+    const styles = await adapter.extractSavedStyles();
+    expect(styles).toHaveLength(1);
+    expect(styles[0]?.name).toBe('Cyberpunk Jazz');
+    expect(styles[0]?.prompt).toBe('Heavy electronic bass with soprano sax and vocoder');
+  });
+});
+
 
 

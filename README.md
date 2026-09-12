@@ -1,6 +1,6 @@
 # Suno Create Assistant
 
-A local Chrome extension for the Advanced tab of [Suno Create](https://suno.com/create). It adds quick access to saved styles, your own mastering prompts, reusable advanced-option presets, and automatic song titles.
+A local Chrome extension for the Advanced tab of [Suno Create](https://suno.com/create). It adds quick access to saved styles, your own mastering prompts, reusable advanced-option presets, and automatic song titles. Fully supports both English and Japanese interfaces on Suno with automatic language detection.
 
 ## Install locally
 
@@ -11,9 +11,13 @@ A local Chrome extension for the Advanced tab of [Suno Create](https://suno.com/
 
 ## Use
 
+### Multilingual support (English & Japanese)
+
+The extension automatically detects Suno's language setting (`en` or `ja`). All host page interactions (Styles, More Options, sliders, toggles, saved styles dialog) function smoothly in both languages, and the extension's UI (dropdowns, buttons, notices, and settings dialog) automatically displays in the matching language.
+
 ### Styles and mastering
 
-Directly under the **Style** heading, the extension provides style and mastering controls that stay visible whether the style disclosure is open or closed. Choose a saved Suno style and an optional mastering prompt to write them to the Style field on separate lines. Use **Manage…** to add, edit, or delete mastering prompts in an in-page dialog.
+Directly under the **Style** / **Styles** (スタイル) heading, the extension provides style and mastering controls that stay visible whether the style disclosure is open or closed. Choose a saved Suno style and an optional mastering prompt to write them to the Style field on separate lines. Use **Manage…** (管理…) to add, edit, or delete mastering prompts in an in-page dialog.
 
 The extension reads only each saved style's prompt from Suno's existing dialog, without storing it. Style names label the list, and saved dates are never inserted into the Style field. When Suno's saved-style list is opened or changed, the next extension dropdown opening refreshes its in-memory list.
 
@@ -21,21 +25,21 @@ If the combined style and mastering prompt exceeds Suno's 1,000-character limit,
 
 ### Advanced-option presets
 
-The Preset dropdown is shown directly under the **Other options** heading, ahead of its collapsible body, so it stays visible whether the disclosure is open or closed. Presets can save all or only selected settings: excluded styles, vocal gender, length, Max mode, weirdness, style influence, variation, and personalization.
+The Preset dropdown is shown directly under the **More Options** / **Other options** (その他のオプション) heading, ahead of its collapsible body, so it stays visible whether the disclosure is open or closed. Presets can save all or only selected settings: excluded styles, vocal gender, length, Max mode, weirdness, style influence, variation, and personalization.
 
-Click the **設定を保存** (Save settings) button beside the dropdown to open a dialog pre-filled with Suno's live settings. Select the settings to store (excluded styles, vocal gender, length, Max mode, weirdness, style influence, variation, personalization), adjust their values, and save. The extension can read the settings even when Other options is collapsed. Open **Manage presets…** inside the dropdown to edit or delete existing presets. Applying a preset changes only its saved settings.
+Click the **Save Preset** / **設定を保存** button beside the dropdown to open a dialog pre-filled with Suno's live settings. Select the settings to store (excluded styles, vocal gender, length, Max mode, weirdness, style influence, variation, personalization), adjust their values, and save. The extension can read the settings even when More Options is collapsed. Open **Manage presets…** (プリセットを管理…) inside the dropdown to edit or delete existing presets. Applying a preset changes only its saved settings.
 
 ### Automatic titles and take numbers ({{TAKE}})
  
-Enable **Auto title** inside the title section to generate a title using the configured template. The default format is:
+Enable **Auto title** (自動設定) inside the title section to generate a title using the configured template. The default format is:
  
 ```text
 {{WORKSPACE}} ({{STYLE}}) {{TAKE}}
 ```
  
-- Customize the format anytime in the in-page settings dialog under **曲名フォーマット**. Available placeholders:
+- Customize the format anytime in the in-page settings dialog under **Song Title Format** (曲名フォーマット). Available placeholders:
   - `{{WORKSPACE}}`: Destination / workspace name
-  - `{{STYLE}}`: Style name (or `カスタム` if manually edited)
+  - `{{STYLE}}`: Style name (or `Custom` / `カスタム` if manually edited)
   - `{{AUDIO}}`: Original song title (when remixing or referencing audio)
   - `{{TAKE}}`: Take number
 - When a title contains `{{TAKE}}`, clicking the **Create** button or pressing the shortcut automatically increments the take number stored for that title key in `chrome.storage.local`, fills the take number (1, 2, 3...) into the title input, and submits.
@@ -44,17 +48,17 @@ Enable **Auto title** inside the title section to generate a title using the con
  
 ### Create shortcut and inspiration label
  
-On the Suno Create page, press `Cmd + Enter` (macOS) or `Ctrl + Enter` (Windows/Linux) to trigger the **Create** button directly without any configuration (with automatic take numbering if `{{TAKE}}` is present). The extension also shortens Suno's **インスピレーション** button label to **ひらめき** to prevent the action row from wrapping.
+On the Suno Create page, press `Cmd + Enter` (macOS) or `Ctrl + Enter` (Windows/Linux) to trigger the **Create** button directly without any configuration (with automatic take numbering if `{{TAKE}}` is present). In Japanese UI, the extension also shortens Suno's **インスピレーション** button label to **ひらめき** to prevent the action row from wrapping.
 
-### Sidebar "拡張設定" (Extension settings) menu
+### Sidebar "Extension Settings" menu
 
-The extension injects an **拡張設定** (Extension settings) item with a gear icon into Suno's sidebar navigation (right below Hooks and above the profile item). Clicking it opens the in-page settings dialog where you can manage song title formats, mastering prompts, and presets. While the settings dialog is open, the menu item highlights in an active state. When the sidebar is collapsed/minimized, the text automatically hides and leaves only the gear icon visible, exactly mirroring Suno's native navigation items.
+The extension injects an **Extension Settings** (拡張設定) item with a gear icon into Suno's sidebar navigation (right below Hooks and above the profile item). Clicking it opens the in-page settings dialog where you can manage song title formats, display settings, mastering prompts, and presets. While the settings dialog is open, the menu item highlights in an active state. When the sidebar is collapsed/minimized, the text automatically hides and leaves only the gear icon visible, exactly mirroring Suno's native navigation items.
 
 ### Default-collapsed disclosures (Display settings)
 
-When opening the Advanced tab, the "Lyrics", "Style", and "Other options" disclosure sections (accordions) default to a collapsed state. Because the extension's dropdown controls (Style, Mastering, Presets) are permanently anchored to the header rows, you can operate them without expanding the full native sections, keeping your workspace clean and compact.
+When opening the Advanced tab, the "Lyrics", "Styles", and "More options" ("歌詞", "スタイル", "その他のオプション") disclosure sections (accordions) default to a collapsed state. Because the extension's dropdown controls (Style, Mastering, Presets) are permanently anchored to the header rows, you can operate them without expanding the full native sections, keeping your workspace clean and compact.
 
-You can toggle this automatic collapse behavior using the **"アドバンスドタブを開いた時に歌詞、スタイル、その他のオプションを閉じる"** (Close lyrics, styles, and other options when opening the Advanced tab) checkbox in the settings dialog under **表示設定** (Display settings) (enabled by default). Once collapsed upon opening the tab, any section you manually click to open stays open while you edit without being unexpectedly re-closed.
+You can toggle this automatic collapse behavior using the **"Close lyrics, styles, and more options when opening the Advanced tab"** / **"アドバンスドタブを開いた時に歌詞、スタイル、その他のオプションを閉じる"** checkbox in the settings dialog under **Display Settings** / **表示設定** (enabled by default). Once collapsed upon opening the tab, any section you manually click to open stays open while you edit without being unexpectedly re-closed.
 
 ## Privacy
  

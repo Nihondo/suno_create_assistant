@@ -17,6 +17,7 @@ import {
   subscribeStorage,
 } from '../storage/repository';
 import { describeSkipped, SunoAdapter } from './adapter';
+import { getUiMessages } from '../locales';
 
 export type SettingsSection = 'masterings' | 'presets' | 'titleFormat' | 'display';
 export type SettingsAction = 'create-preset';
@@ -119,9 +120,11 @@ export class SunoController {
       const styles = await this.adapter.extractSavedStyles();
       this.state.styles = styles;
       this.state.stylesDirty = false;
-      if (!styles.length) this.state.styleFeedback = { kind: 'error', message: '保存したスタイルが見つかりませんでした。' };
+      const ui = getUiMessages();
+      if (!styles.length) this.state.styleFeedback = { kind: 'error', message: ui.feedback.noSavedStyles };
     } catch (error) {
-      this.state.styleFeedback = { kind: 'error', message: error instanceof Error ? error.message : '一覧を更新できませんでした。' };
+      const ui = getUiMessages();
+      this.state.styleFeedback = { kind: 'error', message: error instanceof Error ? error.message : ui.feedback.failedUpdateStyles };
     } finally {
       this.refreshingStyles = false;
       this.state.stylesLoading = false;
@@ -179,16 +182,18 @@ export class SunoController {
     this.emit();
     try {
       const result = await this.adapter.applyOtherOptions(preset.fields);
+      const ui = getUiMessages();
       this.state.presetFeedback = result.skipped.length
         ? {
             kind: 'notice',
-            message: `適用できなかった項目: ${describeSkipped(result.skipped)}`,
+            message: `${ui.feedback.skippedItemsPrefix}${describeSkipped(result.skipped)}`,
           }
         : undefined;
       this.emit();
       return result;
     } catch (error) {
-      this.state.presetFeedback = { kind: 'error', message: error instanceof Error ? error.message : 'プリセットを適用できませんでした。' };
+      const ui = getUiMessages();
+      this.state.presetFeedback = { kind: 'error', message: error instanceof Error ? error.message : ui.feedback.failedApplyPreset };
       this.emit();
       return undefined;
     }
@@ -213,21 +218,23 @@ export class SunoController {
     this.state.settingsFeedback = undefined;
     try {
       const result = await this.adapter.readOtherOptions();
+      const ui = getUiMessages();
       if (!result) {
-        this.state.settingsFeedback = { kind: 'error', message: '「その他のオプション」が見つかりませんでした。アドバンストタブが選択されているか確認してください。' };
+        this.state.settingsFeedback = { kind: 'error', message: ui.feedback.optionsNotFound };
         this.emit();
         return undefined;
       }
       this.state.settingsFeedback = {
         kind: 'notice',
         message: result.unreadable.length
-          ? `一部の項目を取り込めませんでした: ${describeSkipped(result.unreadable)}`
-          : '現在の設定を取り込みました。',
+          ? ui.feedback.capturedUnreadableNotice(result.unreadable.length, describeSkipped(result.unreadable))
+          : ui.dialog.savedNotice,
       };
       this.emit();
       return result;
     } catch (error) {
-      this.state.settingsFeedback = { kind: 'error', message: error instanceof Error ? error.message : '現在の設定を取り込めませんでした。' };
+      const ui = getUiMessages();
+      this.state.settingsFeedback = { kind: 'error', message: error instanceof Error ? error.message : ui.feedback.failedCaptureOptions };
       this.emit();
       return undefined;
     }
@@ -321,14 +328,16 @@ export class SunoController {
   private updateAutoTitle(): void {
     if (this.isExecutingCreate) return;
     if (!this.state.autoTitleEnabled) return;
-    const styleName = this.state.isCustomStyle ? 'カスタム' : this.state.style?.name ?? '';
+    const ui = getUiMessages();
+    const styleName = this.state.isCustomStyle ? ui.custom : this.state.style?.name ?? '';
     const audioTitle = this.adapter.getAudioTitle();
     this.adapter.setTitle(autoTitle(this.adapter.getDestinationName(), styleName, this.state.titleFormat, audioTitle));
   }
 
   private failOverflow(): void {
     const total = [this.baseStyle || this.state.style?.prompt, this.state.mastering?.prompt].filter(Boolean).join('\n').length;
-    this.state.styleFeedback = { kind: 'error', message: `合計${total}文字／上限1000。プロンプトは変更していません。` };
+    const ui = getUiMessages();
+    this.state.styleFeedback = { kind: 'error', message: ui.feedback.promptLengthLimit(total, 1000) };
     this.emit();
   }
 

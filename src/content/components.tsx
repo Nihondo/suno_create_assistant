@@ -3,6 +3,7 @@ import { DEFAULT_TITLE_FORMAT } from '../domain/logic';
 import type { MasteringPrompt, OtherOptionsPreset, SavedStyle } from '../domain/models';
 import { readStorage, subscribeStorage } from '../storage/repository';
 import type { ControllerState, SunoController } from '../suno/controller';
+import { getUiMessages } from '../locales';
 
 export function useController(controller: SunoController): ControllerState {
   const [state, setState] = useState<ControllerState>({
@@ -101,20 +102,21 @@ function Dropdown<T>({ label, valueLabel, items, disabled, onOpen, onSelect }: {
 export function StyleControls({ controller }: { controller: SunoController }) {
   const state = useController(controller);
   const { masterings } = useStoredLists();
+  const ui = getUiMessages();
   const styles: MenuItem<SavedStyle>[] = [
-    { id: 'none', label: '未選択' },
+    { id: 'none', label: ui.unselected },
     ...state.styles.map((style) => ({ id: style.id, label: style.name, value: style })),
   ];
   const masteringItems: MenuItem<MasteringPrompt>[] = [
-    { id: 'none', label: '未選択' },
+    { id: 'none', label: ui.unselected },
     ...masterings.map((item) => ({ id: item.id, label: item.name, value: item })),
-    { id: 'manage', label: '管理…', manage: true },
+    { id: 'manage', label: ui.manage, manage: true },
   ];
-  const styleLabel = state.isCustomStyle ? 'カスタム' : state.style?.name ?? '未選択';
-  return <div className="suno-assistant" aria-label="Suno Create Assistant: スタイル設定">
-    <Dropdown label="スタイル" valueLabel={state.stylesLoading ? '読み込み中…' : styleLabel} items={styles} disabled={state.stylesLoading} onOpen={() => controller.refreshStyles()} onSelect={(style) => void controller.selectStyle(style)} />
-    <Dropdown label="マスタリング" valueLabel={state.mastering?.name ?? '未選択'} items={masteringItems} onSelect={(mastering, manage) => manage ? controller.openSettings('masterings') : void controller.selectMastering(mastering)} />
-    <button type="button" className="suno-assistant__button suno-assistant__button--clear" onClick={() => controller.clearStyleAndMastering()}>解除</button>
+  const styleLabel = state.isCustomStyle ? ui.custom : state.style?.name ?? ui.unselected;
+  return <div className="suno-assistant" aria-label={ui.aria.styleSettings}>
+    <Dropdown label={ui.style} valueLabel={state.stylesLoading ? ui.loading : styleLabel} items={styles} disabled={state.stylesLoading} onOpen={() => controller.refreshStyles()} onSelect={(style) => void controller.selectStyle(style)} />
+    <Dropdown label={ui.mastering} valueLabel={state.mastering?.name ?? ui.unselected} items={masteringItems} onSelect={(mastering, manage) => manage ? controller.openSettings('masterings') : void controller.selectMastering(mastering)} />
+    <button type="button" className="suno-assistant__button suno-assistant__button--clear" onClick={() => controller.clearStyleAndMastering()}>{ui.clear}</button>
     {state.styleFeedback && <output className={`suno-assistant__status ${state.styleFeedback.kind === 'error' ? 'suno-assistant__status--error' : ''}`}>{state.styleFeedback.message}</output>}
   </div>;
 }
@@ -122,14 +124,15 @@ export function StyleControls({ controller }: { controller: SunoController }) {
 export function PresetControls({ controller }: { controller: SunoController }) {
   const state = useController(controller);
   const { presets } = useStoredLists();
+  const ui = getUiMessages();
   const items: MenuItem<OtherOptionsPreset>[] = [
-    { id: 'none', label: '未選択' },
+    { id: 'none', label: ui.unselected },
     ...presets.map((preset) => ({ id: preset.id, label: preset.name, value: preset })),
-    { id: 'manage', label: 'プリセットを管理…', manage: true },
+    { id: 'manage', label: ui.managePresets, manage: true },
   ];
-  return <div className="suno-assistant" aria-label="Suno Create Assistant: その他のオプションプリセット">
-    <Dropdown label="プリセット" valueLabel={state.preset?.name ?? '未選択'} items={items} onSelect={(preset, manage) => manage ? controller.openSettings('presets') : void controller.applyPreset(preset)} />
-    <button type="button" className="suno-assistant__button" onClick={() => controller.openPresetCreation()}>設定を保存</button>
+  return <div className="suno-assistant" aria-label={ui.aria.presetSettings}>
+    <Dropdown label={ui.preset} valueLabel={state.preset?.name ?? ui.unselected} items={items} onSelect={(preset, manage) => manage ? controller.openSettings('presets') : void controller.applyPreset(preset)} />
+    <button type="button" className="suno-assistant__button" onClick={() => controller.openPresetCreation()}>{ui.savePreset}</button>
     {state.presetFeedback && <output className={`suno-assistant__status ${state.presetFeedback.kind === 'error' ? 'suno-assistant__status--error' : ''}`}>{state.presetFeedback.message}</output>}
   </div>;
 }
@@ -137,10 +140,11 @@ export function PresetControls({ controller }: { controller: SunoController }) {
 export function AutoTitleControl({ controller }: { controller: SunoController }) {
   const state = useController(controller);
   const id = useId();
+  const ui = getUiMessages();
   return <div className="suno-assistant suno-assistant--title">
     <label className="suno-assistant__check-label" htmlFor={id}>
       <input id={id} className="suno-assistant__check" type="checkbox" checked={state.autoTitleEnabled} onChange={(event) => void controller.setAutoTitle(event.target.checked)} />
-      自動設定
+      {ui.autoTitle}
     </label>
   </div>;
 }
@@ -148,6 +152,7 @@ export function AutoTitleControl({ controller }: { controller: SunoController })
 export function SidebarSettingsButton({ controller }: { controller: SunoController }) {
   const state = useController(controller);
   const isOpen = !!state.settings;
+  const ui = getUiMessages();
 
   return (
     <button
@@ -162,9 +167,10 @@ export function SidebarSettingsButton({ controller }: { controller: SunoControll
         <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="currentColor" className="hxc-btn-icon">
           <path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z" />
         </svg>
-        <span className="overflow-hidden whitespace-nowrap transition-opacity duration-200 group-data-[show-content=false]/sidebar:opacity-0">拡張設定</span>
+        <span className="overflow-hidden whitespace-nowrap transition-opacity duration-200 group-data-[show-content=false]/sidebar:opacity-0">{ui.extensionSettings}</span>
       </span>
     </button>
   );
 }
+
 
