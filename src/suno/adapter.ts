@@ -121,16 +121,34 @@ function slider(panel: HTMLElement, label: string): HTMLElement | undefined {
   return visible(panel.querySelectorAll<HTMLElement>(`[role="slider"][aria-label="${label}"]`));
 }
 
-function setSlider(element: HTMLElement | undefined, value: number): boolean {
-  if (!element || element.getAttribute('aria-disabled') === 'true') return false;
-  const current = Number(element.getAttribute('aria-valuenow'));
-  if (!Number.isFinite(current)) return false;
-  element.focus();
-  const key = value > current ? 'ArrowRight' : 'ArrowLeft';
-  for (let step = 0; step < Math.abs(value - current); step += 1) {
-    element.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true }));
+// Confirmed on the live site: dispatching several ArrowRight keydowns on a
+// slider back-to-back, with no yield in between, only moves it by ONE step
+// in total - not one step per keydown. Waiting a frame between each keydown
+// (so Suno's own state update/re-render actually completes) makes each one
+// register individually. Re-querying the panel/slider fresh on every step,
+// rather than reusing the reference from before the loop, also guards
+// against Suno replacing the slider's DOM node between steps.
+async function settle(): Promise<void> {
+  await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+}
+
+const SLIDER_STEP_GUARD = 200;
+
+async function setSlider(label: string, value: number): Promise<boolean> {
+  let moved = false;
+  for (let guard = 0; guard < SLIDER_STEP_GUARD; guard += 1) {
+    const panel = optionPanel();
+    const element = panel && slider(panel, label);
+    if (!element || element.getAttribute('aria-disabled') === 'true') return moved;
+    const current = Number(element.getAttribute('aria-valuenow'));
+    if (!Number.isFinite(current)) return moved;
+    if (current === value) return true;
+    element.focus();
+    element.dispatchEvent(new KeyboardEvent('keydown', { key: value > current ? 'ArrowRight' : 'ArrowLeft', bubbles: true }));
+    moved = true;
+    await settle();
   }
-  return true;
+  return moved;
 }
 
 function titleInput(): HTMLInputElement | undefined {
@@ -326,46 +344,93 @@ export class SunoAdapter {
     return { snapshot, unreadable };
   }
 
-  applyOtherOptions(partial: Partial<OtherOptionsSnapshot>): ApplyResult {
-    const panel = optionPanel();
+  async applyOtherOptions(partial: Partial<OtherOptionsSnapshot>): Promise<ApplyResult> {
     const applied: OtherOptionsKey[] = [];
     const skipped: OtherOptionsKey[] = [];
-    if (!panel) return { applied, skipped: Object.keys(partial) as OtherOptionsKey[] };
+    if (!optionPanel()) return { applied, skipped: Object.keys(partial) as OtherOptionsKey[] };
     const success = (key: OtherOptionsKey, value: boolean) => (value ? applied.push(key) : skipped.push(key));
+    // Confirmed on the live site: Suno can replace the whole options
+    // subtree in reaction to a single click (documented reconciliation
+    // behavior). Reusing one `panel`/row/button reference across every
+    // field meant everything after the first field that actually changed
+    // something was clicking/reading stale, detached elements - a click
+    // that silently did nothing. Each field below re-fetches the panel
+    // right before touching it, and settle() gives Suno's re-render a
+    // frame to finish before the next field looks the DOM up again.
 
     if (partial.excludedStyles !== undefined) {
-      const input = excludedStylesInput(panel);
+      const panel = optionPanel();
+      const input = panel && excludedStylesInput(panel);
       if (input) nativeSetValue(input, partial.excludedStyles);
       success('excludedStyles', !!input);
+      await settle();
     }
     if (partial.vocalGender !== undefined) {
-      const target: Record<VocalGender, string | undefined> = { none: undefined, male: '男性', female: '女性' };
-      const button = target[partial.vocalGender] ? rowButton(panel, 'ボーカル性別', target[partial.vocalGender]!) : undefined;
-      if (partial.vocalGender === 'none') {
-        const active = [rowButton(panel, 'ボーカル性別', '男性'), rowButton(panel, 'ボーカル性別', '女性')].find(selected);
-        success('vocalGender', !active || clickIfNeeded(active, true));
+      const panel = optionPanel();
+      if (!panel) {
+        skipped.push('vocalGender');
       } else {
-        success('vocalGender', clickIfNeeded(button, !selected(button)));
+        const target: Record<VocalGender, string | undefined> = { none: undefined, male: '男性', female: '女性' };
+        const button = target[partial.vocalGender] ? rowButton(panel, 'ボーカル性別', target[partial.vocalGender]!) : undefined;
+        if (partial.vocalGender === 'none') {
+          const active = [rowButton(panel, 'ボーカル性別', '男性'), rowButton(panel, 'ボーカル性別', '女性')].find(selected);
+          success('vocalGender', !active || clickIfNeeded(active, true));
+        } else {
+          success('vocalGender', clickIfNeeded(button, !selected(button)));
+        }
       }
+      await settle();
     }
     if (partial.duration !== undefined) {
-      const modeButton = rowButton(panel, '長さ', partial.duration.mode === 'custom' ? 'カスタム' : 'Auto');
-      let okay = clickIfNeeded(modeButton, !selected(modeButton));
-      const input = rowFor(panel, '長さ')?.querySelector<HTMLInputElement>('input[type="number"]');
-      if (partial.duration.mode === 'custom' && partial.duration.seconds !== undefined && input) nativeSetValue(input, String(partial.duration.seconds));
-      if (partial.duration.mode === 'custom' && partial.duration.seconds !== undefined && !input) okay = false;
-      success('duration', okay);
+      const panel = optionPanel();
+      if (!panel) {
+        skipped.push('duration');
+      } else {
+        const modeButton = rowButton(panel, '長さ', partial.duration.mode === 'custom' ? 'カスタム' : 'Auto');
+        let okay = clickIfNeeded(modeButton, !selected(modeButton));
+        if (partial.duration.mode === 'custom' && partial.duration.seconds !== undefined) {
+          await settle();
+          // The seconds input can only appear once the mode switch above
+          // has actually rendered, so look it up fresh again afterward.
+          const freshPanel = optionPanel() ?? panel;
+          const input = rowFor(freshPanel, '長さ')?.querySelector<HTMLInputElement>('input[type="number"]');
+          if (input) nativeSetValue(input, String(partial.duration.seconds));
+          else okay = false;
+        }
+        success('duration', okay);
+      }
+      await settle();
     }
     if (partial.maxMode !== undefined) {
-      const button = rowButton(panel, 'Maxモード', partial.maxMode ? 'オン' : 'オフ');
-      success('maxMode', clickIfNeeded(button, !selected(button)));
+      const panel = optionPanel();
+      if (!panel) {
+        skipped.push('maxMode');
+      } else {
+        const button = rowButton(panel, 'Maxモード', partial.maxMode ? 'オン' : 'オフ');
+        success('maxMode', clickIfNeeded(button, !selected(button)));
+      }
+      await settle();
     }
-    if (partial.weirdness !== undefined) success('weirdness', setSlider(slider(panel, '奇抜さ'), partial.weirdness));
-    if (partial.styleInfluence !== undefined) success('styleInfluence', setSlider(slider(panel, 'スタイルの影響'), partial.styleInfluence));
-    if (partial.variation !== undefined) success('variation', setSlider(slider(panel, 'バリエーション'), partial.variation));
+    if (partial.weirdness !== undefined) {
+      success('weirdness', await setSlider('奇抜さ', partial.weirdness));
+      await settle();
+    }
+    if (partial.styleInfluence !== undefined) {
+      success('styleInfluence', await setSlider('スタイルの影響', partial.styleInfluence));
+      await settle();
+    }
+    if (partial.variation !== undefined) {
+      success('variation', await setSlider('バリエーション', partial.variation));
+      await settle();
+    }
     if (partial.personalization !== undefined) {
-      const button = rowButton(panel, 'パーソナライズ', partial.personalization.enabled ? 'オン' : 'オフ');
-      success('personalization', clickIfNeeded(button, !selected(button)));
+      const panel = optionPanel();
+      if (!panel) {
+        skipped.push('personalization');
+      } else {
+        const button = rowButton(panel, 'パーソナライズ', partial.personalization.enabled ? 'オン' : 'オフ');
+        success('personalization', clickIfNeeded(button, !selected(button)));
+      }
     }
     return { applied, skipped };
   }

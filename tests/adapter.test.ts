@@ -132,3 +132,59 @@ describe('SunoAdapter.readOtherOptions', () => {
     expect(await adapter.readOtherOptions()).toBeUndefined();
   });
 });
+
+describe('SunoAdapter.applyOtherOptions', () => {
+  it('re-fetches the options panel for each field, so a mid-apply DOM replacement does not leave a later field clicking a detached copy', async () => {
+    // Reproduces the reported "プリセットを選択しても、値が設定されない" bug:
+    // confirmed on the live site, a single click can make Suno replace the
+    // whole options subtree. Reusing one `panel` reference across every
+    // field meant every field after the first successful mutation was
+    // reading/clicking a detached, stale copy. A click on a truly detached
+    // element never bubbles to a document-level listener, so this test's
+    // listener firing is direct proof the fix re-fetched a live element.
+    document.body.innerHTML = optionsPanelFixture();
+    const adapter = new SunoAdapter();
+
+    const femaleButton = [...document.querySelectorAll('button')].find((button) => button.textContent === '女性')!;
+    femaleButton.addEventListener('click', () => {
+      const options = document.querySelector('#options')!;
+      options.replaceWith(options.cloneNode(true));
+    }, { once: true });
+
+    let maxOnClickSeenOnConnectedElement = false;
+    document.addEventListener('click', (event) => {
+      const target = event.target as HTMLElement;
+      const row = target.closest('div');
+      if (target.tagName === 'BUTTON' && target.textContent === 'オン' && row?.textContent?.replaceAll(/\s+/g, '').startsWith('Maxモード')) {
+        maxOnClickSeenOnConnectedElement = target.isConnected;
+      }
+    }, true);
+
+    const result = await adapter.applyOtherOptions({ vocalGender: 'female', maxMode: true });
+
+    expect(result.skipped).not.toContain('maxMode');
+    expect(maxOnClickSeenOnConnectedElement).toBe(true);
+  });
+
+  it('steps a slider to the exact target value, one keydown per settled frame', async () => {
+    // Confirmed on the live site: firing several ArrowRight keydowns back
+    // to back with no yield only moves the slider by one step in total.
+    // Waiting a frame (settle()) between each keydown is what makes each
+    // one register - this test also guards against requestAnimationFrame
+    // being unavailable/unpolyfilled in the test environment, which would
+    // otherwise hang this test until timeout instead of failing fast.
+    document.body.innerHTML = optionsPanelFixture();
+    const adapter = new SunoAdapter();
+    const weirdnessSlider = document.querySelector<HTMLElement>('[role="slider"][aria-label="奇抜さ"]')!;
+    weirdnessSlider.addEventListener('keydown', (event) => {
+      const current = Number(weirdnessSlider.getAttribute('aria-valuenow'));
+      const delta = (event as KeyboardEvent).key === 'ArrowRight' ? 1 : -1;
+      weirdnessSlider.setAttribute('aria-valuenow', String(current + delta));
+    });
+
+    const result = await adapter.applyOtherOptions({ weirdness: 57 });
+
+    expect(result.applied).toContain('weirdness');
+    expect(weirdnessSlider.getAttribute('aria-valuenow')).toBe('57');
+  });
+});

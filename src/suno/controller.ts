@@ -112,14 +112,20 @@ export class SunoController {
     this.emit();
   }
 
-  applyPreset(preset?: OtherOptionsPreset): ApplyResult | undefined {
+  async applyPreset(preset?: OtherOptionsPreset): Promise<ApplyResult | undefined> {
     if (!preset) {
       this.state.preset = undefined;
       this.emit();
       return undefined;
     }
-    const result = this.adapter.applyOtherOptions(preset.fields);
+    // Applying now steps through each field with a settle delay (see
+    // adapter.ts's applyOtherOptions), so it can take a moment - show
+    // immediate feedback rather than leaving the UI looking unresponsive.
     this.state.preset = preset;
+    this.state.error = undefined;
+    this.state.notice = '適用しています…';
+    this.emit();
+    const result = await this.adapter.applyOtherOptions(preset.fields);
     this.state.notice = result.skipped.length ? `適用できなかった項目: ${describeSkipped(result.skipped)}` : 'プリセットを適用しました。';
     this.emit();
     return result;

@@ -127,7 +127,7 @@ export function PresetControls({ controller }: { controller: SunoController }) {
     { id: 'manage', label: 'プリセットを管理…', manage: true },
   ];
   return <div className="suno-assistant" aria-label="Suno Create Assistant: その他のオプションプリセット">
-    <Dropdown label="プリセット" valueLabel={state.preset?.name ?? '未選択'} items={items} onSelect={(preset, manage) => manage ? controller.openSettings('presets') : controller.applyPreset(preset)} />
+    <Dropdown label="プリセット" valueLabel={state.preset?.name ?? '未選択'} items={items} onSelect={(preset, manage) => manage ? controller.openSettings('presets') : void controller.applyPreset(preset)} />
     {(state.error || state.notice) && <output className={`suno-assistant__status ${state.error ? 'suno-assistant__status--error' : ''}`}>{state.error ?? state.notice}</output>}
   </div>;
 }

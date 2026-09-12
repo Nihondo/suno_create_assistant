@@ -217,3 +217,11 @@ src/content/mount.ts: 1) placedCorrectly()のbeforeend判定を「anchorの最�
 ## [solution] 2026-09-12 19:08:19
 
 src/suno/adapter.ts: 1) optionHeading()のクエリを'button'から'button, [role="button"]'に拡張し型もHTMLElementに変更。2) selected()をdata-selected属性優先(存在すればそれで判定、無ければ旧クラス名にフォールバック)に変更。3) heading.disabledの参照をisDisabled()ヘルパー(aria-disabledとdisabledプロパティ両対応)に置き換え。4) optionHeaderResetButton()もbutton,[role="button"]両対応に拡張(現状は実button確認済みだが将来の変更に備えた防御)。tests/adapter.test.tsに実DOM形状(role=button見出し、data-selected属性)の回帰テストを追加し、修正前コードでは実際に失敗することをgit stashで検証済み。tests/e2e/extension.spec.tsのフィクスチャも実DOM形状に合わせて更新
+
+## [issue] 2026-09-12 19:30:46
+
+プリセット適用が機能しない2件を報告: (1)値が設定されない、(2)スライダーが1%ずつしか動かない。実機コンソールで検証: 単発の.click()は女性トグルのdata-selectedを正しくtrue→falseに反転させた(クリック配信自体は正常)。一方スライダーは同期ループで5回ArrowRightを撃っても53→54と1しか進まず、rAFで1回ずつ待つと53→59(→54から+5)と正しく進んだ。applyOtherOptions()が単一のpanel参照をvocalGender/duration/maxMode/personalizationの全フィールドで使い回していたため、最初にDOM変更を起こしたフィールド以降はSunoの再構築で検知不能なdetached要素を操作していた可能性が高い
+
+## [solution] 2026-09-12 19:30:46
+
+src/suno/adapter.ts: applyOtherOptions()を各フィールドごとにoptionPanel()を再取得しsettle()(1 requestAnimationFrame)で間隔を空ける設計に変更。setSlider()を(element,value)引数から(label,value)引数に変え、ステップごとにpanel/sliderとaria-valuenowを再取得する設計に変更(最大200ステップガード)。applyOtherOptions/setSliderをasync化。src/suno/controller.tsのapplyPreset()もasync化し、適用中は'適用しています…'を即座に表示。src/content/components.tsxのonSelectをvoid付きに変更。tests/adapter.test.tsに2件の回帰テストを追加(panel使い回しでSuno風の丸ごと差し替えが起きても後続フィールドが検知可能な生要素をクリックすること、スライダーが目標値まで正確に収束すること)。修正前コードで実際に失敗することをファイル差し替えで検証済み
