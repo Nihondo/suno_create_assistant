@@ -5,6 +5,11 @@
   font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
+:host([data-suno-create-assistant="presets"]) {
+  flex: 0 0 100%;
+  width: 100%;
+}
+
 * { box-sizing: border-box; }
 
 .suno-assistant {

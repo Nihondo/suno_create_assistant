@@ -43,9 +43,13 @@ export function OptionsApp() {
 
   const getSnapshot = async () => {
     setError(undefined); setNotice(undefined);
-    const result = await chrome.runtime.sendMessage({ type: 'CAPTURE_LAST_SUNO' }) as { ok: boolean; snapshot?: OtherOptionsSnapshot; error?: string };
-    if (!result.ok || !result.snapshot) { setError(result.error ?? '現在値を取得できませんでした。'); return; }
-    setSnapshot(result.snapshot); setNotice('Sunoの現在値を取得しました。');
+    try {
+      const result = await chrome.runtime.sendMessage({ type: 'CAPTURE_LAST_SUNO' }) as { ok: boolean; snapshot?: OtherOptionsSnapshot; error?: string };
+      if (!result.ok || !result.snapshot) { setError(result.error ?? '現在値を取得できませんでした。'); return; }
+      setSnapshot(result.snapshot); setNotice('Sunoの現在値を取得しました。');
+    } catch {
+      setError('現在値を取得できませんでした。Sunoのアドバンスト作成画面を開いてから、もう一度試してください。');
+    }
   };
   const openShortcutSettings = async () => {
     try {

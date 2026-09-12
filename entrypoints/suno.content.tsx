@@ -45,8 +45,15 @@ export default defineContentScript({
       });
       if (!advanced) return;
       mount('styles', controller.adapter.styleAnchor(), () => <StyleControls controller={controller} />);
-      mount('presets', controller.adapter.optionsAnchor(), () => <PresetControls controller={controller} />);
-      mount('title', controller.adapter.titleAnchor(), () => <AutoTitleControl controller={controller} />);
+      // Suno replaces the complete other-options disclosure during its own
+      // reconciliation. The title input is a verified stable anchor (it also
+      // hosts the automatic-title control), so keep presets beside it rather
+      // than letting the disclosure erase the management menu.
+      const titleAnchor = controller.adapter.titleAnchor();
+      mount('presets', titleAnchor, () => <PresetControls controller={controller} />);
+      // Use the mounted preset host as the second anchor. That makes both
+      // sibling positions stable through every MutationObserver reconciliation.
+      mount('title', roots.get('presets')?.host ?? titleAnchor, () => <AutoTitleControl controller={controller} />);
       controller.reconcile();
     };
     const schedule = () => {
@@ -59,8 +66,10 @@ export default defineContentScript({
     const unobserve = controller.adapter.observeForm(schedule);
     chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       if (message?.type === 'CAPTURE_OPTIONS') {
-        const snapshot = controller.adapter.readOtherOptions();
-        sendResponse(snapshot ? { ok: true, snapshot } : { ok: false, error: 'Sunoのその他オプションを見つけられませんでした。' });
+        void controller.adapter.readOtherOptions()
+          .then((snapshot) => sendResponse(snapshot ? { ok: true, snapshot } : { ok: false, error: 'Sunoのその他オプションを見つけられませんでした。' }))
+          .catch(() => sendResponse({ ok: false, error: 'Sunoのその他オプションを読み取れませんでした。' }));
+        return true;
       }
       if (message?.type === 'TRIGGER_SUNO_CREATE') {
         const ok = controller.adapter.triggerCreate();
@@ -70,6 +79,7 @@ export default defineContentScript({
     const touched = () => chrome.runtime.sendMessage({ type: 'SUNO_TOUCHED' });
     document.addEventListener('pointerdown', touched, true);
     window.addEventListener('focus', touched);
+    void chrome.runtime.sendMessage({ type: 'SUNO_TOUCHED' });
     schedule();
     return () => {
       unobserve();

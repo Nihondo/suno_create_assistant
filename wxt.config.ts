@@ -6,7 +6,7 @@ export default defineConfig({
   manifest: {
     name: 'Suno Create Assistant',
     description: 'Saved styles, mastering prompts, option presets, and auto titles for Suno Create.',
-    permissions: ['storage'],
+    permissions: ['storage', 'tabs'],
     host_permissions: ['https://suno.com/create*'],
     options_ui: {
       page: 'options.html',

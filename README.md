@@ -21,9 +21,9 @@ If the combined style and mastering prompt exceeds Suno's 1,000-character limit,
 
 ### Advanced-option presets
 
-The Other options section gains a Preset dropdown. Presets can save all or only selected settings: excluded styles, vocal gender, length, Max mode, weirdness, style influence, variation, and personalization.
+The Preset dropdown is shown below **Auto title** in the title card, immediately after the Other options section. Presets can save all or only selected settings: excluded styles, vocal gender, length, Max mode, weirdness, style influence, variation, and personalization.
 
-Open **Manage presets…** and use **Get current values from Suno** while a Suno Create tab is active. Choose the settings to store and save the preset. Applying a preset changes only its saved settings.
+Open **Manage presets…** and use **Get current values from Suno** while a Suno Create tab is open on the Advanced tab. The extension can read the settings even when Other options is collapsed. Choose the settings to store and save the preset. Applying a preset changes only its saved settings.
 
 ### Automatic titles
 

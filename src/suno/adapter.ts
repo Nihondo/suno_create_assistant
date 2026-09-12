@@ -25,25 +25,29 @@ function nativeSetValue(element: HTMLInputElement | HTMLTextAreaElement, value: 
   element.dispatchEvent(new Event('change', { bubbles: true }));
 }
 
+function optionHeading(): HTMLButtonElement | undefined {
+  return [...document.querySelectorAll<HTMLButtonElement>('button')]
+    .filter((button) => text(button).includes('その他のオプション') && visible([button]) === button)
+    .at(0);
+}
+
 function optionPanelAndHeading(): { panel: HTMLElement; heading: HTMLButtonElement } | undefined {
-  const headings = [...document.querySelectorAll<HTMLButtonElement>('button')]
-    .filter((button) => text(button).includes('その他のオプション') && visible([button]) === button);
-  const candidates = headings
-    .flatMap((heading) => {
-      let node: HTMLElement | null = heading.parentElement;
-      for (let depth = 0; node && depth < 20; depth += 1, node = node.parentElement) {
-        if (node.querySelector('[role="slider"][aria-label="奇抜さ"]') && node.querySelector('[role="slider"][aria-label="スタイルの影響"]')) {
-          return [{ panel: node, heading, depth }];
-        }
-      }
-      return [];
-    })
-    .sort((a, b) => a.depth - b.depth);
-  return candidates[0];
+  const heading = optionHeading();
+  if (!heading) return undefined;
+  let node: HTMLElement | null = heading.parentElement;
+  for (let depth = 0; node && depth < 20; depth += 1, node = node.parentElement) {
+    if (node.querySelector('[role="slider"][aria-label="奇抜さ"]') && node.querySelector('[role="slider"][aria-label="スタイルの影響"]')) {
+      return { panel: node, heading };
+    }
+  }
 }
 
 function optionPanel(): HTMLElement | undefined {
   return optionPanelAndHeading()?.panel;
+}
+
+function optionControlsVisible(panel: HTMLElement | undefined): boolean {
+  return !!panel && !!slider(panel, '奇抜さ') && !!slider(panel, 'スタイルの影響');
 }
 
 function excludedStylesInput(panel: HTMLElement): HTMLInputElement | undefined {
@@ -107,6 +111,16 @@ function titleInput(): HTMLInputElement | undefined {
       return false;
     });
   return visible(candidates) ?? candidates.at(-1);
+}
+
+function optionHeaderResetButton(): HTMLButtonElement | undefined {
+  const heading = optionHeading();
+  if (!heading) return undefined;
+  for (let node: HTMLElement | null = heading.parentElement; node; node = node.parentElement) {
+    const reset = visible([...node.querySelectorAll<HTMLButtonElement>('button')].filter((button) =>
+      (button.getAttribute('aria-label') ?? text(button)).trim() === 'すべてリセット'));
+    if (reset) return reset;
+  }
 }
 
 export class SunoAdapter {
@@ -184,12 +198,25 @@ export class SunoAdapter {
   }
 
   optionsAnchor(): HTMLElement | undefined {
-    return optionPanelAndHeading()?.heading ?? optionPanel();
+    // The accordion body and even its outer sibling can be replaced by Suno.
+    // Its reset action lives in the persistent header, so insert immediately
+    // after it; this works while the disclosure is closed as well.
+    return optionHeaderResetButton() ?? optionHeading();
   }
 
-  readOtherOptions(): OtherOptionsSnapshot | undefined {
-    const panel = optionPanel();
-    if (!panel) return undefined;
+  async readOtherOptions(): Promise<OtherOptionsSnapshot | undefined> {
+    let panel = optionPanel();
+    const heading = optionHeading();
+    const shouldOpen = !optionControlsVisible(panel);
+    if (shouldOpen && heading && !heading.disabled) {
+      heading.click();
+      for (let attempt = 0; attempt < 20 && !optionControlsVisible(panel); attempt += 1) {
+        await new Promise((resolve) => setTimeout(resolve, 50));
+        panel = optionPanel();
+      }
+    }
+    if (!panel || !optionControlsVisible(panel)) return undefined;
+
     const snapshot = emptyOtherOptions();
     snapshot.excludedStyles = excludedStylesInput(panel)?.value ?? '';
 
@@ -205,6 +232,7 @@ export class SunoAdapter {
     snapshot.variation = Number(slider(panel, 'バリエーション')?.getAttribute('aria-valuenow') ?? snapshot.variation);
     snapshot.personalization.enabled = selected(rowButton(panel, 'パーソナライズ', 'オン'));
     snapshot.personalization.tasteName = text(rowButton(panel, 'パーソナライズ', 'マイ・テイスト')) || undefined;
+    if (shouldOpen) heading?.click();
     return snapshot;
   }
 
@@ -295,7 +323,15 @@ export class SunoAdapter {
 
   observeForm(listener: () => void): () => void {
     const observer = new MutationObserver(listener);
-    observer.observe(document.body, { childList: true, subtree: true, characterData: true });
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true,
+      characterData: true,
+      // Suno can expand/collapse this accordion by changing only attributes;
+      // watching them makes the preset control appear after that transition.
+      attributes: true,
+      attributeFilter: ['aria-expanded', 'aria-hidden', 'data-state', 'hidden'],
+    });
     const inputHandler = () => listener();
     document.addEventListener('input', inputHandler, true);
     document.addEventListener('change', inputHandler, true);

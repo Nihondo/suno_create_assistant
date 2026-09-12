@@ -18,9 +18,9 @@ const sunoFixture = `<!doctype html><html lang="ja"><body>
       <div>ボーカル性別<button>男性</button><button>女性</button></div>
       <div>長さ<button>カスタム</button><button class="hxc-btn-variant-standard">Auto</button></div>
       <div>Maxモード<button class="hxc-btn-variant-standard">オフ</button><button>オン</button></div>
-      <div role="slider" aria-label="奇抜さ" aria-valuenow="50"></div>
-      <div role="slider" aria-label="スタイルの影響" aria-valuenow="50"></div>
-      <div role="slider" aria-label="バリエーション" aria-valuenow="0"></div>
+      <div role="slider" aria-label="奇抜さ" aria-valuenow="50" style="width:100px;height:20px"></div>
+      <div role="slider" aria-label="スタイルの影響" aria-valuenow="50" style="width:100px;height:20px"></div>
+      <div role="slider" aria-label="バリエーション" aria-valuenow="0" style="width:100px;height:20px"></div>
       <div>パーソナライズ<button>マイ・テイスト</button><button class="hxc-btn-variant-standard">オフ</button><button disabled>オン</button></div>
     </section>
     <section><div><input placeholder="曲名(任意)" /></div><div>保存先…<button>Demo Workspace</button></div></section>
@@ -75,6 +75,22 @@ test('mounts the three Suno controls and persists the automatic-title switch', a
     await page.goto('https://suno.com/create');
     await page.waitForTimeout(250);
     expect(await page.locator('suno-create-assistant').count(), extensionErrors.join('\n')).toBe(3);
+    await expect(page.locator('suno-create-assistant[data-suno-create-assistant="presets"]')).toBeVisible();
+    await page.locator('input[placeholder="曲名(任意)"]').dispatchEvent('input');
+    await page.waitForTimeout(120);
+    await expect(page.locator('suno-create-assistant[data-suno-create-assistant="presets"]')).toBeVisible();
+    const extensionId = new URL(worker.url()).host;
+    const directCapture = await worker.evaluate(async () => {
+      const [sunoTab] = await chrome.tabs.query({ url: ['https://suno.com/create*'] });
+      if (sunoTab?.id === undefined) throw new Error('Suno fixture tab was not found.');
+      return chrome.tabs.sendMessage(sunoTab.id, { type: 'CAPTURE_OPTIONS' });
+    });
+    expect(directCapture).toMatchObject({ ok: true });
+    const optionsPage = await context.newPage();
+    await optionsPage.goto(`chrome-extension://${extensionId}/options.html`);
+    await optionsPage.getByRole('button', { name: 'Sunoから現在値を取得' }).click();
+    await expect(optionsPage.getByText('Sunoの現在値を取得しました。')).toBeVisible();
+    await expect(optionsPage.getByRole('button', { name: '現在値からプリセットを作成' })).toBeEnabled();
     await expect(page.locator('#inspiration')).toHaveText('＋ ひらめき');
     await expect(page.getByRole('button', { name: /^プリセット:/ })).toBeVisible();
     await page.getByRole('button', { name: /^スタイル:/ }).click();
@@ -84,6 +100,7 @@ test('mounts the three Suno controls and persists the automatic-title switch', a
     await expect(page.locator('[data-testid="create-form-styles-wrapper"] textarea')).toHaveValue('gentle acoustic ensemble');
     await page.locator('suno-create-assistant').filter({ hasText: '自動設定' }).getByRole('checkbox').check();
     await expect(page.locator('input[placeholder="曲名(任意)"]')).toHaveValue('Demo Workspace (ARIA)');
+    await page.bringToFront();
     const shortcutResult = await worker.evaluate(async () => {
       const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
       if (tab?.id === undefined) throw new Error('Suno作成タブが見つかりません。');
