@@ -674,3 +674,22 @@ output/chrome-mv3/content-scripts/suno.js: src/content/suno-ui.css の通知配�
 **Changes:**
 - package.json: versionを0.9.0に更新
 - output/chrome-mv3/manifest.json: ビルドによりversion 0.9.0を反映
+
+## [task] 2026-09-13 00:56:53
+
+**Agent:** Antigravity
+**Prompt:** 拡張機能アプリアイコンの作成と組み込み
+
+**Changes:**
+- public/: Sunoカラー角丸四角形背景＋斜めスパナの各サイズ透過PNGアイコン（16, 32, 48, 128, 512）を生成
+- wxt.config.ts: manifest.iconsを設定
+- output/chrome-mv3/manifest.json: ビルドによりicons設定を反映
+
+## [task] 2026-09-13 01:01:23
+
+**Agent:** Antigravity
+**Prompt:** 512のアイコンの縁に見えていた白枠・フリンジを除去
+
+**Changes:**
+- public/icon-*.png: クロップ範囲を内側インセット(W=870)し角丸マスク(r_ratio=0.22)の4倍スーパーサンプリングで再生成。外周白ピクセル0を検証
+- output/chrome-mv3/: pnpm buildにより白枠なしの各サイズPNGアイコン(16, 32, 48, 128, 512)を再ビルド・反映
