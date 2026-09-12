@@ -11,6 +11,22 @@ afterEach(() => {
   document.body.replaceChildren();
 });
 
+describe('SunoAdapter title mount anchor', () => {
+  it('makes the title card row wrap so Auto title can occupy its own line inside it', () => {
+    document.body.innerHTML = `
+      <section id="title-card">
+        <div id="title-row"><input placeholder="曲名(任意)" /></div>
+        <div>保存先…<button>Workspace</button></div>
+      </section>
+    `;
+
+    const adapter = new SunoAdapter();
+    expect(adapter.titleAnchor()).toBe(document.querySelector('#title-row'));
+    expect(adapter.titleControlAnchor()).toBe(document.querySelector('#title-row'));
+    expect(document.querySelector<HTMLElement>('#title-row')!.style.flexWrap).toBe('wrap');
+  });
+});
+
 describe('SunoAdapter options mount anchor', () => {
   it('uses the persistent header row (heading + reset action), not the disclosure body', async () => {
     document.body.innerHTML = `

@@ -27,13 +27,13 @@ Open **Manage presets…** to open an in-page dialog (no separate tab or extensi
 
 ### Automatic titles
 
-Enable **Auto title** beside the title input to generate:
+Enable **Auto title** inside the title section to generate:
 
 ```text
 Destination (Style name)
 ```
 
-The setting is remembered locally. While enabled, the title field follows destination and style selection changes and is read-only. A manually edited style is named `カスタム`.
+The setting is stored in Chrome local extension storage and restored as the default the next time you open Suno Create. While enabled, the title field follows destination and style selection changes and is read-only. A manually edited style is named `カスタム`.
 
 ### Create shortcut and inspiration label
 

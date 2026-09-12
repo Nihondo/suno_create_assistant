@@ -271,6 +271,16 @@ export class SunoAdapter {
     return titleInput()?.parentElement ?? undefined;
   }
 
+  titleControlAnchor(): HTMLElement | undefined {
+    // Confirmed on the live site: titleAnchor() is the rounded title card's
+    // icon + input flex row. Let it wrap so the injected control can remain
+    // inside that same card on a separate line; mounting at its parent puts
+    // it below the separate destination card instead.
+    const anchor = this.titleAnchor();
+    if (anchor) anchor.style.flexWrap = 'wrap';
+    return anchor;
+  }
+
   shortenInspirationLabel(): void {
     const button = visible([...document.querySelectorAll<HTMLButtonElement>('button')].filter((candidate) =>
       text(candidate).replaceAll(/\s+/g, '').includes('インスピレーション')));

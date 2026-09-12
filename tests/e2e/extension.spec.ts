@@ -23,7 +23,7 @@ const sunoFixture = `<!doctype html><html lang="ja"><body>
       <div role="slider" aria-label="バリエーション" aria-valuenow="0" style="width:100px;height:20px"></div>
       <div>パーソナライズ<button data-selected="false">マイ・テイスト</button><button data-selected="true">オフ</button><button data-selected="false" disabled>オン</button></div>
     </div></section>
-    <section><div><input placeholder="曲名(任意)" /></div><div>保存先…<button>Demo Workspace</button></div></section>
+    <section><div style="display:flex;flex-wrap:nowrap"><input placeholder="曲名(任意)" /></div><div>保存先…<button>Demo Workspace</button></div></section>
     <button id="create">作成</button>
     <script>
       document.querySelector('#create').addEventListener('click', () => document.body.dataset.created = 'true');
@@ -76,6 +76,17 @@ test('mounts the Suno controls beside their anchors, survives host removal, and 
     await page.waitForTimeout(250);
     // styles, presets, title, and the always-mounted settings dialog host.
     expect(await page.locator('suno-create-assistant').count(), extensionErrors.join('\n')).toBe(4);
+    const titleHost = page.locator('suno-create-assistant[data-suno-create-assistant="title"]');
+    await expect(titleHost).toHaveCount(1);
+    expect(await titleHost.evaluate((host) => host.parentElement === document.querySelector('input[placeholder="曲名(任意)"]')?.parentElement)).toBe(true);
+    expect(await page.locator('input[placeholder="曲名(任意)"]').evaluate((input) => getComputedStyle(input.parentElement!).flexWrap)).toBe('wrap');
+    const [titleInputBox, titleHostBox] = await Promise.all([
+      page.locator('input[placeholder="曲名(任意)"]').boundingBox(),
+      titleHost.boundingBox(),
+    ]);
+    expect(titleInputBox).not.toBeNull();
+    expect(titleHostBox).not.toBeNull();
+    expect(titleHostBox!.y).toBeGreaterThanOrEqual(titleInputBox!.y + titleInputBox!.height);
 
     // Regression: the settings dialog host used to require staying
     // document.body's *last* child. Anything else that also appends to
@@ -114,8 +125,11 @@ test('mounts the Suno controls beside their anchors, survives host removal, and 
     await expect(page.getByRole('option', { name: 'ARIA' })).toHaveCSS('color', 'rgb(247, 244, 239)');
     await page.getByRole('option', { name: 'ARIA' }).click();
     await expect(page.locator('[data-testid="create-form-styles-wrapper"] textarea')).toHaveValue('gentle acoustic ensemble');
-    await page.locator('suno-create-assistant').filter({ hasText: '自動設定' }).getByRole('checkbox').check();
+    await titleHost.getByRole('checkbox', { name: '自動設定' }).check();
     await expect(page.locator('input[placeholder="曲名(任意)"]')).toHaveValue('Demo Workspace (ARIA)');
+    await page.reload();
+    await expect(page.locator('suno-create-assistant[data-suno-create-assistant="title"]')).toHaveCount(1);
+    await expect(page.locator('suno-create-assistant[data-suno-create-assistant="title"]').getByRole('checkbox', { name: '自動設定' })).toBeChecked();
 
     // Settings management (masterings and presets) now lives in a modal
     // dialog inside the Suno page itself, opened from the preset dropdown.
@@ -131,6 +145,15 @@ test('mounts the Suno controls beside their anchors, survives host removal, and 
     await expect(dialog.getByText('奇抜さ: 50%')).toBeVisible();
     await dialog.getByRole('button', { name: '編集' }).click();
     await expect(dialog.getByRole('textbox', { name: '名前' })).toHaveValue('標準');
+    await dialog.getByRole('radio', { name: 'カスタム' }).check();
+    const secondsLabel = dialog.getByText('秒数', { exact: true });
+    const secondsInput = dialog.locator('input[name$="-duration-seconds"]');
+    await expect(secondsInput).toBeVisible();
+    const [secondsLabelBox, secondsInputBox] = await Promise.all([secondsLabel.boundingBox(), secondsInput.boundingBox()]);
+    expect(secondsLabelBox).not.toBeNull();
+    expect(secondsInputBox).not.toBeNull();
+    expect(secondsInputBox!.x).toBeGreaterThan(secondsLabelBox!.x + secondsLabelBox!.width);
+    expect(Math.abs((secondsInputBox!.y + secondsInputBox!.height / 2) - (secondsLabelBox!.y + secondsLabelBox!.height / 2))).toBeLessThan(1);
     await dialog.locator('label').filter({ hasText: /^奇抜さ/ }).locator('input[type="range"]').fill('35');
     await dialog.getByRole('button', { name: '保存', exact: true }).click();
     await expect(dialog.getByText('奇抜さ: 35%')).toBeVisible();
@@ -141,7 +164,14 @@ test('mounts the Suno controls beside their anchors, survives host removal, and 
     await expect(page.getByRole('option', { name: '標準' })).toBeVisible();
     await page.getByRole('option', { name: '標準' }).click();
     await expect(page.getByRole('button', { name: 'プリセット: 標準' })).toBeVisible();
-    await expect(presetsHost.getByText('プリセットを適用しました。')).toBeVisible();
+    const presetTrigger = presetsHost.getByRole('button', { name: 'プリセット: 標準' });
+    const presetFeedback = presetsHost.getByText('プリセットを適用しました。');
+    await expect(presetFeedback).toBeVisible();
+    const [triggerBox, feedbackBox] = await Promise.all([presetTrigger.boundingBox(), presetFeedback.boundingBox()]);
+    expect(triggerBox).not.toBeNull();
+    expect(feedbackBox).not.toBeNull();
+    expect(feedbackBox!.x).toBeGreaterThan(triggerBox!.x + triggerBox!.width);
+    expect(Math.abs((feedbackBox!.y + feedbackBox!.height / 2) - (triggerBox!.y + triggerBox!.height / 2))).toBeLessThan(1);
     await expect(page.locator('suno-create-assistant[data-suno-create-assistant="styles"]')).not.toContainText('プリセットを適用しました。');
 
     // The extension options page now hosts only the shortcut setting.

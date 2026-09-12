@@ -92,6 +92,12 @@
   margin: 12px;
 }
 
+/* titleControlAnchor() enables wrapping on Suno's title-card row; reserve
+   this host's own full line inside that card. */
+:host([data-suno-create-assistant="title"]) {
+  flex: 0 0 100%;
+}
+
 .suno-assistant__select,
 .suno-assistant__button {
   appearance: none;
@@ -158,6 +164,18 @@
 .suno-assistant__menu button.suno-assistant__manage { color: var(--sca-accent-strong); }
 .suno-assistant__status { flex-basis: 100%; color: var(--sca-fg-secondary); font-size: 12px; }
 .suno-assistant__status--error { color: var(--sca-error); }
+
+/* Preset feedback belongs beside its sole dropdown, rather than on a new row.
+   Keep the message readable if the host card becomes narrow. */
+:host([data-suno-create-assistant="presets"]) .suno-assistant {
+  flex-wrap: nowrap;
+  align-items: safe center;
+}
+
+:host([data-suno-create-assistant="presets"]) .suno-assistant__status {
+  flex: 0 1 auto;
+  min-inline-size: 0;
+}
 
 .suno-assistant__check { accent-color: var(--sca-accent); }
 .suno-assistant__check-label { display: inline-flex; align-items: center; gap: 5px; cursor: pointer; }
@@ -279,6 +297,15 @@
 .suno-assistant__preset-field-value > label:has(input[type="text"]),
 .suno-assistant__preset-field-value > label:has(input[type="range"]),
 .suno-assistant__preset-field-value label:has(input[type="number"]) { display: block; }
+.suno-assistant__preset-field-value fieldset label.suno-assistant__duration-seconds {
+  display: inline-flex;
+  align-items: safe center;
+  gap: 8px;
+}
+.suno-assistant__duration-seconds input[type="number"] {
+  inline-size: 12rem;
+  margin-top: 0;
+}
 .suno-assistant__range { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
 .suno-assistant__range input { flex: 1; accent-color: var(--sca-accent); }
 .suno-assistant__range output { min-width: 38px; color: var(--sca-fg); font-variant-numeric: tabular-nums; }

@@ -364,3 +364,78 @@ src/content/suno-ui.css: ホスト要素へのmarginをやめ、padding方式に
 - tests/e2e/extension.spec.ts: 現在値から作成後に保存済みプリセットを再編集して数値を更新する回帰テストを追加
 - README.md, README_ja.md, CLAUDE.md: 統一されたプリセット作成・編集フローを更新
 - output/chrome-mv3/content-scripts/suno.js: 修正済み拡張を再ビルド
+
+## [task] 2026-09-12 21:28:32
+
+**Agent:** Codex
+**Prompt:** 「プリセットを適用しました」のメッセージをプルダウン右側で上下中央に揃えて表示したい
+
+**Changes:**
+- src/content/suno-ui.css: プリセットホストだけの通知を横並び・中央揃えにし、狭い幅でも通知文を折り返して読めるように変更
+- tests/e2e/extension.spec.ts: プルダウンの右側かつ垂直中央に通知が表示される回帰テストを追加
+- CLAUDE.md: プリセット通知の配置とスコープに関するUI不変条件を追記
+
+## [note] 2026-09-12 21:28:46
+
+output/chrome-mv3/content-scripts/suno.js: src/content/suno-ui.css の通知配置変更を反映するため pnpm build で再生成。
+
+## [task] 2026-09-12 21:31:03
+
+**Agent:** Codex
+**Prompt:** 自動設定のチェックボックスを曲名セクション内に置き、選択状態をローカルに保存して既定値として復元したい
+
+**Changes:**
+- entrypoints/suno.content.tsx: 自動設定ホストを曲名入力の親要素内へ beforeend でマウント
+- tests/e2e/extension.spec.ts: 曲名セクション内への配置とリロード後のチェック状態復元を検証
+- README.md, README_ja.md: 曲名セクション内の配置とChromeローカルストレージからの既定値復元を説明
+- CLAUDE.md: 自動設定の配置・保存に関する実装上の不変条件を追記
+- output/chrome-mv3/content-scripts/suno.js: 更新済みコンテンツスクリプトを再ビルド
+
+## [task] 2026-09-12 21:32:58
+
+**Agent:** Codex
+**Prompt:** 設定画面の長さで、秒数ラベルと秒数入力欄を横並び・上下中央揃えにしたい
+
+**Changes:**
+- src/content/SettingsDialog.tsx: 秒数ラベルに専用クラスとテキスト要素を追加
+- src/content/suno-ui.css: 数値入力ラベルの縦積み規則を秒数行だけ横並びに上書き
+- tests/e2e/extension.spec.ts: 秒数ラベルと入力欄の左右配置・中心線一致を検証
+- CLAUDE.md: 秒数入力行のレイアウト不変条件を記録
+- output/chrome-mv3/content-scripts/suno.js: 更新済みコンテンツスクリプトを再ビルド
+
+## [task] 2026-09-12 21:34:57
+
+**Agent:** Codex
+**Prompt:** 曲名と自動設定を同じセクションに保ちつつ、別行に表示したい
+
+**Changes:**
+- src/content/suno-ui.css: 自動設定ホストを100%のflex行にして曲名入力の次行へ配置
+- tests/e2e/extension.spec.ts: 折り返しflexコンテナで曲名入力と自動設定ホストが別行になることを検証
+- CLAUDE.md: 曲名セクション内で自動設定を別行に置く不変条件を更新
+- output/chrome-mv3/content-scripts/suno.js: 更新済みコンテンツスクリプトを再ビルド
+
+## [task] 2026-09-12 21:39:13
+
+**Agent:** Codex
+**Prompt:** 曲名と自動設定が同じ行のままだったため、同じカード内の別行に確実に表示したい
+
+**Changes:**
+- src/suno/adapter.ts: 曲名入力の非折り返し行ではなく外側の曲名カードを返す titleSectionAnchor() を追加
+- entrypoints/suno.content.tsx: 自動設定を曲名カードの3行目としてマウント
+- tests/adapter.test.ts, tests/e2e/extension.spec.ts: 曲名カードの選択と独立行配置を検証
+- src/content/suno-ui.css: 効果のなかったタイトルホストのflex幅指定を削除
+- CLAUDE.md: 実測したSuno DOM構造と正しいマウント先を記録
+- output/chrome-mv3/content-scripts/suno.js: 更新済みコンテンツスクリプトを再ビルド
+
+## [task] 2026-09-12 21:42:24
+
+**Agent:** Codex
+**Prompt:** 自動設定が曲名セクションの外へ出てしまったため、曲名カード内の次行へ確実に収めたい
+
+**Changes:**
+- src/suno/adapter.ts: 曲名カード行を折り返し可能にして同じカードを返す titleControlAnchor() へ修正
+- entrypoints/suno.content.tsx: 外側カードではなく折り返し済み曲名カードへ自動設定をマウント
+- src/content/suno-ui.css: 自動設定ホストに曲名カード内の専用行を割り当て
+- tests/adapter.test.ts, tests/e2e/extension.spec.ts: 曲名カード内への配置、折り返し、別行表示を検証
+- CLAUDE.md: 実サイトDOMに基づく正しい曲名カード配置を記録
+- output/chrome-mv3/content-scripts/suno.js: 更新済みコンテンツスクリプトを再ビルド

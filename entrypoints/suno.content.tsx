@@ -51,7 +51,10 @@ export default defineContentScript({
       } else {
         mounter.mount('presets', { anchor: controller.adapter.optionsAnchor() ?? titleAnchor, position: 'afterend' }, () => <PresetControls controller={controller} />, theme);
       }
-      mounter.mount('title', { anchor: titleAnchor, position: 'afterend' }, () => <AutoTitleControl controller={controller} />, theme);
+      // Keep Auto title in Suno's rounded title card. titleControlAnchor()
+      // makes the card's input row wrap, allowing this host to take its own
+      // line without moving below the separate destination card.
+      mounter.mount('title', { anchor: controller.adapter.titleControlAnchor() ?? titleAnchor, position: 'beforeend' }, () => <AutoTitleControl controller={controller} />, theme);
       controller.reconcile();
     };
     const schedule = () => {
