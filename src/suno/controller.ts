@@ -277,7 +277,7 @@ export class SunoController {
     await saveLyricsTags(tags);
   }
 
-  insertLyricsTag(tag: string): boolean {
+  async insertLyricsTag(tag: string): Promise<boolean> {
     return this.adapter.insertLyricsTag(tag);
   }
 

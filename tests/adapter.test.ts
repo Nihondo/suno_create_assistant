@@ -476,7 +476,7 @@ describe('SunoAdapter lyricsAnchor and lyricsEditor', () => {
     expect(editor).toBe(document.querySelector('.lyrics-editor-content'));
   });
 
-  it('inserts tag into textarea and expands disclosure if closed', () => {
+  it('inserts tag into textarea and expands disclosure if closed', async () => {
     document.body.innerHTML = `
       <section id="lyrics">
         <div id="lyrics-header">
@@ -494,7 +494,7 @@ describe('SunoAdapter lyricsAnchor and lyricsEditor', () => {
     });
 
     const adapter = new SunoAdapter();
-    const result = adapter.insertLyricsTag('Verse 1');
+    const result = await adapter.insertLyricsTag('Verse 1');
     expect(result).toBe(true);
     expect(btn.getAttribute('aria-expanded')).toBe('true');
 
@@ -502,7 +502,7 @@ describe('SunoAdapter lyricsAnchor and lyricsEditor', () => {
     expect(textarea.value).toBe('[Verse 1]\n');
   });
 
-  it('appends tag after existing text in textarea', () => {
+  it('appends tag after existing text in textarea', async () => {
     document.body.innerHTML = `
       <section id="lyrics">
         <div id="lyrics-header">
@@ -519,11 +519,11 @@ describe('SunoAdapter lyricsAnchor and lyricsEditor', () => {
     textarea.selectionEnd = textarea.value.length;
 
     const adapter = new SunoAdapter();
-    adapter.insertLyricsTag('[Chorus]');
+    await adapter.insertLyricsTag('[Chorus]');
     expect(textarea.value).toBe('Existing line\n[Chorus]\n');
   });
 
-  it('inserts tag with line breaks into Lexical contenteditable via paste listener', () => {
+  it('inserts tag with line breaks into Lexical contenteditable via paste listener', async () => {
     document.body.innerHTML = `
       <section id="lyrics">
         <div id="lyrics-header">
@@ -547,13 +547,13 @@ describe('SunoAdapter lyricsAnchor and lyricsEditor', () => {
     });
 
     const adapter = new SunoAdapter();
-    const res = adapter.insertLyricsTag('Verse 1');
+    const res = await adapter.insertLyricsTag('Verse 1');
     expect(res).toBe(true);
     expect(pastedText).toBe('\n[Verse 1]\n');
     expect(editor.innerHTML).toContain('[Verse 1]');
   });
 
-  it('inserts tag into contenteditable via DOM fallback if unhandled', () => {
+  it('inserts tag into contenteditable via DOM fallback if unhandled', async () => {
     document.body.innerHTML = `
       <section id="lyrics">
         <div id="lyrics-header">
@@ -566,10 +566,38 @@ describe('SunoAdapter lyricsAnchor and lyricsEditor', () => {
     `;
 
     const adapter = new SunoAdapter();
-    const res = adapter.insertLyricsTag('Outro');
+    const res = await adapter.insertLyricsTag('Outro');
     expect(res).toBe(true);
     const editor = document.querySelector<HTMLElement>('.lyrics-editor-content')!;
     expect(editor.innerHTML).toContain('[Outro]');
+  });
+
+  it('inserts tag from initially unfocused state after selection synchronization', async () => {
+    document.body.innerHTML = `
+      <section id="lyrics">
+        <div id="lyrics-header">
+          <div role="button" tabindex="0" aria-expanded="true">歌詞</div>
+        </div>
+        <div class="lyrics-editor-content" contenteditable="true" data-lexical-editor="true">
+          <p class="lyrics-paragraph">Existing line</p>
+        </div>
+      </section>
+    `;
+
+    const editor = document.querySelector<HTMLElement>('.lyrics-editor-content')!;
+    editor.addEventListener('paste', (e) => {
+      e.preventDefault();
+      const text = e.clipboardData?.getData('text/plain') ?? '';
+      const p = document.createElement('p');
+      p.className = 'lyrics-paragraph';
+      p.textContent = text.trim();
+      editor.appendChild(p);
+    });
+
+    const adapter = new SunoAdapter();
+    const res = await adapter.insertLyricsTag('Chorus');
+    expect(res).toBe(true);
+    expect(editor.textContent).toContain('[Chorus]');
   });
 });
 

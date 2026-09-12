@@ -214,11 +214,11 @@ describe('SunoController lyricsTags', () => {
     expect(current().lyricsTags).toEqual(newTags);
   });
 
-  it('delegates insertLyricsTag to adapter', () => {
+  it('delegates insertLyricsTag to adapter', async () => {
     const controller = new SunoController();
-    const insertSpy = vi.spyOn(controller.adapter, 'insertLyricsTag').mockReturnValue(true);
+    const insertSpy = vi.spyOn(controller.adapter, 'insertLyricsTag').mockResolvedValue(true);
 
-    const res = controller.insertLyricsTag('[Chorus]');
+    const res = await controller.insertLyricsTag('[Chorus]');
     expect(res).toBe(true);
     expect(insertSpy).toHaveBeenCalledWith('[Chorus]');
   });

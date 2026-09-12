@@ -186,7 +186,7 @@ export function LyricsTagPalette({ controller }: { controller: SunoController })
             type="button"
             className="suno-assistant__tag-button"
             onMouseDown={(event) => event.preventDefault()}
-            onClick={() => controller.insertLyricsTag(tag)}
+            onClick={() => void controller.insertLyricsTag(tag)}
             title={tag}
           >
             {displayTagName(tag)}

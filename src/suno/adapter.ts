@@ -516,6 +516,8 @@ function dispatchEnter(target: HTMLElement): boolean {
 }
 
 export class SunoAdapter {
+  private isInsertingLyricsTag = false;
+
   lyricsHeading(): HTMLElement | undefined {
     return lyricsHeading();
   }
@@ -543,14 +545,29 @@ export class SunoAdapter {
     return includeHidden ? contentEditables[0] : visible(contentEditables);
   }
 
-  insertLyricsTag(rawTag: string): boolean {
-    const heading = lyricsHeading();
-    if (heading && !isDisabled(heading) && !isLyricsExpanded(heading)) {
-      heading.click();
-    }
+  async insertLyricsTag(rawTag: string): Promise<boolean> {
+    if (this.isInsertingLyricsTag) return false;
+    this.isInsertingLyricsTag = true;
+    try {
+      const heading = lyricsHeading();
+      if (heading && !isDisabled(heading) && !isLyricsExpanded(heading)) {
+        heading.click();
+      }
 
-    const editor = this.lyricsEditor();
-    if (!editor) return false;
+      let editor = this.lyricsEditor();
+      if (!editor) {
+        const startTime = Date.now();
+        while (!editor && Date.now() - startTime < 1200) {
+        await new Promise((resolve) => setTimeout(resolve, 30));
+        editor = this.lyricsEditor();
+        if (!editor && Date.now() - startTime > 400) {
+          editor = this.lyricsEditor(true);
+        }
+      }
+
+      if (!editor) return false;
+      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    }
 
     if (editor instanceof HTMLTextAreaElement) {
       const start = editor.selectionStart ?? editor.value.length;
@@ -583,6 +600,11 @@ export class SunoAdapter {
       }
       selection.removeAllRanges();
       selection.addRange(range);
+
+      // Lexical listens to asynchronous `selectionchange` events to establish
+      // its internal EditorState selection. If we dispatch paste synchronously without
+      // yielding, Lexical's $getSelection() is still null on first interaction and rejects the insertion.
+      await new Promise((resolve) => setTimeout(resolve, 40));
     } else {
       editor.focus();
     }
@@ -607,10 +629,9 @@ export class SunoAdapter {
     const insertion = `${prefix}${tag}\n`;
 
     // 1. Preferred strategy for Lexical: dispatch synthetic paste event
-    // Lexical parses text/plain in paste events and converts newline characters into ParagraphNodes.
     let pasteSuccess = false;
     try {
-      let dt: { getData: (type: string) => string; setData?: (type: string, val: string) => void; types?: string[] } | null = null;
+      let dt: { getData: (type: string) => string; setData?: (type: string, val: string) => void; types?: readonly string[] } | null = null;
       if (typeof DataTransfer !== 'undefined') {
         const nativeDt = new DataTransfer();
         nativeDt.setData('text/plain', insertion);
@@ -675,6 +696,9 @@ export class SunoAdapter {
     editor.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'insertParagraph' }));
 
     return true;
+    } finally {
+      this.isInsertingLyricsTag = false;
+    }
   }
 
   styleHeading(): HTMLElement | undefined {

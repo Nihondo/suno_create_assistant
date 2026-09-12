@@ -625,3 +625,43 @@ output/chrome-mv3/content-scripts/suno.js: src/content/suno-ui.css の通知配�
 **Changes:**
 - src/suno/adapter.ts: Lexicalエディタおよびcontenteditable向けにpasteイベント合成とinsertParagraph/Enterキーによる独立行挿入・改行処理を実装
 - tests/adapter.test.ts: contenteditableおよびLexicalエディタでのタグ挿入・改行ユニットテストを追加
+
+## [task] 2026-09-13 00:33:30
+
+**Agent:** Antigravity
+**Prompt:** ページ読み込み直後のアコーディオン閉状態での初回タグ挿入失敗を修正
+
+**Changes:**
+- src/suno/adapter.ts: insertLyricsTagを非同期化し、閉じたアコーディオンの展開クリック後にReactがエディタをDOMマウントするまで待機する処理を追加
+- src/suno/controller.ts: insertLyricsTagをPromise<boolean>に変更
+- src/content/components.tsx: void controller.insertLyricsTagで呼び出すよう更新
+- tests/adapter.test.ts: 初期閉状態からの非同期エディタマウント待機と挿入のユニットテストを追加
+- tests/controller.test.ts: insertLyricsTagのテストをasync/awaitに対応
+
+## [task] 2026-09-13 00:39:29
+
+**Agent:** Antigravity
+**Prompt:** 未フォーカス状態からの初回タグクリック失敗の根本原因を解消
+
+**Changes:**
+- src/suno/adapter.ts: エディタ未フォーカス時にselectionchangeイベントが非同期発火してLexical内部のSelectionが確立するまで40ms待機する処理を追加。さらにpaste/execCommand後に実際にテキストが含まれているかを二重検証し、空振りを防ぐ多層フォールバックを実装
+- src/suno/controller.ts: insertLyricsTagをPromise<boolean>に変更
+- src/content/components.tsx: void controller.insertLyricsTagで呼び出すよう更新
+- tests/adapter.test.ts: 未フォーカス状態からのタグ挿入テストを追加
+- tests/controller.test.ts: insertLyricsTagのテストをasync/awaitに対応
+
+## [task] 2026-09-13 00:42:00
+
+**Agent:** Antigravity
+**Prompt:** タグ1クリックで2つ重複挿入される不具合を修正
+
+**Changes:**
+- src/suno/adapter.ts: pasteEvent直後のDOM同期前テキスト検査を除去しpasteEvent.defaultPreventedを直接判定。さらにisInsertingLyricsTag排他ロックを追加して二重実行を防止
+
+## [task] 2026-09-13 00:42:35
+
+**Agent:** Antigravity
+**Prompt:** 歌詞タグパレット機能の実装および実機動作検証完了
+
+**Changes:**
+- 実機Sunoにて改行付き挿入・未フォーカス状態からの初回クリック動作・単一挿入の正常動作を確認完了
