@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, useState, type ChangeEvent } from 'react';
 import { DEFAULT_TITLE_FORMAT, formatLyricsTags, parseLyricsTags, readableOptionFields, validateUniqueName } from '../domain/logic';
-import { DEFAULT_LYRICS_TAGS, emptyOtherOptions, optionKeys, type MasteringPrompt, type OtherOptionsKey, type OtherOptionsPreset, type OtherOptionsSnapshot, type TakeRecord, type VocalGender } from '../domain/models';
-import { clearTakeHistory, deleteMastering, deletePreset, deleteTakeRecord, exportBackup, parseBackup, replaceStorage, saveMastering, savePreset } from '../storage/repository';
+import { DEFAULT_LYRICS_TAGS, DEFAULT_TAKE_HISTORY_LIMIT, emptyOtherOptions, optionKeys, type MasteringPrompt, type OtherOptionsKey, type OtherOptionsPreset, type OtherOptionsSnapshot, type TakeRecord, type VocalGender } from '../domain/models';
+import { clearTakeHistory, deleteMastering, deletePreset, deleteTakeRecord, exportBackup, parseBackup, replaceStorage, saveMastering, savePreset, setTakeHistoryLimit } from '../storage/repository';
 import type { SettingsSection, SunoController } from '../suno/controller';
 import { useController, useStoredLists } from './components';
 import { getUiMessages, type UiMessages } from '../locales';
@@ -73,13 +73,15 @@ function sectionLabel(section: SettingsSection, ui: UiMessages): string {
 
 export function SettingsDialog({ controller }: { controller: SunoController }) {
   const state = useController(controller);
-  const { masterings, presets, takeHistory } = useStoredLists();
+  const { masterings, presets, takeHistory, takeHistoryLimit } = useStoredLists();
   const dialogRef = useRef<HTMLDialogElement>(null);
   const activeSection: SettingsSection = state.settings?.section ?? 'display';
   const [titleFormat, setTitleFormat] = useState(state.titleFormat);
   const [formatSavedNotice, setFormatSavedNotice] = useState(false);
   const [lyricsTagsText, setLyricsTagsText] = useState(formatLyricsTags(state.lyricsTags));
   const [lyricsTagsSavedNotice, setLyricsTagsSavedNotice] = useState(false);
+  const [historyLimitText, setHistoryLimitText] = useState(String(takeHistoryLimit));
+  const [historyLimitSavedNotice, setHistoryLimitSavedNotice] = useState(false);
   const [editingMastering, setEditingMastering] = useState<MasteringPrompt>();
   const [masteringForm, setMasteringForm] = useState<{ name: string; prompt: string }>();
   const [editingPreset, setEditingPreset] = useState<OtherOptionsPreset>();
@@ -108,6 +110,16 @@ export function SettingsDialog({ controller }: { controller: SunoController }) {
     setLyricsTagsText(formatLyricsTags(state.lyricsTags));
     setLyricsTagsSavedNotice(false);
   }, [open, state.lyricsTags]);
+
+  useEffect(() => {
+    setHistoryLimitText(String(takeHistoryLimit));
+  }, [takeHistoryLimit]);
+
+  useEffect(() => {
+    if (!open) {
+      setHistoryLimitSavedNotice(false);
+    }
+  }, [open]);
 
   useEffect(() => {
     if (open) return;
@@ -257,6 +269,17 @@ export function SettingsDialog({ controller }: { controller: SunoController }) {
     setEditingPreset(undefined);
     setPresetForm({ name: record.title, fields: cloneFields(record.options) });
     setLocalError(undefined);
+  };
+
+  const handleSaveHistoryLimit = async () => {
+    const val = parseInt(historyLimitText, 10);
+    if (isNaN(val) || val < 1) return;
+    await setTakeHistoryLimit(val);
+    setHistoryLimitSavedNotice(true);
+    setTimeout(() => setHistoryLimitSavedNotice(false), 2000);
+  };
+  const handleResetHistoryLimit = () => {
+    setHistoryLimitText(String(DEFAULT_TAKE_HISTORY_LIMIT));
   };
 
   const handleClearTakeHistory = async () => {
@@ -422,13 +445,34 @@ export function SettingsDialog({ controller }: { controller: SunoController }) {
       {activeSection === 'takeHistory' && <section aria-labelledby="suno-assistant-take-history-heading">
         <h3 id="suno-assistant-take-history-heading">{ui.dialog.takeHistoryHeading}</h3>
         <p className="suno-assistant__hint">{ui.dialog.takeHistoryHint}</p>
+        <div className="suno-assistant__take-history-limit">
+          <label>
+            <span>{ui.dialog.takeHistoryLimitLabel}:</span>
+            <input
+              type="number"
+              min={1}
+              value={historyLimitText}
+              onChange={(event) => setHistoryLimitText(event.target.value)}
+            />
+            <span>{ui.dialog.takeHistoryLimitUnit}</span>
+          </label>
+          <div className="suno-assistant__format-actions">
+            <button type="button" onClick={handleResetHistoryLimit}>{ui.dialog.resetDefault}</button>
+            <button type="button" onClick={() => void handleSaveHistoryLimit()}>{ui.dialog.saveTakeHistoryLimit}</button>
+            {historyLimitSavedNotice && <span className="suno-assistant__format-saved">{ui.dialog.takeHistoryLimitSavedNotice}</span>}
+          </div>
+        </div>
         <ul className="suno-assistant__list suno-assistant__list--stacked">
           {takeHistory.map((record) => <li key={record.id}>
             <div>
               <strong>{record.title}</strong>
               <p>{new Date(record.createdAt).toLocaleString()}</p>
               <p>{formatPreset(record.options, ui)}</p>
-              {record.clipIds[0] && <a href={`/song/${record.clipIds[0]}`}>{ui.dialog.linkedToSong}</a>}
+              {record.clipIds.length > 0 && <div className="suno-assistant__take-links">
+                {record.clipIds.map((clipId, i) => <a key={clipId} href={`/song/${clipId}`}>
+                  {record.clipIds.length > 1 ? ui.dialog.linkedToSongNumbered(i + 1) : ui.dialog.linkedToSong}
+                </a>)}
+              </div>}
             </div>
             <div className="suno-assistant__list-actions">
               <button type="button" onClick={() => restoreTake(record)}>{ui.dialog.restoreParams}</button>

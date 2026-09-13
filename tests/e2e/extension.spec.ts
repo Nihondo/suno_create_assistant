@@ -64,10 +64,9 @@ const sunoFixture = `<!doctype html><html lang="ja"><body>
         document.body.dataset.created = 'true';
         const title = document.querySelector('input[placeholder="曲名(任意)"]').value;
         document.body.dataset.createdTitle = title;
-        // Approximates Suno showing the newly generated clip in the
-        // workspace list right after a submission - real timing/placeholder
-        // states are not modeled, only that a matching row eventually
-        // appears with the submitted title.
+        // Approximates Suno showing the newly generated clips (2 variations)
+        // in the workspace list right after a submission.
+        addClipRow(title);
         addClipRow(title);
       });
       document.querySelector('#saved-styles').addEventListener('click', () => {
@@ -369,20 +368,37 @@ test('mounts the Suno controls beside their anchors, survives host removal, and 
     await expect(dialog.getByRole('heading', { name: 'テイク履歴' })).toBeVisible();
     await expect(dialog.getByText('Demo Workspace (ARIA) 1', { exact: true })).toBeVisible();
     await expect(dialog.getByText('Demo Workspace (ARIA) 2', { exact: true })).toBeVisible();
+
+    // Verify take history limit setting can be changed and saved
+    const limitInput = dialog.locator('.suno-assistant__take-history-limit input[type="number"]');
+    await expect(limitInput).toHaveValue('500');
+    await limitInput.fill('200');
+    await dialog.locator('.suno-assistant__take-history-limit button', { hasText: '保存' }).click();
+    await expect(dialog.locator('.suno-assistant__take-history-limit .suno-assistant__format-saved')).toBeVisible();
+
+    // Verify multiple song links are displayed for 2 generated clips
+    await expect(dialog.getByRole('link', { name: '曲1を開く' }).first()).toBeVisible();
+    await expect(dialog.getByRole('link', { name: '曲2を開く' }).first()).toBeVisible();
+
     await dialog.getByRole('button', { name: '閉じる' }).click();
     await expect(dialog.getByRole('heading', { name: 'Suno Create Assistant の設定' })).toBeHidden();
 
-    // Each submission's clip row (simulated by the fixture's own #create
-    // handler, see addClipRow above) gets a "パラメータを再利用" button once
-    // SunoController's clip-linker matches it to its take-history record.
-    const firstClipRow = page.locator('[data-testid="clip-row"]', { hasText: 'Demo Workspace (ARIA) 1' });
-    await expect(firstClipRow.getByRole('button', { name: 'パラメータを再利用' })).toBeVisible();
-    const secondClipRow = page.locator('[data-testid="clip-row"]', { hasText: 'Demo Workspace (ARIA) 2' });
-    await expect(secondClipRow.getByRole('button', { name: 'パラメータを再利用' })).toBeVisible();
+    // Each submission's clip rows (simulated by the fixture's own #create
+    // handler, see addClipRow above) get a "パラメータを再利用" button once
+    // SunoController's clip-linker matches them to their take-history record.
+    const firstClipRows = page.locator('[data-testid="clip-row"]', { hasText: 'Demo Workspace (ARIA) 1' });
+    await expect(firstClipRows).toHaveCount(2);
+    await expect(firstClipRows.first().getByRole('button', { name: 'パラメータを再利用' })).toBeVisible();
+    await expect(firstClipRows.last().getByRole('button', { name: 'パラメータを再利用' })).toBeVisible();
+
+    const secondClipRows = page.locator('[data-testid="clip-row"]', { hasText: 'Demo Workspace (ARIA) 2' });
+    await expect(secondClipRows).toHaveCount(2);
+    await expect(secondClipRows.first().getByRole('button', { name: 'パラメータを再利用' })).toBeVisible();
+    await expect(secondClipRows.last().getByRole('button', { name: 'パラメータを再利用' })).toBeVisible();
 
     // Clicking it re-applies the recorded More Options without touching Style.
     const styleValueBeforeReuse = await page.locator('[data-testid="create-form-styles-wrapper"] textarea').inputValue();
-    await firstClipRow.getByRole('button', { name: 'パラメータを再利用' }).click();
+    await firstClipRows.first().getByRole('button', { name: 'パラメータを再利用' }).click();
     await expect(page.locator('[data-testid="create-form-styles-wrapper"] textarea')).toHaveValue(styleValueBeforeReuse);
 
     // Export downloads the live settings (including the two take-history

@@ -7,6 +7,7 @@ import {
   exportBackup,
   findTakeByClipId,
   findUnlinkedTakeRecords,
+  getTakeHistoryLimit,
   linkTakeToClips,
   parseBackup,
   readStorage,
@@ -129,14 +130,16 @@ describe('take history', () => {
     expect(found?.linkedAt).toBeDefined();
   });
 
-  it('returns only unlinked records for the clip-linker to consider', async () => {
-    const linked = await appendTakeRecord({ ...takeInput, title: 'Linked' });
+  it('returns only unlinked or partially-linked records for the clip-linker to consider', async () => {
+    const fullyLinked = await appendTakeRecord({ ...takeInput, title: 'Fully Linked' });
+    const partiallyLinked = await appendTakeRecord({ ...takeInput, title: 'Partially Linked' });
     await appendTakeRecord({ ...takeInput, title: 'Unlinked' });
-    await linkTakeToClips(linked.id, ['song-1']);
+    await linkTakeToClips(fullyLinked.id, ['song-1', 'song-2']);
+    await linkTakeToClips(partiallyLinked.id, ['song-3']);
 
-    const unlinked = await findUnlinkedTakeRecords();
-    expect(unlinked).toHaveLength(1);
-    expect(unlinked[0]!.title).toBe('Unlinked');
+    const pending = await findUnlinkedTakeRecords();
+    expect(pending).toHaveLength(2);
+    expect(pending.map((r) => r.title)).toEqual(['Unlinked', 'Partially Linked']);
   });
 
   it('deletes a single record and clears the whole history', async () => {
@@ -152,9 +155,14 @@ describe('take history', () => {
     expect(stored.takeHistory).toEqual([]);
   });
 
-  it('defaults the history limit when not configured', async () => {
+  it('defaults the history limit when not configured and returns via getTakeHistoryLimit', async () => {
     const stored = await readStorage();
     expect(stored.takeHistoryLimit).toBe(DEFAULT_TAKE_HISTORY_LIMIT);
+    const limit = await getTakeHistoryLimit();
+    expect(limit).toBe(DEFAULT_TAKE_HISTORY_LIMIT);
+
+    await setTakeHistoryLimit(200);
+    expect(await getTakeHistoryLimit()).toBe(200);
   });
 });
 

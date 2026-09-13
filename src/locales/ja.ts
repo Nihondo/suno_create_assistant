@@ -131,7 +131,12 @@ export const jaUiMessages: UiMessages = {
     clearAllHistory: 'すべて削除',
     clearAllHistoryConfirm: 'テイク履歴をすべて削除します。よろしいですか？',
     linkedToSong: '曲を開く',
+    linkedToSongNumbered: (index: number) => `曲${index}を開く`,
     savedAsPresetNotice: 'プリセットとして保存しました。',
+    takeHistoryLimitLabel: '保存件数',
+    takeHistoryLimitUnit: '件',
+    saveTakeHistoryLimit: '保存',
+    takeHistoryLimitSavedNotice: '保存しました',
   },
   optionLabels: {
     excludedStyles: 'スタイルを除外',

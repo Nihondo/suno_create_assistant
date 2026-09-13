@@ -131,7 +131,12 @@ export const enUiMessages: UiMessages = {
     clearAllHistory: 'Clear all',
     clearAllHistoryConfirm: 'This will delete all take history. Continue?',
     linkedToSong: 'Open song',
+    linkedToSongNumbered: (index: number) => `Open song ${index}`,
     savedAsPresetNotice: 'Saved as a preset.',
+    takeHistoryLimitLabel: 'History limit',
+    takeHistoryLimitUnit: 'records',
+    saveTakeHistoryLimit: 'Save',
+    takeHistoryLimitSavedNotice: 'Saved',
   },
   optionLabels: {
     excludedStyles: 'Exclude styles',

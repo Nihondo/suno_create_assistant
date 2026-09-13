@@ -1,6 +1,6 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { DEFAULT_TITLE_FORMAT, displayTagName } from '../domain/logic';
-import type { MasteringPrompt, OtherOptionsPreset, SavedStyle, TakeRecord } from '../domain/models';
+import { DEFAULT_TAKE_HISTORY_LIMIT, type MasteringPrompt, type OtherOptionsPreset, type SavedStyle, type TakeRecord } from '../domain/models';
 import { readStorage, subscribeStorage } from '../storage/repository';
 import type { ControllerState, SunoController } from '../suno/controller';
 import { getUiMessages } from '../locales';
@@ -13,12 +13,32 @@ export function useController(controller: SunoController): ControllerState {
   return state;
 }
 
-export function useStoredLists(): { masterings: MasteringPrompt[]; presets: OtherOptionsPreset[]; takeHistory: TakeRecord[] } {
-  const [lists, setLists] = useState<{ masterings: MasteringPrompt[]; presets: OtherOptionsPreset[]; takeHistory: TakeRecord[] }>({ masterings: [], presets: [], takeHistory: [] });
+export function useStoredLists(): {
+  masterings: MasteringPrompt[];
+  presets: OtherOptionsPreset[];
+  takeHistory: TakeRecord[];
+  takeHistoryLimit: number;
+} {
+  const [lists, setLists] = useState<{
+    masterings: MasteringPrompt[];
+    presets: OtherOptionsPreset[];
+    takeHistory: TakeRecord[];
+    takeHistoryLimit: number;
+  }>({
+    masterings: [],
+    presets: [],
+    takeHistory: [],
+    takeHistoryLimit: DEFAULT_TAKE_HISTORY_LIMIT,
+  });
   useEffect(() => {
     const update = async () => {
       const stored = await readStorage();
-      setLists({ masterings: stored.masteringPrompts, presets: stored.optionPresets, takeHistory: stored.takeHistory });
+      setLists({
+        masterings: stored.masteringPrompts,
+        presets: stored.optionPresets,
+        takeHistory: stored.takeHistory,
+        takeHistoryLimit: stored.takeHistoryLimit ?? DEFAULT_TAKE_HISTORY_LIMIT,
+      });
     };
     void update();
     return subscribeStorage(() => { void update(); });

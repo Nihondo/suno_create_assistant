@@ -13,6 +13,8 @@ export interface ClipLinker {
  * cases are deliberately left unlinked rather than guessed at (see
  * linkPendingTakes below).
  */
+export const EXPECTED_CLIPS_PER_TAKE = 2;
+
 export function createClipLinker(adapter: SunoAdapter): ClipLinker {
   // Snapshot every song id already present when the linker is created (page
   // load / content script start). A clip that predates this session must
@@ -36,18 +38,20 @@ export function createClipLinker(adapter: SunoAdapter): ClipLinker {
     const claimed = new Set<string>();
 
     for (const record of sortedPending) {
-      // A single "Create" submission commonly yields more than one clip
-      // with the identical title, so every currently-unclaimed title match
-      // is attributed to this one record. If two separate pending records
-      // happen to share the exact same title (e.g. a title format with no
-      // {{TAKE}}), whichever is processed first (the older one) claims all
-      // of them and the other is left unlinked - an ambiguous split like
-      // that is exactly the case this module is designed to leave alone
-      // rather than guess at.
-      const matches = candidates.filter((info) => info.title === record.title && !claimed.has(info.songId));
+      const needed = Math.max(0, EXPECTED_CLIPS_PER_TAKE - record.clipIds.length);
+      if (needed === 0) continue;
+
+      // Suno creates a pair of clips (2 variations) by default per submission.
+      // Filter candidates that match the title, haven't been claimed in this pass,
+      // and haven't already been linked to this record.
+      const matches = candidates.filter(
+        (info) => info.title === record.title && !claimed.has(info.songId) && !record.clipIds.includes(info.songId),
+      );
       if (!matches.length) continue;
-      for (const match of matches) claimed.add(match.songId);
-      await linkTakeToClips(record.id, matches.map((match) => match.songId));
+
+      const toClaim = matches.slice(0, needed);
+      for (const match of toClaim) claimed.add(match.songId);
+      await linkTakeToClips(record.id, toClaim.map((match) => match.songId));
     }
   };
 

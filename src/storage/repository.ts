@@ -241,7 +241,12 @@ export async function linkTakeToClips(id: string, clipIds: string[]): Promise<vo
 
 export async function findUnlinkedTakeRecords(): Promise<TakeRecord[]> {
   const current = await readStorage();
-  return current.takeHistory.filter((record) => record.clipIds.length === 0);
+  return current.takeHistory.filter((record) => record.clipIds.length < 2);
+}
+
+export async function getTakeHistoryLimit(): Promise<number> {
+  const current = await readStorage();
+  return current.takeHistoryLimit ?? DEFAULT_TAKE_HISTORY_LIMIT;
 }
 
 export async function findTakeByClipId(clipId: string): Promise<TakeRecord | undefined> {

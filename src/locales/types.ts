@@ -159,7 +159,12 @@ export interface UiMessages {
     clearAllHistory: string;
     clearAllHistoryConfirm: string;
     linkedToSong: string;
+    linkedToSongNumbered: (index: number) => string;
     savedAsPresetNotice: string;
+    takeHistoryLimitLabel: string;
+    takeHistoryLimitUnit: string;
+    saveTakeHistoryLimit: string;
+    takeHistoryLimitSavedNotice: string;
   };
   optionLabels: Record<OtherOptionsKey, string>;
   feedback: {

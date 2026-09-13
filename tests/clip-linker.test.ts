@@ -154,4 +154,26 @@ describe('createClipLinker', () => {
     const stored = await readStorage();
     expect(stored.takeHistory[0]!.clipIds).toEqual([]);
   });
+
+  it('links both clips when two clips for the same take appear sequentially over multiple runs', async () => {
+    await seedTakeHistory([
+      pendingRecord({ id: 'r1', createdAt: '2024-01-01T00:00:00.000Z', title: 'Sequential Take' }),
+    ]);
+    const adapter = new SunoAdapter();
+    const linker = createClipLinker(adapter);
+
+    // First clip appears
+    document.body.innerHTML = clipRow('song-1', 'Sequential Take');
+    await linker.linkPendingTakes();
+
+    let stored = await readStorage();
+    expect(stored.takeHistory[0]!.clipIds).toEqual(['song-1']);
+
+    // Second clip appears later
+    document.body.innerHTML = clipRow('song-1', 'Sequential Take') + clipRow('song-2', 'Sequential Take');
+    await linker.linkPendingTakes();
+
+    stored = await readStorage();
+    expect(stored.takeHistory[0]!.clipIds.sort()).toEqual(['song-1', 'song-2']);
+  });
 });
