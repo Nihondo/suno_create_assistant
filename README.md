@@ -81,6 +81,8 @@ When you open the Advanced tab, the "Lyrics", "Styles", and "More Options" secti
 
 Every time you press **Create**, the extension automatically records the Style, Mastering, Preset, and More Options settings that were in effect at that moment. Once a matching clip appears in Suno's own clip list, a small **reuse parameters** button appears among its row actions (next to Like, Share, and so on) — click it to reapply that generation's More Options settings.
 
+![](./images/suno_reuse.png)
+
 - Browse, restore, or delete past entries under **Take History** in the settings dialog.
 - **Save as preset** turns a past entry's settings into a reusable preset.
 - Only the More Options settings are reapplied — the Style field is left untouched, since Suno's own "Reuse prompt" action already covers reusing style text.
