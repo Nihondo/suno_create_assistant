@@ -56,8 +56,6 @@ export const jaHostLocale: SunoHostLocale = {
 
 export const jaUiMessages: UiMessages = {
   unselected: '未選択',
-  manage: '管理…',
-  managePresets: 'プリセットを管理…',
   loading: '読み込み中…',
   custom: 'カスタム',
   clear: '解除',
@@ -73,6 +71,8 @@ export const jaUiMessages: UiMessages = {
     titleFormatInput: '曲名フォーマット',
     lyricsTagPalette: '歌詞タグパレット',
     editLyricsTags: 'タグを編集',
+    editMasterings: 'マスタリングを管理',
+    editPresets: 'プリセットを管理',
     reuseParameters: 'パラメータを再利用',
     settingsSections: '設定カテゴリ',
   },

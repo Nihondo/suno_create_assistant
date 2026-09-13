@@ -56,8 +56,6 @@ export const enHostLocale: SunoHostLocale = {
 
 export const enUiMessages: UiMessages = {
   unselected: 'None',
-  manage: 'Manage...',
-  managePresets: 'Manage Presets...',
   loading: 'Loading...',
   custom: 'Custom',
   clear: 'Clear',
@@ -73,6 +71,8 @@ export const enUiMessages: UiMessages = {
     titleFormatInput: 'Song Title Format',
     lyricsTagPalette: 'Lyrics Tag Palette',
     editLyricsTags: 'Edit Tags',
+    editMasterings: 'Manage Masterings',
+    editPresets: 'Manage Presets',
     reuseParameters: 'Reuse parameters',
     settingsSections: 'Settings categories',
   },

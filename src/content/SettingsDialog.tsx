@@ -158,7 +158,7 @@ export function SettingsDialog({ controller }: { controller: SunoController }) {
       // 'reuse-as-preset' (see saveTakeAsPreset below) already set presetForm
       // itself in the same click; clearing it here would immediately wipe
       // that out on the very next render. Every other way of arriving at
-      // the presets section (the "プリセットを管理…" dropdown item, or
+      // the presets section (the gear icon beside the preset dropdown, or
       // simply clicking its sidebar tab) should show the list, not a
       // leftover form from a previous edit.
       setPresetForm(undefined);

@@ -84,8 +84,6 @@ export interface SunoHostLocale {
 
 export interface UiMessages {
   unselected: string;
-  manage: string;
-  managePresets: string;
   loading: string;
   custom: string;
   clear: string;
@@ -101,6 +99,8 @@ export interface UiMessages {
     titleFormatInput: string;
     lyricsTagPalette: string;
     editLyricsTags: string;
+    editMasterings: string;
+    editPresets: string;
     reuseParameters: string;
     settingsSections: string;
   };
