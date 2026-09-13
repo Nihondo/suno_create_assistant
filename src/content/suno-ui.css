@@ -82,8 +82,24 @@
   line-height: 1.35;
 }
 
+/* The styles/presets/lyrics rows below mount via `afterend` on their own
+   anchor (see suno.content.tsx), landing as a *sibling* of that anchor -
+   so their `margin: 0 12px 12px` is the only inset between them and the
+   visible card edge; the anchor's own padding never applies to them. The
+   title control instead mounts via `beforeend` *inside* titleControlAnchor()
+   (Suno's own title-card row keeps it on its own wrapped line there), which
+   carries its own fixed 16px left/right padding - confirmed via
+   getComputedStyle on the live site. Left at `margin: 0`, this row would
+   therefore sit 16px in from the card edge while the others sit 12px in,
+   reading visibly narrower/wider depending on which is compared. This
+   negative margin cancels 4px of that inherited 16px padding to land on
+   the same 12px every other row uses - verified directly on the live site
+   by measuring this row's actual offset from the title card's edge (not
+   by matching numbers that merely looked plausible; an earlier `12px`
+   *positive* margin here was wrong for exactly this reason, since it
+   stacked on top of the 16px instead of being the anchor's only inset. */
 .suno-assistant--title {
-  margin: 0 0 0 8px;
+  margin: 0 -4px;
 }
 
 /* Both the styles row and the presets row sit directly inside one of
