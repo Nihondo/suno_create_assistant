@@ -50,17 +50,17 @@ const SECTION_ICON_PATHS: Record<SettingsSection, string> = {
   takeHistory: 'M13 3a9 9 0 0 0-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42A8.954 8.954 0 0 0 13 21a9 9 0 0 0 0-18m-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8z',
 };
 
-const PLACEHOLDER_TAGS = [
-  '{{WORKSPACE}}',
-  '{{STYLE}}',
-  '{{AUDIO}}',
-  '{{MODEL}}',
-  '{{MASTERING}}',
-  '{{PRESET}}',
-  '{{DATE}}',
-  '{{TIME}}',
-  '{{TAKE}}',
-  '{{TAKE:3}}',
+const PLACEHOLDER_ITEMS: Array<{ tag: string; getDesc: (ui: UiMessages) => string }> = [
+  { tag: '{{WORKSPACE}}', getDesc: (ui) => ui.dialog.phWorkspace },
+  { tag: '{{STYLE}}', getDesc: (ui) => ui.dialog.phStyle },
+  { tag: '{{AUDIO}}', getDesc: (ui) => ui.dialog.phAudio },
+  { tag: '{{MODEL}}', getDesc: (ui) => ui.dialog.phModel },
+  { tag: '{{MASTERING}}', getDesc: (ui) => ui.dialog.phMastering },
+  { tag: '{{PRESET}}', getDesc: (ui) => ui.dialog.phPreset },
+  { tag: '{{DATE}}', getDesc: (ui) => ui.dialog.phDate },
+  { tag: '{{TIME}}', getDesc: (ui) => ui.dialog.phTime },
+  { tag: '{{TAKE}}', getDesc: (ui) => ui.dialog.phTake },
+  { tag: '{{TAKE:3}}', getDesc: (ui) => ui.dialog.phTakePadded },
 ];
 
 function SectionIcon({ section }: { section: SettingsSection }) {
@@ -478,18 +478,6 @@ export function SettingsDialog({ controller }: { controller: SunoController }) {
       {activeSection === 'titleFormat' && <section aria-labelledby="suno-assistant-title-format-heading">
         <h3 id="suno-assistant-title-format-heading">{ui.dialog.titleFormatHeading}</h3>
         <div className="suno-assistant__format-field">
-          <div className="suno-assistant__tag-palette suno-assistant__format-palette">
-            {PLACEHOLDER_TAGS.map((tag) => (
-              <button
-                key={tag}
-                type="button"
-                className="suno-assistant__tag-button"
-                onClick={() => insertPlaceholder(tag)}
-              >
-                {tag}
-              </button>
-            ))}
-          </div>
           <input
             ref={titleFormatInputRef}
             type="text"
@@ -512,16 +500,20 @@ export function SettingsDialog({ controller }: { controller: SunoController }) {
             </p>
             <table className="suno-assistant__format-table">
               <tbody>
-                <tr><td><code>{'{{WORKSPACE}}'}</code></td><td>{ui.dialog.phWorkspace}</td></tr>
-                <tr><td><code>{'{{STYLE}}'}</code></td><td>{ui.dialog.phStyle}</td></tr>
-                <tr><td><code>{'{{AUDIO}}'}</code></td><td>{ui.dialog.phAudio}</td></tr>
-                <tr><td><code>{'{{MODEL}}'}</code></td><td>{ui.dialog.phModel}</td></tr>
-                <tr><td><code>{'{{MASTERING}}'}</code></td><td>{ui.dialog.phMastering}</td></tr>
-                <tr><td><code>{'{{PRESET}}'}</code></td><td>{ui.dialog.phPreset}</td></tr>
-                <tr><td><code>{'{{DATE}}'}</code></td><td>{ui.dialog.phDate}</td></tr>
-                <tr><td><code>{'{{TIME}}'}</code></td><td>{ui.dialog.phTime}</td></tr>
-                <tr><td><code>{'{{TAKE}}'}</code></td><td>{ui.dialog.phTake}</td></tr>
-                <tr><td><code>{'{{TAKE:3}}'}</code></td><td>{ui.dialog.phTakePadded}</td></tr>
+                {PLACEHOLDER_ITEMS.map(({ tag, getDesc }) => (
+                  <tr key={tag}>
+                    <td>
+                      <button
+                        type="button"
+                        className="suno-assistant__tag-button"
+                        onClick={() => insertPlaceholder(tag)}
+                      >
+                        {tag}
+                      </button>
+                    </td>
+                    <td>{getDesc(ui)}</td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
