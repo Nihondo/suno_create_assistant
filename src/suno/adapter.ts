@@ -4,6 +4,7 @@ import { calculateTagInsertion, normalizedInsertTag, savedStyleId } from '../dom
 import type { Placement } from '../content/mount';
 import {
   getAllClipRowLikeLabels,
+  getAllClipRowShareLabels,
   getAllDestinationKeywords,
   getAllExcludedStylesPlaceholders,
   getAllHostLocales,
@@ -606,6 +607,25 @@ function findClipRows(): ClipRowInfo[] {
     .filter((info): info is ClipRowInfo => !!info.songId);
 }
 
+function findClipRowShareButton(row: HTMLElement): HTMLElement | undefined {
+  const shareLabels = getAllClipRowShareLabels();
+  const buttons = [...row.querySelectorAll<HTMLElement>('button, [role="button"]')];
+  return buttons.find((btn) => {
+    const label = (btn.getAttribute('aria-label') ?? btn.getAttribute('title') ?? '').toLowerCase();
+    return shareLabels.some((l) => label.includes(l.toLowerCase()));
+  });
+}
+
+function findClipRowPublishButton(row: HTMLElement): HTMLElement | undefined {
+  const buttons = [...row.querySelectorAll<HTMLElement>('button, [role="button"]')];
+  return buttons.find((btn) => {
+    const text = btn.textContent?.trim() ?? '';
+    if (/^(?:公開|publish|public)$/i.test(text)) return true;
+    const label = btn.getAttribute('aria-label') ?? btn.getAttribute('title') ?? '';
+    return /^(?:公開|publish|public)$/i.test(label.trim());
+  });
+}
+
 // Anchor for mounting a per-clip control (e.g. "reuse parameters") next to
 // Suno's own row actions, rather than inside its context menu - the menu is
 // Base UI portal-rendered and was not observed in any DOM dump, so it is
@@ -615,6 +635,25 @@ function clipRowActionAnchor(row: HTMLElement): HTMLElement | undefined {
   const likeButton = [...row.querySelectorAll<HTMLElement>('button, [role="button"]')]
     .find((btn) => likeLabels.some((l) => (btn.getAttribute('aria-label') ?? '').includes(l)));
   return likeButton?.parentElement ?? undefined;
+}
+
+function clipRowActionPlacement(row: HTMLElement): Placement | undefined {
+  const publishButton = findClipRowPublishButton(row);
+  if (publishButton) {
+    return { anchor: publishButton, position: 'beforebegin' };
+  }
+
+  const shareButton = findClipRowShareButton(row);
+  if (shareButton) {
+    return { anchor: shareButton, position: 'afterend' };
+  }
+
+  const anchor = clipRowActionAnchor(row);
+  if (anchor) {
+    return { anchor, position: 'beforeend' };
+  }
+
+  return undefined;
 }
 
 export class SunoAdapter {
@@ -1011,6 +1050,10 @@ export class SunoAdapter {
 
   clipRowActionAnchor(row: HTMLElement): HTMLElement | undefined {
     return clipRowActionAnchor(row);
+  }
+
+  clipRowActionPlacement(row: HTMLElement): Placement | undefined {
+    return clipRowActionPlacement(row);
   }
 
   optionsAnchor(): HTMLElement | undefined {

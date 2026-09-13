@@ -54,9 +54,14 @@ Customize the template anytime under **Song Title Format** in the settings dialo
 - `{{WORKSPACE}}` — destination / workspace name
 - `{{STYLE}}` — style name (or `Custom` if manually edited)
 - `{{AUDIO}}` — original song title (when remixing or referencing audio)
-- `{{TAKE}}` — take number, incremented automatically
+- `{{MODEL}}` — model name (`v6`, `v6-wild`, etc.)
+- `{{MASTERING}}` — active mastering prompt name
+- `{{PRESET}}` — active more-options preset name
+- `{{DATE}}` — current date (default `YYYY-MM-DD`, supports format specifiers like `{{DATE:YYYYMMDD}}`)
+- `{{TIME}}` — current time (default `HH:mm`, supports format specifiers like `{{TIME:HHmm}}`)
+- `{{TAKE}}` — take number, incremented automatically (`{{TAKE:3}}` or `{{TAKE:001}}` for zero-padding like `001`)
 
-When a title contains `{{TAKE}}`, clicking **Create** (or using the shortcut below) fills in the next take number, submits, and then restores the `{{TAKE}}` template so it's ready for the next take. You can also type `{{TAKE}}` manually with Auto title disabled if you just want take numbering on your own titles.
+When a title contains `{{TAKE}}` (or padded variants like `{{TAKE:3}}`), clicking **Create** (or using the shortcut below) fills in the next take number, submits, and then restores the template so it's ready for the next take. You can also type `{{TAKE}}` manually with Auto title disabled if you just want take numbering on your own titles.
 
 ### Create shortcut
 

@@ -5,7 +5,10 @@ import {
   composePrompt,
   displayTagName,
   extractTakeKey,
+  formatDate,
   formatLyricsTags,
+  formatTakeNumber,
+  formatTime,
   hasTakePlaceholder,
   nextBaseAfterManualEdit,
   normalizedInsertTag,
@@ -59,22 +62,65 @@ describe('automatic titles and placeholders', () => {
     expect(autoTitle('Workspace', 'ARIA', undefined, 'Dragon Quest')).toBe('Workspace (ARIA) {{TAKE}}');
   });
 
-  it('detects take placeholder case-insensitively', () => {
+  it('detects take placeholder case-insensitively including padded specs', () => {
     expect(hasTakePlaceholder('Song {{TAKE}}')).toBe(true);
     expect(hasTakePlaceholder('Song {{take}}')).toBe(true);
+    expect(hasTakePlaceholder('Song {{TAKE:3}}')).toBe(true);
+    expect(hasTakePlaceholder('Song {{take:001}}')).toBe(true);
+    expect(hasTakePlaceholder('Song {{take:02}}')).toBe(true);
     expect(hasTakePlaceholder('Song')).toBe(false);
   });
 
   it('extracts take key by removing placeholder and trimming whitespace', () => {
     expect(extractTakeKey('Workspace (ARIA) {{TAKE}}')).toBe('Workspace (ARIA)');
     expect(extractTakeKey('Workspace (ARIA) {{take}}')).toBe('Workspace (ARIA)');
+    expect(extractTakeKey('Workspace (ARIA) {{TAKE:3}}')).toBe('Workspace (ARIA)');
+    expect(extractTakeKey('Workspace (ARIA) {{take:001}}')).toBe('Workspace (ARIA)');
     expect(extractTakeKey('Song {{TAKE}}')).toBe('Song');
     expect(extractTakeKey('{{TAKE}}')).toBe('');
+    expect(extractTakeKey('{{TAKE:3}}')).toBe('');
+  });
+
+  it('formats take numbers with optional padding', () => {
+    expect(formatTakeNumber(1)).toBe('1');
+    expect(formatTakeNumber(1, '2')).toBe('01');
+    expect(formatTakeNumber(1, '3')).toBe('001');
+    expect(formatTakeNumber(1, '01')).toBe('01');
+    expect(formatTakeNumber(1, '001')).toBe('001');
+    expect(formatTakeNumber(1, '000')).toBe('001');
+    expect(formatTakeNumber(42, '3')).toBe('042');
+    expect(formatTakeNumber(1234, '2')).toBe('1234');
   });
 
   it('replaces take placeholder with formatted take number', () => {
     expect(replaceTakePlaceholder('Workspace (ARIA) {{TAKE}}', 1)).toBe('Workspace (ARIA) 1');
     expect(replaceTakePlaceholder('Song #{{take}}', 42)).toBe('Song #42');
+    expect(replaceTakePlaceholder('Workspace (ARIA) {{TAKE:3}}', 1)).toBe('Workspace (ARIA) 001');
+    expect(replaceTakePlaceholder('Song #{{take:001}}', 42)).toBe('Song #042');
+    expect(replaceTakePlaceholder('Song #{{take:2}}', 7)).toBe('Song #07');
+  });
+
+  it('formats dates and times', () => {
+    const d = new Date(2026, 8, 13, 14, 5, 9); // Month is 0-indexed: 8 = September
+    expect(formatDate(d)).toBe('2026-09-13');
+    expect(formatDate(d, 'YYYYMMDD')).toBe('20260913');
+    expect(formatDate(d, 'YYYY/MM/DD')).toBe('2026/09/13');
+    expect(formatDate(d, 'YY-M-D')).toBe('26-9-13');
+    expect(formatTime(d)).toBe('14:05');
+    expect(formatTime(d, 'HHmm')).toBe('1405');
+    expect(formatTime(d, 'HHmmss')).toBe('140509');
+    expect(formatTime(d, 'H:m:s')).toBe('14:5:9');
+  });
+
+  it('supports expanded placeholders (MODEL, MASTERING, PRESET, DATE, TIME)', () => {
+    const now = new Date(2026, 8, 13, 14, 5, 0);
+    expect(autoTitle('Workspace', 'ARIA', '{{WORKSPACE}} - {{STYLE}} - {{MODEL}} {{TAKE:3}}', { model: 'v6' })).toBe('Workspace - ARIA - v6 {{TAKE:3}}');
+    expect(autoTitle('Workspace', 'ARIA', '{{WORKSPACE}} ({{STYLE}}) [{{MASTERING}}] {{TAKE}}', { mastering: 'Warm Master' })).toBe('Workspace (ARIA) [Warm Master] {{TAKE}}');
+    expect(autoTitle('Workspace', 'ARIA', '{{WORKSPACE}} - {{PRESET}}', { preset: 'Acoustic Standard' })).toBe('Workspace - Acoustic Standard');
+    expect(autoTitle('Workspace', '', '{{DATE}} {{TIME}} {{WORKSPACE}}', { now })).toBe('2026-09-13 14:05 Workspace');
+    expect(autoTitle('Workspace', '', '{{DATE:YYYYMMDD}} - {{WORKSPACE}}', { now })).toBe('20260913 - Workspace');
+    // Clean up empty bracket pairs
+    expect(autoTitle('Workspace', '', '{{WORKSPACE}} [{{PRESET}}] ({{MASTERING}}) {{TAKE}}', {})).toBe('Workspace {{TAKE}}');
   });
 });
 

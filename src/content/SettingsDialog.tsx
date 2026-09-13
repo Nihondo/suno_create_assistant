@@ -1,5 +1,5 @@
-import { useEffect, useId, useRef, useState, type ChangeEvent } from 'react';
-import { DEFAULT_TITLE_FORMAT, formatLyricsTags, parseLyricsTags, readableOptionFields, validateUniqueName } from '../domain/logic';
+import { useEffect, useId, useMemo, useRef, useState, type ChangeEvent } from 'react';
+import { autoTitle, DEFAULT_TITLE_FORMAT, formatLyricsTags, parseLyricsTags, readableOptionFields, replaceTakePlaceholder, validateUniqueName } from '../domain/logic';
 import { DEFAULT_LYRICS_TAGS, DEFAULT_TAKE_HISTORY_LIMIT, emptyOtherOptions, optionKeys, type MasteringPrompt, type OtherOptionsKey, type OtherOptionsPreset, type OtherOptionsSnapshot, type TakeRecord, type VocalGender } from '../domain/models';
 import { clearTakeHistory, deleteMastering, deletePreset, deleteTakeRecord, exportBackup, parseBackup, replaceStorage, saveMastering, savePreset, setTakeHistoryLimit } from '../storage/repository';
 import type { SettingsSection, SunoController } from '../suno/controller';
@@ -50,6 +50,19 @@ const SECTION_ICON_PATHS: Record<SettingsSection, string> = {
   takeHistory: 'M13 3a9 9 0 0 0-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42A8.954 8.954 0 0 0 13 21a9 9 0 0 0 0-18m-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8z',
 };
 
+const PLACEHOLDER_TAGS = [
+  '{{WORKSPACE}}',
+  '{{STYLE}}',
+  '{{AUDIO}}',
+  '{{MODEL}}',
+  '{{MASTERING}}',
+  '{{PRESET}}',
+  '{{DATE}}',
+  '{{TIME}}',
+  '{{TAKE}}',
+  '{{TAKE:3}}',
+];
+
 function SectionIcon({ section }: { section: SettingsSection }) {
   return (
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
@@ -90,6 +103,7 @@ export function SettingsDialog({ controller }: { controller: SunoController }) {
   const [includeTakeHistoryOnExport, setIncludeTakeHistoryOnExport] = useState(true);
   const [backupNotice, setBackupNotice] = useState<string>();
   const importFileInputRef = useRef<HTMLInputElement>(null);
+  const titleFormatInputRef = useRef<HTMLInputElement>(null);
   const presetFormId = useId();
 
   const open = !!state.settings;
@@ -208,6 +222,45 @@ export function SettingsDialog({ controller }: { controller: SunoController }) {
   const handleResetTitleFormat = () => {
     setTitleFormat(DEFAULT_TITLE_FORMAT);
   };
+  const insertPlaceholder = (tag: string) => {
+    const input = titleFormatInputRef.current;
+    if (!input) {
+      setTitleFormat((current) => (current ? `${current} ${tag}` : tag));
+      return;
+    }
+    const start = input.selectionStart ?? input.value.length;
+    const end = input.selectionEnd ?? input.value.length;
+    const before = input.value.slice(0, start);
+    const after = input.value.slice(end);
+    const nextValue = `${before}${tag}${after}`;
+    setTitleFormat(nextValue);
+    const nextCursor = start + tag.length;
+    requestAnimationFrame(() => {
+      input.focus();
+      input.setSelectionRange(nextCursor, nextCursor);
+    });
+  };
+
+  const previewTitle = useMemo(() => {
+    const ui = getUiMessages();
+    const sampleWs = controller.adapter.getDestinationName() || 'Workspace';
+    const sampleStyle = state.isCustomStyle
+      ? ui.custom
+      : (state.style?.name || 'City Pop');
+    const sampleAudio = controller.adapter.getAudioTitle() || 'Sample Track';
+    const sampleModel = controller.adapter.getModelName() || 'v6';
+    const sampleMastering = state.mastering?.name || 'Warm Analog';
+    const samplePreset = state.preset?.name || 'Acoustic';
+
+    const resolved = autoTitle(sampleWs, sampleStyle, titleFormat, {
+      audioTitle: sampleAudio,
+      model: sampleModel,
+      mastering: sampleMastering,
+      preset: samplePreset,
+      now: new Date(),
+    });
+    return replaceTakePlaceholder(resolved, 1);
+  }, [titleFormat, state.isCustomStyle, state.style?.name, state.mastering?.name, state.preset?.name, controller.adapter]);
 
   const handleSaveLyricsTags = async () => {
     const parsed = parseLyricsTags(lyricsTagsText);
@@ -424,20 +477,53 @@ export function SettingsDialog({ controller }: { controller: SunoController }) {
 
       {activeSection === 'titleFormat' && <section aria-labelledby="suno-assistant-title-format-heading">
         <h3 id="suno-assistant-title-format-heading">{ui.dialog.titleFormatHeading}</h3>
-        <p className="suno-assistant__hint">
-          {ui.dialog.titleFormatHint}
-        </p>
         <div className="suno-assistant__format-field">
+          <div className="suno-assistant__tag-palette suno-assistant__format-palette">
+            {PLACEHOLDER_TAGS.map((tag) => (
+              <button
+                key={tag}
+                type="button"
+                className="suno-assistant__tag-button"
+                onClick={() => insertPlaceholder(tag)}
+              >
+                {tag}
+              </button>
+            ))}
+          </div>
           <input
+            ref={titleFormatInputRef}
             type="text"
             aria-label={ui.aria.titleFormatInput}
             value={titleFormat}
             onChange={(event) => setTitleFormat(event.target.value)}
           />
+          <div className="suno-assistant__format-preview">
+            <span className="suno-assistant__format-preview-label">{ui.dialog.titleFormatPreviewLabel}:</span>
+            <span className="suno-assistant__format-preview-value">{previewTitle}</span>
+          </div>
           <div className="suno-assistant__format-actions">
             <button type="button" onClick={handleResetTitleFormat}>{ui.dialog.resetDefault}</button>
             <button type="button" onClick={() => void handleSaveTitleFormat()}>{ui.dialog.saveFormat}</button>
             {formatSavedNotice && <span className="suno-assistant__format-saved">{ui.dialog.savedNotice}</span>}
+          </div>
+          <div className="suno-assistant__format-explanation">
+            <p className="suno-assistant__hint">
+              {ui.dialog.titleFormatHintLead}
+            </p>
+            <table className="suno-assistant__format-table">
+              <tbody>
+                <tr><td><code>{'{{WORKSPACE}}'}</code></td><td>{ui.dialog.phWorkspace}</td></tr>
+                <tr><td><code>{'{{STYLE}}'}</code></td><td>{ui.dialog.phStyle}</td></tr>
+                <tr><td><code>{'{{AUDIO}}'}</code></td><td>{ui.dialog.phAudio}</td></tr>
+                <tr><td><code>{'{{MODEL}}'}</code></td><td>{ui.dialog.phModel}</td></tr>
+                <tr><td><code>{'{{MASTERING}}'}</code></td><td>{ui.dialog.phMastering}</td></tr>
+                <tr><td><code>{'{{PRESET}}'}</code></td><td>{ui.dialog.phPreset}</td></tr>
+                <tr><td><code>{'{{DATE}}'}</code></td><td>{ui.dialog.phDate}</td></tr>
+                <tr><td><code>{'{{TIME}}'}</code></td><td>{ui.dialog.phTime}</td></tr>
+                <tr><td><code>{'{{TAKE}}'}</code></td><td>{ui.dialog.phTake}</td></tr>
+                <tr><td><code>{'{{TAKE:3}}'}</code></td><td>{ui.dialog.phTakePadded}</td></tr>
+              </tbody>
+            </table>
           </div>
         </div>
       </section>}
@@ -488,26 +574,28 @@ export function SettingsDialog({ controller }: { controller: SunoController }) {
       {activeSection === 'backup' && <section aria-labelledby="suno-assistant-backup-heading">
         <h3 id="suno-assistant-backup-heading">{ui.dialog.backupHeading}</h3>
         <p className="suno-assistant__hint">{ui.dialog.backupHint}</p>
-        <label className="suno-assistant__dialog-toggle-label">
-          <input
-            type="checkbox"
-            className="suno-assistant__check"
-            checked={includeTakeHistoryOnExport}
-            onChange={(event) => setIncludeTakeHistoryOnExport(event.target.checked)}
-          />
-          {ui.dialog.includeTakeHistoryLabel}
-        </label>
-        <div className="suno-assistant__format-actions">
-          <button type="button" onClick={() => void handleExportBackup()}>{ui.dialog.exportButton}</button>
-          <button type="button" onClick={handleImportClick}>{ui.dialog.importButton}</button>
-          <input
-            ref={importFileInputRef}
-            type="file"
-            accept="application/json"
-            hidden
-            onChange={(event) => void handleImportFile(event)}
-          />
-          {backupNotice && <span className="suno-assistant__format-saved">{backupNotice}</span>}
+        <div className="suno-assistant__backup-row">
+          <label className="suno-assistant__dialog-toggle-label">
+            <input
+              type="checkbox"
+              className="suno-assistant__check"
+              checked={includeTakeHistoryOnExport}
+              onChange={(event) => setIncludeTakeHistoryOnExport(event.target.checked)}
+            />
+            {ui.dialog.includeTakeHistoryLabel}
+          </label>
+          <div className="suno-assistant__format-actions">
+            <button type="button" onClick={() => void handleExportBackup()}>{ui.dialog.exportButton}</button>
+            <button type="button" onClick={handleImportClick}>{ui.dialog.importButton}</button>
+            <input
+              ref={importFileInputRef}
+              type="file"
+              accept="application/json"
+              hidden
+              onChange={(event) => void handleImportFile(event)}
+            />
+            {backupNotice && <span className="suno-assistant__format-saved">{backupNotice}</span>}
+          </div>
         </div>
       </section>}
         </div>

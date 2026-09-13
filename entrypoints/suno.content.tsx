@@ -64,8 +64,11 @@ export default defineContentScript({
             const key = `clip:${info.songId}`;
             if (abandonedClipKeys.has(key)) continue;
             nextKeys.add(key);
-            const anchor = controller.adapter.clipRowActionAnchor(info.row);
-            mounter.mount(key, { anchor, position: 'beforeend' }, () => <ReuseParamsButton controller={controller} record={record} />, theme, { shadow: false });
+            const placement = controller.adapter.clipRowActionPlacement(info.row) ?? {
+              anchor: controller.adapter.clipRowActionAnchor(info.row),
+              position: 'beforeend' as const,
+            };
+            mounter.mount(key, placement, () => <ReuseParamsButton controller={controller} record={record} />, theme, { shadow: false });
           }
           // A row that no longer has a matching record (or scrolled out of
           // the DOM) loses its button; mount()'s own undefined-anchor path

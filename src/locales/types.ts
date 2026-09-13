@@ -115,6 +115,18 @@ export interface UiMessages {
     notRegisteredYet: string;
     titleFormatHeading: string;
     titleFormatHint: string;
+    titleFormatPreviewLabel: string;
+    titleFormatHintLead: string;
+    phWorkspace: string;
+    phStyle: string;
+    phAudio: string;
+    phModel: string;
+    phMastering: string;
+    phPreset: string;
+    phDate: string;
+    phTime: string;
+    phTake: string;
+    phTakePadded: string;
     resetDefault: string;
     saveFormat: string;
     savedNotice: string;

@@ -179,6 +179,21 @@ describe('SunoController executeCreateWithTake and title format', () => {
     await controller.saveTitleFormat('{{AUDIO}} ({{STYLE}}) {{TAKE}}');
     expect(setTitleSpy).toHaveBeenLastCalledWith('ドラゴンクエストII (Orchestral) {{TAKE}}');
   });
+
+  it('updates title with {{MODEL}}, {{MASTERING}}, and {{PRESET}} placeholders', async () => {
+    const controller = new SunoController();
+    vi.spyOn(controller.adapter, 'getDestinationName').mockReturnValue('My Workspace');
+    vi.spyOn(controller.adapter, 'getModelName').mockReturnValue('v6');
+    const setTitleSpy = vi.spyOn(controller.adapter, 'setTitle');
+
+    await controller.setAutoTitle(true);
+    await controller.selectStyle({ id: 's1', name: 'City Pop', prompt: '80s city pop' });
+    await controller.selectMastering({ id: 'm1', name: 'Warm Analog', prompt: 'warm analog master', createdAt: '', updatedAt: '' });
+    await controller.applyPreset({ id: 'p1', name: 'Female Vocal', fields: {}, createdAt: '', updatedAt: '' });
+
+    await controller.saveTitleFormat('{{WORKSPACE}} - {{STYLE}} [{{MASTERING}}] ({{PRESET}}) {{MODEL}} {{TAKE:3}}');
+    expect(setTitleSpy).toHaveBeenLastCalledWith('My Workspace - City Pop [Warm Analog] (Female Vocal) v6 {{TAKE:3}}');
+  });
 });
 
 describe('SunoController take history recording', () => {
@@ -216,6 +231,21 @@ describe('SunoController take history recording', () => {
     });
     expect(record.unreadable).toEqual(['audioInfluence']);
     expect(record.clipIds).toEqual([]);
+  });
+
+  it('records the submitted parameters when a zero-padded {{TAKE:3}} placeholder is used', async () => {
+    const controller = new SunoController();
+    mockAdapterForCreate(controller, 'Workspace (ARIA) {{TAKE:3}}');
+
+    const created = await controller.executeCreateWithTake();
+    expect(created).toBe(true);
+
+    const stored = await readStorage();
+    expect(stored.takeHistory).toHaveLength(1);
+    const record = stored.takeHistory[0]!;
+    expect(record.title).toBe('Workspace (ARIA) 001');
+    expect(record.takeKey).toBe('Workspace (ARIA)');
+    expect(record.takeNumber).toBe(1);
   });
 
   it('also records a history entry when there is no {{TAKE}} placeholder', async () => {

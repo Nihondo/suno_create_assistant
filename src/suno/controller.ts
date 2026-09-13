@@ -204,6 +204,7 @@ export class SunoController {
     if (!preset) {
       this.state.preset = undefined;
       this.state.presetFeedback = undefined;
+      this.updateAutoTitle();
       this.emit();
       return undefined;
     }
@@ -212,6 +213,7 @@ export class SunoController {
     // immediate feedback rather than leaving the UI looking unresponsive.
     this.state.preset = preset;
     this.state.presetFeedback = undefined;
+    this.updateAutoTitle();
     this.emit();
     try {
       const result = await this.adapter.applyOtherOptions(preset.fields);
@@ -439,7 +441,15 @@ export class SunoController {
     const ui = getUiMessages();
     const styleName = this.state.isCustomStyle ? ui.custom : this.state.style?.name ?? '';
     const audioTitle = this.adapter.getAudioTitle();
-    this.adapter.setTitle(autoTitle(this.adapter.getDestinationName(), styleName, this.state.titleFormat, audioTitle));
+    const model = this.adapter.getModelName() || undefined;
+    const mastering = this.state.mastering?.name;
+    const preset = this.state.preset?.name;
+    this.adapter.setTitle(autoTitle(this.adapter.getDestinationName(), styleName, this.state.titleFormat, {
+      audioTitle,
+      model,
+      mastering,
+      preset,
+    }));
   }
 
   private failOverflow(): void {

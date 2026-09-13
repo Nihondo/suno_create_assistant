@@ -887,6 +887,63 @@ describe('SunoAdapter.clipRows', () => {
     const likeButton = document.querySelector('[aria-label="クリップに「いいね」"]')!;
     expect(adapter.clipRowActionAnchor(row!.row)).toBe(likeButton.parentElement);
   });
+
+  it('places action before the publish button when publish button exists', () => {
+    document.body.innerHTML = `
+      <div data-testid="clip-row" role="group" aria-label="First Song" data-clip-status="complete">
+        <div><a href="/song/11111111-1111-1111-1111-111111111111">First Song</a></div>
+        <div>
+          <button aria-label="クリップに「いいね」"></button>
+          <button aria-label="クリップを共有"></button>
+          <button type="button">公開</button>
+        </div>
+      </div>
+    `;
+    const adapter = new SunoAdapter();
+    const [row] = adapter.clipRows();
+    const publishButton = document.querySelector('button:nth-of-type(3)')!;
+    expect(adapter.clipRowActionPlacement(row!.row)).toEqual({
+      anchor: publishButton,
+      position: 'beforebegin',
+    });
+  });
+
+  it('places action after the share button when publish button is absent', () => {
+    document.body.innerHTML = `
+      <div data-testid="clip-row" role="group" aria-label="First Song" data-clip-status="complete">
+        <div><a href="/song/11111111-1111-1111-1111-111111111111">First Song</a></div>
+        <div>
+          <button aria-label="クリップに「いいね」"></button>
+          <button aria-label="曲リンクをコピー"></button>
+        </div>
+      </div>
+    `;
+    const adapter = new SunoAdapter();
+    const [row] = adapter.clipRows();
+    const shareButton = document.querySelector('[aria-label="曲リンクをコピー"]')!;
+    expect(adapter.clipRowActionPlacement(row!.row)).toEqual({
+      anchor: shareButton,
+      position: 'afterend',
+    });
+  });
+
+  it('falls back to action container end when neither publish nor share button exists', () => {
+    document.body.innerHTML = `
+      <div data-testid="clip-row" role="group" aria-label="First Song" data-clip-status="complete">
+        <div><a href="/song/11111111-1111-1111-1111-111111111111">First Song</a></div>
+        <div id="btn-container">
+          <button aria-label="クリップに「いいね」"></button>
+        </div>
+      </div>
+    `;
+    const adapter = new SunoAdapter();
+    const [row] = adapter.clipRows();
+    const container = document.getElementById('btn-container')!;
+    expect(adapter.clipRowActionPlacement(row!.row)).toEqual({
+      anchor: container,
+      position: 'beforeend',
+    });
+  });
 });
 
 describe('SunoAdapter.getModelName', () => {
