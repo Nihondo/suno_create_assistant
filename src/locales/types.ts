@@ -178,6 +178,11 @@ export interface UiMessages {
     takeHistoryLimitUnit: string;
     saveTakeHistoryLimit: string;
     takeHistoryLimitSavedNotice: string;
+    aboutHeading: string;
+    aboutVersionLabel: string;
+    aboutCopyright: string;
+    aboutWebsiteLabel: string;
+    aboutWebsiteUrl: string;
   };
   optionLabels: Record<OtherOptionsKey, string>;
   feedback: {

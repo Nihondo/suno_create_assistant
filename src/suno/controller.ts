@@ -36,7 +36,7 @@ import {
   getUiMessages,
 } from '../locales';
 
-export type SettingsSection = 'masterings' | 'presets' | 'titleFormat' | 'display' | 'lyricsTags' | 'backup' | 'takeHistory';
+export type SettingsSection = 'masterings' | 'presets' | 'titleFormat' | 'display' | 'lyricsTags' | 'backup' | 'takeHistory' | 'about';
 export type SettingsAction = 'create-preset' | 'reuse-as-preset';
 
 export interface Feedback {

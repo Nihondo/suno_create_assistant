@@ -150,6 +150,11 @@ export const jaUiMessages: UiMessages = {
     takeHistoryLimitUnit: '件',
     saveTakeHistoryLimit: '保存',
     takeHistoryLimitSavedNotice: '保存しました',
+    aboutHeading: 'Suno Create Assistant について',
+    aboutVersionLabel: 'バージョン',
+    aboutCopyright: '2026 Nihondo',
+    aboutWebsiteLabel: 'Webサイト:',
+    aboutWebsiteUrl: 'https://products.desireforwealth.com/products/suno-create-assistant',
   },
   optionLabels: {
     excludedStyles: 'スタイルを除外',

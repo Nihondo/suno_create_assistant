@@ -59,6 +59,8 @@ describe('locales module', () => {
 
     expect(getUiMessages('en').autoTitle).toBe('Auto Title');
     expect(getUiMessages('ja').autoTitle).toBe('自動設定');
+    expect(getUiMessages('en').dialog.aboutHeading).toBe('About Suno Create Assistant');
+    expect(getUiMessages('ja').dialog.aboutHeading).toBe('Suno Create Assistant について');
   });
 
   it('aggregates all title placeholders, destination keywords, and reset labels', () => {

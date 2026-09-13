@@ -19,7 +19,7 @@ function cloneFields(fields: Partial<OtherOptionsSnapshot>): Partial<OtherOption
 // Order and identity of the sidebar's section tabs. Labels are resolved
 // from `ui.dialog.*Heading` at render time (see sectionLabel below) so this
 // stays language-agnostic.
-const SECTION_ORDER: SettingsSection[] = ['display', 'lyricsTags', 'masterings', 'presets', 'titleFormat', 'takeHistory', 'backup'];
+const SECTION_ORDER: SettingsSection[] = ['display', 'lyricsTags', 'masterings', 'presets', 'titleFormat', 'takeHistory', 'backup', 'about'];
 
 // Generic (non-brand) glyphs, one per tab, purely as a visual anchor next
 // to each label - matching the icon-before-label pattern of the reference
@@ -32,6 +32,7 @@ const SECTION_ICON_PATHS: Record<SettingsSection, string> = {
   masterings: 'M17 3H7a2 2 0 0 0-2 2v16l7-3 7 3V5a2 2 0 0 0-2-2',
   presets: 'M3 17v2h6v-2zM3 5v2h10V5zm10 16v-2h8v-2h-8v-2h-2v6zM7 9v2H3v2h4v2h2V9zm14 4v-2H11v2zm-6-4h2V7h4V5h-4V3h-2v6z',
   takeHistory: 'M13 3a9 9 0 0 0-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42A8.954 8.954 0 0 0 13 21a9 9 0 0 0 0-18m-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8z',
+  about: 'M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2m1 15h-2v-6h2zm0-8h-2V7h2z',
 };
 
 const PLACEHOLDER_ITEMS: Array<{ tag: string; getDesc: (ui: UiMessages) => string }> = [
@@ -64,6 +65,7 @@ function sectionLabel(section: SettingsSection, ui: UiMessages): string {
     case 'masterings': return ui.dialog.masteringHeading;
     case 'presets': return ui.dialog.presetHeading;
     case 'takeHistory': return ui.dialog.takeHistoryHeading;
+    case 'about': return ui.dialog.aboutHeading;
     default: return section;
   }
 }
@@ -326,6 +328,9 @@ export function SettingsDialog({ controller }: { controller: SunoController }) {
   };
 
   const ui = getUiMessages();
+  const manifest = typeof chrome !== 'undefined' ? chrome.runtime?.getManifest?.() : undefined;
+  const appVersion = manifest?.version ?? 'unknown';
+  const appIconUrl = typeof chrome !== 'undefined' ? chrome.runtime?.getURL?.('icon-128.png') : undefined;
 
   return <dialog ref={dialogRef} className="suno-assistant__dialog" closedby="any" onClose={close} onCancel={close}>
     <div className="suno-assistant__dialog-body">
@@ -571,6 +576,22 @@ export function SettingsDialog({ controller }: { controller: SunoController }) {
               onChange={(event) => void handleImportFile(event)}
             />
             {backupNotice && <span className="suno-assistant__format-saved">{backupNotice}</span>}
+          </div>
+        </div>
+      </section>}
+
+      {activeSection === 'about' && <section aria-labelledby="suno-assistant-about-heading">
+        <h3 id="suno-assistant-about-heading">{ui.dialog.aboutHeading}</h3>
+        <div className="suno-assistant__about">
+          <div className="suno-assistant__about-icon" aria-hidden="true">
+            {appIconUrl && <img src={appIconUrl} alt="Suno Create Assistant" width={96} height={96} />}
+          </div>
+          <div className="suno-assistant__about-name">Suno Create Assistant</div>
+          <div className="suno-assistant__about-version"><span>{ui.dialog.aboutVersionLabel}</span> {appVersion}</div>
+          <div className="suno-assistant__about-copyright">{ui.dialog.aboutCopyright}</div>
+          <div className="suno-assistant__about-link-row">
+            <span>{ui.dialog.aboutWebsiteLabel}</span>
+            <a href={ui.dialog.aboutWebsiteUrl} target="_blank" rel="noreferrer">{ui.dialog.aboutWebsiteUrl}</a>
           </div>
         </div>
       </section>}
