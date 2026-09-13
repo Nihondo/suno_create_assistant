@@ -8,7 +8,7 @@
 
 本リポジトリにはビルド済みの拡張機能（`install/chrome-mv3`）が含まれているため、Node.js やビルドツールの環境構築なしですぐに利用できます。
 
-1. 本リポジトリのコードをダウンロード（**Code** → **Download ZIP**）して解凍、または `git clone https://github.com/Nihondo/suno_extension.git` します。
+1. 本リポジトリのコードをダウンロード（**Code** → **Download ZIP**）して解凍、または `git clone https://github.com/Nihondo/suno_create_assistant.git` します。
 2. Google Chrome で `chrome://extensions` を開き、右上の **デベロッパーモード** を有効にします。
 3. **パッケージ化されていない拡張機能を読み込む** をクリックし、リポジトリ内の `install/chrome-mv3` フォルダを選択します。
 4. [Suno Create](https://suno.com/create) を開き、**アドバンスト** タブを選択すると機能が有効になります。
