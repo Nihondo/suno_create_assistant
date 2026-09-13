@@ -67,9 +67,9 @@ When a title contains `{{TAKE}}` (or padded variants like `{{TAKE:3}}`), clickin
 
 Press `Cmd + Enter` (macOS) or `Ctrl + Enter` (Windows/Linux) anywhere on the Suno Create page to trigger the **Create** button, no setup required.
 
-![Extension Settings](./images/suno_setting.png)
-
 ### Extension Settings menu
+
+![Extension Settings](./images/suno_setting.png)
 
 The extension adds an **Extension Settings** item with a gear icon to Suno's sidebar, just below Hooks. Click it to open the settings dialog, where you manage song title formats, display settings, mastering prompts, and presets.
 

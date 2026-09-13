@@ -67,9 +67,9 @@
 
 Suno作成画面のどこにいても、`Cmd + Enter`（macOS） / `Ctrl + Enter`（Windows/Linux）を押すだけで「作成」ボタンを実行できます。設定は不要です。
 
-![拡張設定](./images/suno_setting.png)
-
 ### 拡張設定メニュー
+
+![拡張設定](./images/suno_setting.png)
 
 サイドバーのナビゲーション（Hooksの下）に、歯車アイコン付きの **Extension Settings**（拡張設定）メニューを追加します。クリックすると設定ダイアログが開き、曲名フォーマット、表示設定、マスタリングプロンプト、プリセットを一括管理できます。
 
