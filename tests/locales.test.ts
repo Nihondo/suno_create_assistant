@@ -1,10 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import {
   detectLanguage,
+  getAllClearFormLabels,
+  getAllClipRowLikeLabels,
+  getAllClipRowShareLabels,
   getAllDestinationKeywords,
   getAllExcludedStylesPlaceholders,
   getAllOptionResetLabels,
   getAllSavedStyleDialogLabels,
+  getAllSavedStyleMutationLabels,
+  getAllSavedStyleSaveNewLabels,
   getAllSavedStyleTriggerLabels,
   getAllTitlePlaceholders,
   getHostLocale,
@@ -80,6 +85,28 @@ describe('locales module', () => {
     const dialogLabels = getAllSavedStyleDialogLabels();
     expect(dialogLabels).toContain('保存したスタイル');
     expect(dialogLabels).toContain('Saved Styles');
+
+    const mutationLabels = getAllSavedStyleMutationLabels();
+    expect(mutationLabels).toContain('削除');
+    expect(mutationLabels).toContain('Delete');
+    expect(mutationLabels).toContain('名前を変更');
+    expect(mutationLabels).toContain('Rename');
+
+    const saveNewLabels = getAllSavedStyleSaveNewLabels();
+    expect(saveNewLabels).toContain('プロンプトを保存');
+    expect(saveNewLabels).toContain('Save prompt');
+
+    const clearFormLabels = getAllClearFormLabels();
+    expect(clearFormLabels).toContain('すべてのフォーム入力をクリア');
+    expect(clearFormLabels).toContain('Clear all form inputs');
+
+    const likeLabels = getAllClipRowLikeLabels();
+    expect(likeLabels).toContain('クリップに「いいね」');
+    expect(likeLabels).toContain('Like clip');
+
+    const shareLabels = getAllClipRowShareLabels();
+    expect(shareLabels).toContain('クリップを共有');
+    expect(shareLabels).toContain('Share clip');
   });
 
   it('identifies saved style dates in multiple formats and languages', () => {
@@ -101,6 +128,7 @@ describe('locales module', () => {
     expect(getSliderLabels('weirdness')).toEqual(expect.arrayContaining(['奇抜さ', 'Weirdness']));
     expect(getSliderLabels('styleInfluence')).toEqual(expect.arrayContaining(['スタイルの影響', 'Style Influence']));
     expect(getSliderLabels('variation')).toEqual(expect.arrayContaining(['バリエーション', 'Variety']));
+    expect(getSliderLabels('audioInfluence')).toEqual(expect.arrayContaining(['オーディオの影響', 'Audio Influence']));
 
     expect(getRowLabels('vocalGender')).toEqual(expect.arrayContaining(['ボーカル性別', 'Vocal Gender']));
     expect(getRowLabels('duration')).toEqual(expect.arrayContaining(['長さ', 'Duration']));

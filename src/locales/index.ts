@@ -84,6 +84,46 @@ export function getAllSavedStyleDialogLabels(): string[] {
   return [...set];
 }
 
+export function getAllSavedStyleMutationLabels(): string[] {
+  const set = new Set<string>();
+  for (const loc of getAllHostLocales()) {
+    for (const label of loc.savedStyles.mutationLabels) set.add(label);
+  }
+  return [...set];
+}
+
+export function getAllSavedStyleSaveNewLabels(): string[] {
+  const set = new Set<string>();
+  for (const loc of getAllHostLocales()) {
+    for (const label of loc.savedStyles.saveNewLabels) set.add(label);
+  }
+  return [...set];
+}
+
+export function getAllClearFormLabels(): string[] {
+  const set = new Set<string>();
+  for (const loc of getAllHostLocales()) {
+    for (const label of loc.clearFormLabels) set.add(label);
+  }
+  return [...set];
+}
+
+export function getAllClipRowLikeLabels(): string[] {
+  const set = new Set<string>();
+  for (const loc of getAllHostLocales()) {
+    for (const label of loc.clipRow.likeLabels) set.add(label);
+  }
+  return [...set];
+}
+
+export function getAllClipRowShareLabels(): string[] {
+  const set = new Set<string>();
+  for (const loc of getAllHostLocales()) {
+    for (const label of loc.clipRow.shareLabels) set.add(label);
+  }
+  return [...set];
+}
+
 export function isSavedStyleDateString(value: string): boolean {
   const trimmed = value.trim();
   for (const loc of getAllHostLocales()) {

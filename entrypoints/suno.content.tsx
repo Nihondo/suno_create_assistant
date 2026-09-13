@@ -1,8 +1,11 @@
 import styleCss from '../src/content/suno-ui.css?inline';
-import { AutoTitleControl, LyricsTagPalette, PresetControls, SidebarSettingsButton, StyleControls } from '../src/content/components';
+import { AutoTitleControl, LyricsTagPalette, PresetControls, ReuseParamsButton, SidebarSettingsButton, StyleControls } from '../src/content/components';
 import { SettingsDialog } from '../src/content/SettingsDialog';
 import { createMounter } from '../src/content/mount';
 import { detectSunoTheme } from '../src/content/theme';
+import type { TakeRecord } from '../src/domain/models';
+import { readStorage } from '../src/storage/repository';
+import { createClipLinker } from '../src/suno/clip-linker';
 import { SunoController } from '../src/suno/controller';
 
 export default defineContentScript({
@@ -10,6 +13,7 @@ export default defineContentScript({
   runAt: 'document_idle',
   main() {
     const controller = new SunoController();
+    const clipLinker = createClipLinker(controller.adapter);
     let scheduled = false;
     // When Suno's own reconciliation deletes the presets host too often
     // (more than the mounter's thrash threshold within its window), stop
@@ -19,10 +23,66 @@ export default defineContentScript({
     let advancedSessionActive = false;
     let autoCloseHandled = false;
     let autoCloseAttempts = 0;
+    // A clip-row's reuse-parameters button (key "clip:<songId>") that
+    // thrashes is abandoned for good rather than retried like 'presets' -
+    // there is no fallback placement for a single row's own button, so
+    // syncClipButtons() below simply stops offering it a fresh anchor/JSX.
+    const abandonedClipKeys = new Set<string>();
+    const mountedClipButtonKeys = new Set<string>();
+    // Chains each clip-button sync onto the previous one so two
+    // refreshMounts() cycles inside the 80ms debounce window can never
+    // race each other's read-then-mount of the same "clip:<id>" key.
+    let clipButtonSync = Promise.resolve();
     const mounter = createMounter(styleCss, (key) => {
       if (key === 'presets') presetFallback = true;
+      if (key.startsWith('clip:')) abandonedClipKeys.add(key);
       schedule();
     });
+
+    const syncClipButtons = (theme?: 'light' | 'dark') => {
+      clipButtonSync = clipButtonSync.then(async () => {
+        // Best-effort: a failure here (storage, or the DOM shifting mid-read)
+        // must never interrupt the rest of refreshMounts()'s own work.
+        try {
+          await clipLinker.linkPendingTakes();
+          const rows = controller.adapter.clipRows();
+          if (!rows.length && !mountedClipButtonKeys.size) return;
+
+          // One storage read for every row, rather than one read per row.
+          const stored = await readStorage();
+          const recordByClipId = new Map<string, TakeRecord>();
+          for (const record of stored.takeHistory) {
+            for (const clipId of record.clipIds) {
+              if (!recordByClipId.has(clipId)) recordByClipId.set(clipId, record);
+            }
+          }
+
+          const nextKeys = new Set<string>();
+          for (const info of rows) {
+            const record = recordByClipId.get(info.songId);
+            if (!record) continue;
+            const key = `clip:${info.songId}`;
+            if (abandonedClipKeys.has(key)) continue;
+            nextKeys.add(key);
+            const placement = controller.adapter.clipRowActionPlacement(info.row) ?? {
+              anchor: controller.adapter.clipRowActionAnchor(info.row),
+              position: 'beforeend' as const,
+            };
+            mounter.mount(key, placement, () => <ReuseParamsButton controller={controller} record={record} />, theme, { shadow: false });
+          }
+          // A row that no longer has a matching record (or scrolled out of
+          // the DOM) loses its button; mount()'s own undefined-anchor path
+          // unmounts and removes the host (see mount.ts).
+          for (const key of mountedClipButtonKeys) {
+            if (!nextKeys.has(key)) mounter.mount(key, { anchor: undefined, position: 'beforeend' }, () => null, theme);
+          }
+          mountedClipButtonKeys.clear();
+          for (const key of nextKeys) mountedClipButtonKeys.add(key);
+        } catch {
+          // Swallowed - see comment above.
+        }
+      });
+    };
 
     const refreshMounts = () => {
       scheduled = false;
@@ -42,6 +102,11 @@ export default defineContentScript({
       if (sidebarPlacement) {
         mounter.mount('sidebar', sidebarPlacement, () => <SidebarSettingsButton controller={controller} />, theme, { shadow: false });
       }
+
+      // The workspace clip list (and so the reuse-parameters button on each
+      // row) is part of /create regardless of which tab is selected, like
+      // the two mounts above - not gated behind the `!advanced` return below.
+      syncClipButtons(theme);
 
       const advanced = controller.adapter.isAdvancedTab();
       if (!advanced) {

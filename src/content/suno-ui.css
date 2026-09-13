@@ -33,6 +33,9 @@
   --sca-border-solid: #4a4a50;
   --sca-accent: #3182f6;
   --sca-accent-strong: #5b9cff;
+  --sca-orange: #ea7a3b;
+  --sca-orange-subtle: rgb(234 122 59 / 45%);
+  --sca-orange-subtle-hover: rgb(234 122 59 / 75%);
   --sca-error: #ff8fa3;
   --sca-backdrop: rgb(0 0 0 / 55%);
 
@@ -52,6 +55,9 @@
   --sca-border-solid: #d9d9e0;
   --sca-accent: #2563eb;
   --sca-accent-strong: #1d4ed8;
+  --sca-orange: #d96520;
+  --sca-orange-subtle: rgb(217 101 32 / 50%);
+  --sca-orange-subtle-hover: rgb(217 101 32 / 80%);
   --sca-error: #c23652;
   --sca-backdrop: rgb(0 0 0 / 35%);
 }
@@ -76,11 +82,24 @@
   line-height: 1.35;
 }
 
+/* The styles/presets/lyrics rows below mount via `afterend` on their own
+   anchor (see suno.content.tsx), landing as a *sibling* of that anchor -
+   so their `margin: 0 12px 12px` is the only inset between them and the
+   visible card edge; the anchor's own padding never applies to them. The
+   title control instead mounts via `beforeend` *inside* titleControlAnchor()
+   (Suno's own title-card row keeps it on its own wrapped line there), which
+   carries its own fixed 16px left/right padding - confirmed via
+   getComputedStyle on the live site. Left at `margin: 0`, this row would
+   therefore sit 16px in from the card edge while the others sit 12px in,
+   reading visibly narrower/wider depending on which is compared. This
+   negative margin cancels 4px of that inherited 16px padding to land on
+   the same 12px every other row uses - verified directly on the live site
+   by measuring this row's actual offset from the title card's edge (not
+   by matching numbers that merely looked plausible; an earlier `12px`
+   *positive* margin here was wrong for exactly this reason, since it
+   stacked on top of the 16px instead of being the anchor's only inset. */
 .suno-assistant--title {
-  margin: 0 0 0 8px;
-  padding: 3px 8px;
-  background: transparent;
-  border: 0;
+  margin: 0 -4px;
 }
 
 /* Both the styles row and the presets row sit directly inside one of
@@ -91,6 +110,38 @@
 :host([data-suno-create-assistant="presets"]) .suno-assistant,
 :host([data-suno-create-assistant="lyrics"]) .suno-assistant {
   margin: 0 12px 12px;
+}
+
+.suno-assistant--lyrics,
+.suno-assistant--styles,
+.suno-assistant--presets,
+.suno-assistant--title,
+:host([data-suno-create-assistant="styles"]) .suno-assistant,
+:host([data-suno-create-assistant="presets"]) .suno-assistant,
+:host([data-suno-create-assistant="lyrics"]) .suno-assistant {
+  border: 1px solid var(--sca-orange-subtle);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.suno-assistant--lyrics:hover,
+.suno-assistant--styles:hover,
+.suno-assistant--presets:hover,
+.suno-assistant--title:hover,
+:host([data-suno-create-assistant="styles"]) .suno-assistant:hover,
+:host([data-suno-create-assistant="presets"]) .suno-assistant:hover,
+:host([data-suno-create-assistant="lyrics"]) .suno-assistant:hover {
+  border-color: var(--sca-orange-subtle-hover);
+  box-shadow: 0 0 8px rgb(234 122 59 / 15%);
+}
+
+:host([data-theme="light"]) .suno-assistant--lyrics:hover,
+:host([data-theme="light"]) .suno-assistant--styles:hover,
+:host([data-theme="light"]) .suno-assistant--presets:hover,
+:host([data-theme="light"]) .suno-assistant--title:hover,
+:host([data-theme="light"][data-suno-create-assistant="styles"]) .suno-assistant:hover,
+:host([data-theme="light"][data-suno-create-assistant="presets"]) .suno-assistant:hover,
+:host([data-theme="light"][data-suno-create-assistant="lyrics"]) .suno-assistant:hover {
+  box-shadow: 0 0 8px rgb(217 101 32 / 15%);
 }
 
 /* titleControlAnchor() enables wrapping on Suno's title-card row; reserve
@@ -122,6 +173,11 @@
   text-align: left;
 }
 
+.suno-assistant__chevron {
+  display: inline-flex;
+  vertical-align: -2px;
+}
+
 .suno-assistant__select:focus-visible,
 .suno-assistant__button:focus-visible,
 .suno-assistant__check:focus-visible {
@@ -131,7 +187,6 @@
 
 .suno-assistant__button:hover,
 .suno-assistant__select:hover { background: var(--sca-bg-control-hover); }
-.suno-assistant__button--clear { background: transparent; color: var(--sca-fg-secondary); }
 
 .suno-assistant__menu {
   position: fixed;
@@ -164,7 +219,15 @@
 
 .suno-assistant__menu button:hover,
 .suno-assistant__menu button[aria-selected="true"] { background: var(--sca-bg-menu-hover); }
-.suno-assistant__menu button.suno-assistant__manage { color: var(--sca-accent-strong); }
+/* Pushes a lone settings gear to the right edge of its row (the lyrics tag
+   palette, or the title row's own gear), regardless of how much width the
+   controls before it take up. */
+.suno-assistant__settings-button { margin-left: auto; }
+/* Styles/presets rows instead pair their clear/save action with the
+   settings gear: wrapping both in this flex group lets them sit closer to
+   each other (4px) than the row's own 8px gap, while still being pushed
+   to the row's right edge together via margin-left: auto on the group. */
+.suno-assistant__icon-group { display: flex; align-items: center; gap: 4px; margin-left: auto; }
 .suno-assistant__status { flex-basis: 100%; color: var(--sca-fg-secondary); font-size: 12px; }
 .suno-assistant__status--error { color: var(--sca-error); }
 
@@ -181,11 +244,21 @@
   border: 1px solid var(--sca-border-solid);
   border-radius: 14px;
   padding: 0;
-  width: min(560px, calc(100vw - 32px));
+  width: min(880px, calc(100vw - 32px));
+  min-height: 50dvh;
   max-height: calc(100dvh - 48px);
   font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   font-size: 13px;
   line-height: 1.4;
+}
+
+.suno-assistant__dialog:not([open]) {
+  display: none;
+}
+
+.suno-assistant__dialog[open] {
+  display: flex;
+  flex-direction: column;
 }
 
 .suno-assistant__dialog::backdrop {
@@ -195,20 +268,19 @@
 .suno-assistant__dialog-body {
   display: flex;
   flex-direction: column;
-  gap: 18px;
-  padding: 18px 20px 22px;
-  overflow: auto;
+  flex: 1 1 auto;
+  min-height: 0;
+  height: 100%;
   max-height: calc(100dvh - 48px);
+  overflow: hidden;
 }
 
 .suno-assistant__dialog-header {
-  position: sticky;
-  top: -18px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  margin: -18px -20px 0;
+  flex-shrink: 0;
   padding: 14px 20px;
   background: var(--sca-bg-control);
   border-bottom: 1px solid var(--sca-border);
@@ -217,6 +289,82 @@
 .suno-assistant__dialog-header h2 { margin: 0; font-size: 15px; }
 .suno-assistant__dialog-body h3 { margin: 0 0 4px; font-size: 14px; }
 .suno-assistant__hint { margin: 0 0 10px; color: var(--sca-fg-secondary); font-size: 12px; }
+
+/* Sidebar section tabs, replacing the old single scrolling column of every
+   section stacked in a row. Only the content pane scrolls; the header and
+   nav stay put. */
+.suno-assistant__dialog-layout {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.suno-assistant__dialog-nav {
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  gap: 2px;
+  width: 260px;
+  padding: 14px 10px;
+  overflow-y: auto;
+  border-right: 1px solid var(--sca-border);
+}
+
+/* Extra-specific selector (three classes) is deliberate: it must outrank
+   `.suno-assistant__dialog-body button:not(.suno-assistant__button)` below,
+   which otherwise applies its pill-button look (rounded background on
+   every button) to these nav items regardless of source order - only the
+   active tab should ever show a filled background. */
+.suno-assistant__dialog-body .suno-assistant__dialog-nav .suno-assistant__dialog-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 10px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--sca-fg-secondary);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.suno-assistant__dialog-body .suno-assistant__dialog-nav .suno-assistant__dialog-nav-item:hover {
+  background: var(--sca-bg-input);
+  color: var(--sca-fg);
+}
+.suno-assistant__dialog-body .suno-assistant__dialog-nav .suno-assistant__dialog-nav-item[aria-current="page"] {
+  background: var(--sca-accent);
+  color: #fff;
+  font-weight: 600;
+}
+.suno-assistant__dialog-nav-item svg { flex-shrink: 0; width: 17px; height: 17px; }
+
+.suno-assistant__dialog-content {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-y: auto;
+  padding: 18px 20px 22px;
+}
+
+.suno-assistant__dialog-feedback { margin: 14px 20px 0; }
+
+@media (max-width: 640px) {
+  .suno-assistant__dialog-layout { flex-direction: column; }
+  .suno-assistant__dialog-nav {
+    flex-direction: row;
+    width: auto;
+    gap: 4px;
+    padding: 8px 10px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    border-right: none;
+    border-bottom: 1px solid var(--sca-border);
+  }
+  .suno-assistant__dialog-nav-item { flex-shrink: 0; }
+}
 
 .suno-assistant__dialog-body label {
   display: block;
@@ -263,6 +411,14 @@
 }
 .suno-assistant__list li p { margin: 2px 0 0; color: var(--sca-fg-secondary); font-size: 12px; }
 .suno-assistant__list-actions { display: flex; gap: 6px; flex-shrink: 0; }
+
+/* Take history rows carry far more text (title, timestamp, a full options
+   summary line) than mastering/preset rows, so they get their own layout:
+   the info block spans the row's full width and the action buttons move to
+   their own row underneath, instead of squeezing beside a fixed-width
+   button column. */
+.suno-assistant__list--stacked li { flex-direction: column; align-items: stretch; }
+.suno-assistant__list--stacked .suno-assistant__list-actions { justify-content: flex-end; flex-wrap: wrap; }
 
 .suno-assistant__checks { display: flex; flex-wrap: wrap; gap: 8px 14px; margin: 10px 0; }
 .suno-assistant__checks label { display: inline-flex; align-items: center; gap: 5px; margin: 0; }
@@ -332,12 +488,95 @@
 .suno-assistant__format-actions {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: 8px;
 }
 
 .suno-assistant__format-saved {
   font-size: 12px;
   color: var(--sca-accent);
+}
+
+.suno-assistant__format-preview {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 6px 12px;
+  background: var(--sca-bg-card);
+  border: 1px dashed var(--sca-border-solid);
+  border-radius: 8px;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.suno-assistant__format-preview-label {
+  color: var(--sca-fg-secondary);
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.suno-assistant__format-preview-value {
+  color: var(--sca-accent-strong);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  word-break: break-all;
+}
+
+.suno-assistant__format-explanation {
+  margin-top: 4px;
+}
+
+.suno-assistant__format-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 8px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.suno-assistant__format-table td {
+  padding: 4px 0;
+  vertical-align: middle;
+  border: none;
+}
+
+.suno-assistant__format-table td:first-child {
+  width: 1%;
+  white-space: nowrap;
+  padding-right: 14px;
+}
+
+.suno-assistant__format-table td:last-child {
+  color: var(--sca-fg-secondary);
+}
+
+.suno-assistant__dialog-body .suno-assistant__format-table .suno-assistant__tag-button {
+  appearance: none;
+  border: 1px solid var(--sca-border);
+  border-radius: 8px;
+  padding: 4px 10px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.3;
+  color: var(--sca-fg);
+  background: var(--sca-bg-control);
+  white-space: nowrap;
+  user-select: none;
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease, transform 0.05s ease;
+}
+
+.suno-assistant__dialog-body .suno-assistant__format-table .suno-assistant__tag-button:hover {
+  background: var(--sca-bg-control-hover);
+  border-color: var(--sca-accent);
+}
+
+.suno-assistant__dialog-body .suno-assistant__format-table .suno-assistant__tag-button:active {
+  transform: translateY(1px);
+}
+
+.suno-assistant__dialog-body .suno-assistant__format-table .suno-assistant__tag-button:focus-visible {
+  outline: 2px solid var(--sca-accent);
+  outline-offset: 2px;
 }
 
 .suno-assistant--lyrics {
@@ -387,15 +626,18 @@
   align-items: center;
   justify-content: center;
   padding: 5px 8px;
-  color: var(--sca-fg-secondary);
+  /* Matches the sidebar's own extension settings button (SidebarSettingsButton),
+     which hardcodes this same orange since it renders in the Light DOM and
+     can't see this stylesheet's --sca-* tokens. */
+  color: var(--sca-orange);
   border-color: transparent;
   background: transparent;
 }
 
 .suno-assistant__tag-button--settings:hover {
-  color: var(--sca-fg);
+  color: var(--sca-orange);
   background: var(--sca-bg-control-hover);
-  border-color: var(--sca-border);
+  border-color: var(--sca-orange-subtle);
 }
 
 .suno-assistant__tags-textarea {
@@ -404,5 +646,60 @@
   font-family: monospace, ui-monospace, sans-serif;
   font-size: 13px;
   line-height: 1.4;
+}
+
+.suno-assistant__take-history-limit {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+
+.suno-assistant__take-history-limit label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  margin: 0;
+}
+
+.suno-assistant__take-history-limit input[type="number"] {
+  display: inline-block;
+  width: 90px;
+  margin-top: 0;
+  text-align: right;
+}
+
+.suno-assistant__backup-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+
+.suno-assistant__backup-row .suno-assistant__dialog-toggle-label {
+  margin: 0;
+}
+
+.suno-assistant__take-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  margin-top: 6px;
+}
+
+.suno-assistant__take-links a {
+  color: var(--sca-accent);
+  font-size: 12px;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.suno-assistant__take-links a:hover {
+  filter: brightness(1.15);
 }
 

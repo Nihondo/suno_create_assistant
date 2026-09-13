@@ -5,6 +5,7 @@ import {
   extractTakeKey,
   hasTakePlaceholder,
   nextBaseAfterManualEdit,
+  readableOptionFields,
   replaceTakePlaceholder,
 } from '../domain/logic';
 import {
@@ -14,8 +15,10 @@ import {
   type OtherOptionsCapture,
   type OtherOptionsPreset,
   type SavedStyle,
+  type TakeRecord,
 } from '../domain/models';
 import {
+  appendTakeRecord,
   getNextTakeNumber,
   readStorage,
   saveLyricsTags,
@@ -25,10 +28,16 @@ import {
   subscribeStorage,
 } from '../storage/repository';
 import { describeSkipped, SunoAdapter } from './adapter';
-import { getUiMessages } from '../locales';
+import {
+  getAllClearFormLabels,
+  getAllSavedStyleMutationLabels,
+  getAllSavedStyleSaveNewLabels,
+  getAllSavedStyleTriggerLabels,
+  getUiMessages,
+} from '../locales';
 
-export type SettingsSection = 'masterings' | 'presets' | 'titleFormat' | 'display' | 'lyricsTags';
-export type SettingsAction = 'create-preset';
+export type SettingsSection = 'masterings' | 'presets' | 'titleFormat' | 'display' | 'lyricsTags' | 'backup' | 'takeHistory';
+export type SettingsAction = 'create-preset' | 'reuse-as-preset';
 
 export interface Feedback {
   message: string;
@@ -92,8 +101,18 @@ export class SunoController {
     this.updateAutoTitle();
     this.unsubscribeStorage = subscribeStorage(async () => {
       const updated = await readStorage();
-      const active = this.state.mastering && !updated.masteringPrompts.some((item) => item.id === this.state.mastering?.id);
-      if (active) this.state.mastering = undefined;
+      // Storage can change out from under the currently-selected mastering
+      // prompt or preset not just from the user deleting one in this same
+      // dialog, but also from a full-replace import (see importBackup in
+      // SettingsDialog.tsx) - re-validate both against the fresh data.
+      const staleMastering = this.state.mastering && !updated.masteringPrompts.some((item) => item.id === this.state.mastering?.id);
+      if (staleMastering) this.state.mastering = undefined;
+      const stalePreset = this.state.preset && !updated.optionPresets.some((item) => item.id === this.state.preset?.id);
+      if (stalePreset) this.state.preset = undefined;
+      if (updated.autoTitleEnabled !== this.state.autoTitleEnabled) {
+        this.state.autoTitleEnabled = updated.autoTitleEnabled;
+        this.adapter.setTitleReadOnly(updated.autoTitleEnabled);
+      }
       if (updated.titleFormat && updated.titleFormat !== this.state.titleFormat) {
         this.state.titleFormat = updated.titleFormat;
         this.updateAutoTitle();
@@ -185,6 +204,7 @@ export class SunoController {
     if (!preset) {
       this.state.preset = undefined;
       this.state.presetFeedback = undefined;
+      this.updateAutoTitle();
       this.emit();
       return undefined;
     }
@@ -193,6 +213,7 @@ export class SunoController {
     // immediate feedback rather than leaving the UI looking unresponsive.
     this.state.preset = preset;
     this.state.presetFeedback = undefined;
+    this.updateAutoTitle();
     this.emit();
     try {
       const result = await this.adapter.applyOtherOptions(preset.fields);
@@ -213,7 +234,7 @@ export class SunoController {
     }
   }
 
-  openSettings(section: SettingsSection = 'titleFormat', action?: SettingsAction): void {
+  openSettings(section: SettingsSection = 'display', action?: SettingsAction): void {
     this.state.settings = { section, action };
     this.state.settingsFeedback = undefined;
     this.emit();
@@ -314,32 +335,97 @@ export class SunoController {
       if (!button) return false;
 
       const currentTitle = this.adapter.getTitle();
-      if (!hasTakePlaceholder(currentTitle)) {
-        return this.adapter.triggerCreate();
+      const usesTakePlaceholder = hasTakePlaceholder(currentTitle);
+
+      let submittedTitle = currentTitle;
+      let takeKey: string | undefined;
+      let takeNumber: number | undefined;
+
+      if (usesTakePlaceholder) {
+        takeKey = extractTakeKey(currentTitle) || 'default';
+        takeNumber = await getNextTakeNumber(takeKey);
+        submittedTitle = replaceTakePlaceholder(currentTitle, takeNumber);
+
+        // 1. Temporarily write the title with the resolved take number
+        this.adapter.setTitle(submittedTitle);
+
+        // 2. Yield for React controlled component input/change event processing
+        await new Promise((resolve) => setTimeout(resolve, 60));
       }
 
-      const key = extractTakeKey(currentTitle) || 'default';
-      const nextTakeNumber = await getNextTakeNumber(key);
-      const titleWithTake = replaceTakePlaceholder(currentTitle, nextTakeNumber);
-
-      // 1. Temporarily write the title with the resolved take number
-      this.adapter.setTitle(titleWithTake);
-
-      // 2. Yield for React controlled component input/change event processing
-      await new Promise((resolve) => setTimeout(resolve, 60));
+      // Capture the parameters actually about to be submitted, right before
+      // the Create click - this is the one moment the extension can read
+      // them without racing Suno's own reconciliation of the form. A
+      // best-effort capture: a failure to read options must never block
+      // submission (see the try/catch below).
+      const snapshot = await this.captureTakeSnapshot(submittedTitle, takeKey, takeNumber);
 
       // 3. Trigger Suno's Create button
       const created = this.adapter.triggerCreate();
 
-      // 4. Yield so Suno's click/submit handler reads the title value
-      await new Promise((resolve) => setTimeout(resolve, 100));
+      if (usesTakePlaceholder) {
+        // 4. Yield so Suno's click/submit handler reads the title value
+        await new Promise((resolve) => setTimeout(resolve, 100));
 
-      // 5. Revert back to the template with {{TAKE}}
-      this.adapter.setTitle(currentTitle);
+        // 5. Revert back to the template with {{TAKE}}
+        this.adapter.setTitle(currentTitle);
+      }
+
+      if (created && snapshot) {
+        // Suno has already received the (synchronous) click dispatched by
+        // triggerCreate() above, so awaiting the storage write here does
+        // not delay submission - it only makes recording finish before
+        // this method resolves. A storage failure must still never
+        // surface as a failed create, hence the swallowed catch.
+        try {
+          await appendTakeRecord(snapshot);
+        } catch {
+          // Recording must never fail the create flow itself.
+        }
+      }
 
       return created;
     } finally {
       this.isExecutingCreate = false;
+    }
+  }
+
+  async reuseTake(record: TakeRecord): Promise<ApplyResult | undefined> {
+    // Only the More Options snapshot is reapplied - Style/Mastering text is
+    // deliberately left untouched. Suno's own "プロンプトを再利用" /
+    // "Reuse prompt" already covers reusing the style text, and rewriting
+    // the Style field here as well would fight it rather than complement it.
+    try {
+      return await this.adapter.applyOtherOptions(record.options);
+    } catch {
+      return undefined;
+    }
+  }
+
+  private async captureTakeSnapshot(
+    title: string,
+    takeKey: string | undefined,
+    takeNumber: number | undefined,
+  ): Promise<Omit<TakeRecord, 'id' | 'createdAt'> | undefined> {
+    try {
+      const capture = await this.adapter.readOtherOptions();
+      return {
+        title,
+        takeKey,
+        takeNumber,
+        styleName: this.state.isCustomStyle ? undefined : this.state.style?.name,
+        stylePrompt: this.adapter.getStylePrompt(),
+        masteringId: this.state.mastering?.id,
+        masteringName: this.state.mastering?.name,
+        presetId: this.state.preset?.id,
+        presetName: this.state.preset?.name,
+        model: this.adapter.getModelName() || undefined,
+        options: capture ? readableOptionFields(capture.snapshot, capture.unreadable) : {},
+        unreadable: capture?.unreadable ?? [],
+        clipIds: [],
+      };
+    } catch {
+      return undefined;
     }
   }
 
@@ -355,7 +441,15 @@ export class SunoController {
     const ui = getUiMessages();
     const styleName = this.state.isCustomStyle ? ui.custom : this.state.style?.name ?? '';
     const audioTitle = this.adapter.getAudioTitle();
-    this.adapter.setTitle(autoTitle(this.adapter.getDestinationName(), styleName, this.state.titleFormat, audioTitle));
+    const model = this.adapter.getModelName() || undefined;
+    const mastering = this.state.mastering?.name;
+    const preset = this.state.preset?.name;
+    this.adapter.setTitle(autoTitle(this.adapter.getDestinationName(), styleName, this.state.titleFormat, {
+      audioTitle,
+      model,
+      mastering,
+      preset,
+    }));
   }
 
   private failOverflow(): void {
@@ -378,27 +472,40 @@ export class SunoController {
   private handleDocumentClick = (event: Event): void => {
     if (this.refreshingStyles) return;
 
+    // Every click on the Create button is routed through
+    // executeCreateWithTake() now, not only when {{TAKE}} is present, so a
+    // take-history record is captured for every submission (see
+    // captureTakeSnapshot). isExecutingCreate still guards against
+    // recursing into the synthetic click that triggerCreate() dispatches
+    // from inside executeCreateWithTake() itself: on that second pass this
+    // branch returns immediately *without* calling preventDefault, so the
+    // synthetic click's default action (Suno's own handler) actually fires.
     const createCandidate = event.target instanceof Element ? event.target.closest('button, [role="button"]') : undefined;
     if (createCandidate instanceof HTMLElement && this.adapter.isCreateButton(createCandidate)) {
       if (this.isExecutingCreate) return;
-      const currentTitle = this.adapter.getTitle();
-      if (hasTakePlaceholder(currentTitle)) {
-        event.preventDefault();
-        event.stopPropagation();
-        event.stopImmediatePropagation();
-        void this.executeCreateWithTake();
-        return;
-      }
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+      void this.executeCreateWithTake();
+      return;
     }
 
     const target = event.target instanceof Element ? event.target.closest('button') : undefined;
     const label = target?.getAttribute('aria-label') ?? '';
     const buttonText = target?.textContent?.trim() ?? '';
-    if (label.includes('保存したスタイル') || /スタイル.*プロンプト.*保存/.test(label + buttonText) || label.includes('削除:') || label === '名前を変更') {
+    const triggerLabels = getAllSavedStyleTriggerLabels();
+    const saveNewLabels = getAllSavedStyleSaveNewLabels();
+    const mutationLabels = getAllSavedStyleMutationLabels();
+    if (
+      triggerLabels.some((l) => label.includes(l))
+      || saveNewLabels.some((l) => label.includes(l) || buttonText.includes(l))
+      || mutationLabels.some((l) => label.includes(l) || label === l)
+    ) {
       this.state.stylesDirty = true;
       this.emit();
     }
-    if (label === 'すべてのフォーム入力をクリア' || buttonText.includes('すべてのフォーム入力をクリア')) {
+    const clearFormLabels = getAllClearFormLabels();
+    if (clearFormLabels.some((l) => label === l || buttonText.includes(l))) {
       setTimeout(() => this.resetExtensionSelections(), 0);
     }
   };

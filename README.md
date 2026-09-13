@@ -35,7 +35,7 @@ Directly under the **Style** heading, the extension adds a Style dropdown and a 
 
 ### Advanced-option presets
 
-The Preset dropdown appears directly under the **More Options** heading, so it stays visible whether the section is open or closed. A preset can save any combination of: excluded styles, vocal gender, length, Max mode, weirdness, style influence, variation, and personalization.
+The Preset dropdown appears directly under the **More Options** heading, so it stays visible whether the section is open or closed. A preset can save any combination of: excluded styles, vocal gender, length, Max mode, weirdness, style influence, variation, audio influence, and personalization.
 
 - Click **Save Preset** beside the dropdown to open a dialog pre-filled with Suno's current settings — this works even while More Options is collapsed. Choose which settings to include, adjust their values, and save.
 - Use **Manage presets…** inside the dropdown to edit or delete existing presets.
@@ -54,17 +54,22 @@ Customize the template anytime under **Song Title Format** in the settings dialo
 - `{{WORKSPACE}}` — destination / workspace name
 - `{{STYLE}}` — style name (or `Custom` if manually edited)
 - `{{AUDIO}}` — original song title (when remixing or referencing audio)
-- `{{TAKE}}` — take number, incremented automatically
+- `{{MODEL}}` — model name (`v6`, `v6-wild`, etc.)
+- `{{MASTERING}}` — active mastering prompt name
+- `{{PRESET}}` — active more-options preset name
+- `{{DATE}}` — current date (default `YYYY-MM-DD`, supports format specifiers like `{{DATE:YYYYMMDD}}`)
+- `{{TIME}}` — current time (default `HH:mm`, supports format specifiers like `{{TIME:HHmm}}`)
+- `{{TAKE}}` — take number, incremented automatically (`{{TAKE:3}}` or `{{TAKE:001}}` for zero-padding like `001`)
 
-When a title contains `{{TAKE}}`, clicking **Create** (or using the shortcut below) fills in the next take number, submits, and then restores the `{{TAKE}}` template so it's ready for the next take. You can also type `{{TAKE}}` manually with Auto title disabled if you just want take numbering on your own titles.
+When a title contains `{{TAKE}}` (or padded variants like `{{TAKE:3}}`), clicking **Create** (or using the shortcut below) fills in the next take number, submits, and then restores the template so it's ready for the next take. You can also type `{{TAKE}}` manually with Auto title disabled if you just want take numbering on your own titles.
 
 ### Create shortcut
 
 Press `Cmd + Enter` (macOS) or `Ctrl + Enter` (Windows/Linux) anywhere on the Suno Create page to trigger the **Create** button, no setup required.
 
-![Extension Settings](./images/suno_setting.png)
-
 ### Extension Settings menu
+
+![Extension Settings](./images/suno_setting.png)
 
 The extension adds an **Extension Settings** item with a gear icon to Suno's sidebar, just below Hooks. Click it to open the settings dialog, where you manage song title formats, display settings, mastering prompts, and presets.
 
@@ -72,9 +77,22 @@ The extension adds an **Extension Settings** item with a gear icon to Suno's sid
 
 When you open the Advanced tab, the "Lyrics", "Styles", and "More Options" sections default to collapsed, since the extension's own controls stay visible either way. You can turn this off with the **"Close lyrics, styles, and more options when opening the Advanced tab"** checkbox under **Display Settings** in the settings dialog. Any section you manually reopen stays open while you keep working in it.
 
+### Take history and reuse parameters
+
+Every time you press **Create**, the extension automatically records the Style, Mastering, Preset, and More Options settings that were in effect at that moment. Once a matching clip appears in Suno's own clip list, a small **reuse parameters** button appears among its row actions (next to Like, Share, and so on) — click it to reapply that generation's More Options settings.
+
+- Browse, restore, or delete past entries under **Take History** in the settings dialog.
+- **Save as preset** turns a past entry's settings into a reusable preset.
+- Only the More Options settings are reapplied — the Style field is left untouched, since Suno's own "Reuse prompt" action already covers reusing style text.
+- A clip generated before you started using this feature, or one you navigate away from before it finishes generating, may not get a reuse button.
+
+### Backup (export / import)
+
+Under **Backup** in the settings dialog, export all your settings — mastering prompts, presets, lyrics tags, title format, and (optionally) take history — as a JSON file, or import a previously exported file. Importing replaces all current settings, so use it to move settings to another computer, recover from a lost Chrome profile, or keep your own copy under version control. Nothing is ever sent anywhere; the file is written and read entirely on your device.
+
 ## Privacy
 
-All your settings — mastering prompts, presets, the Auto title preference, the title format, and take-number counters — are stored locally in your browser and never leave it. The extension does not call any private Suno API or send data to a server, and it does not permanently store the saved-style prompts it reads from Suno's dialog.
+All your settings — mastering prompts, presets, take history, the Auto title preference, the title format, and take-number counters — are stored locally in your browser and never leave it. The extension does not call any private Suno API or send data to a server, and it does not permanently store the saved-style prompts it reads from Suno's dialog. Exporting settings saves a file directly on your device; nothing is ever uploaded anywhere.
 
 ## Disclaimer
 

@@ -3,6 +3,8 @@ import { emptyOtherOptions } from '../domain/models';
 import { calculateTagInsertion, normalizedInsertTag, savedStyleId } from '../domain/logic';
 import type { Placement } from '../content/mount';
 import {
+  getAllClipRowLikeLabels,
+  getAllClipRowShareLabels,
   getAllDestinationKeywords,
   getAllExcludedStylesPlaceholders,
   getAllHostLocales,
@@ -49,8 +51,17 @@ function optionHeading(): HTMLElement | undefined {
   // The disclosure trigger is a `<div role="button" tabindex="0">` on the
   // live site, not a `<button>` - confirmed from production DOM. Match
   // both so a future markup change to a real button keeps working too.
+  //
+  // Each clip row in the workspace clip list has its own "その他のオプション"
+  // / "More options" context-menu trigger button with the exact same
+  // aria-label as the disclosure heading we want here. It must be excluded
+  // - not just skipped by taking .at(0) - because DOM order between the
+  // create form and the clip list is an implementation detail, not a
+  // contract; relying on document order alone would silently break the
+  // moment Suno reorders the page.
   return [...document.querySelectorAll<HTMLElement>('button, [role="button"]')]
     .filter((element) => {
+      if (element.closest('[data-testid="clip-row"]')) return false;
       if (visible([element]) !== element) return false;
       const raw = text(element);
       const aria = element.getAttribute('aria-label') ?? '';
@@ -186,19 +197,26 @@ async function settle(): Promise<void> {
   await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
 }
 
-// DO NOT replace this with the slider's double-click-to-edit "NN%" readout
-// (dblclick it, type into the revealed <input type="text">, commit with
-// Enter). That path was tried and reverted: confirmed on the live site, it
-// only sets a transient DOM attribute, not Suno's real underlying state.
-// A single slider changed this way and left alone stays looking correct
-// indefinitely (nothing re-renders it) - but the moment anything else
-// triggers a re-render of the panel (in practice: applyOtherOptions()
-// moving on to the next field), Suno reconciles the display back to its
-// real, never-actually-updated value. Measured on the live site: the
-// slider read the correct value for ~120ms after commit, then silently
-// reverted once the next field's own change ran. Stepping arrow keys one
-// at a time is the only mechanism confirmed to update Suno's real state,
-// so it is slower but it is the only one that stays correct.
+// An EARLIER attempt at the double-click-to-edit "NN%" readout (dblclick it,
+// type into the revealed <input type="text">, but commit only by moving
+// focus/reading the attribute back - never a real Enter keypress) was tried
+// and reverted: confirmed on the live site, that path only set a transient
+// DOM attribute, not Suno's real underlying state, and silently reverted the
+// moment anything else re-rendered the panel. That is why arrow-key
+// stepping became the only mechanism used, despite being slow.
+//
+// Retried later, deliberately committing with a real Enter keypress this
+// time (see trySliderFastCommit below): confirmed manually on the live site
+// (double-click 奇抜さ's "NN%" readout, type a new value, press Enter, then
+// click an unrelated toggle and wait ~1-2s) that the committed value
+// *does* survive a subsequent unrelated field's mutation. The missing
+// Enter commit in the original attempt is believed to be exactly what made
+// the difference. trySliderFastCommit() is tried first; setSlider() falls
+// back to the arrow-key loop below on any failure of that path (element not
+// found/disabled, dblclick did not reveal an <input>, or the committed
+// aria-valuenow does not match afterward), so a live-site surprise here
+// degrades to the slower but previously-exhaustively-verified method rather
+// than silently applying a wrong value.
 //
 // Confirmed on the live site: firing several ArrowRight keydowns
 // back-to-back, with no yield in between, only moves the slider by ONE
@@ -209,7 +227,46 @@ async function settle(): Promise<void> {
 // guards against Suno replacing the slider's DOM node between steps.
 const SLIDER_STEP_GUARD = 200;
 
+// Confirmed on the live site (docs/showmore.txt and manual inspection): the
+// "NN%" readout - and, once revealed, the editable <input> - are always the
+// slider's own nextElementSibling, not reachable by any stable class name
+// (Suno's CSS classes are hashed per build). Re-fetching the panel/slider
+// fresh before and after the dblclick, exactly like the arrow-key path
+// below, guards the same way against Suno replacing the subtree mid-flight.
+async function trySliderFastCommit(panel: HTMLElement, target: keyof SunoHostSliders | string, value: number): Promise<boolean> {
+  const element = slider(panel, target);
+  if (!element || element.getAttribute('aria-disabled') === 'true') return false;
+  const readout = element.nextElementSibling;
+  if (!(readout instanceof HTMLElement)) return false;
+
+  readout.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, cancelable: true }));
+  await settle();
+
+  const freshPanel = optionPanel();
+  const freshElement = freshPanel && slider(freshPanel, target);
+  const revealed = freshElement?.nextElementSibling;
+  if (!(revealed instanceof HTMLInputElement)) return false;
+
+  nativeSetValue(revealed, String(value));
+  const eventInit: KeyboardEventInit = { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true, cancelable: true };
+  revealed.dispatchEvent(new KeyboardEvent('keydown', eventInit));
+  revealed.dispatchEvent(new KeyboardEvent('keypress', eventInit));
+  revealed.dispatchEvent(new KeyboardEvent('keyup', eventInit));
+  await settle();
+
+  const committedPanel = optionPanel();
+  const committedElement = committedPanel && slider(committedPanel, target);
+  return Number(committedElement?.getAttribute('aria-valuenow')) === value;
+}
+
 async function setSlider(target: keyof SunoHostSliders | string, value: number): Promise<boolean> {
+  const startPanel = optionPanel();
+  const startElement = startPanel && slider(startPanel, target);
+  if (!startElement || startElement.getAttribute('aria-disabled') === 'true') return false;
+  if (Number(startElement.getAttribute('aria-valuenow')) === value) return true;
+
+  if (startPanel && await trySliderFastCommit(startPanel, target, value)) return true;
+
   let moved = false;
   for (let guard = 0; guard < SLIDER_STEP_GUARD; guard += 1) {
     const panel = optionPanel();
@@ -515,6 +572,102 @@ function dispatchEnter(target: HTMLElement): boolean {
   return success;
 }
 
+// Confirmed on the live site (docs/showmore.txt): the model selector is a
+// `<button aria-expanded="…">` whose accessible text is just the model
+// name, e.g. "v6". Nothing else with `aria-expanded` on the create form
+// starts with "v" followed by a digit, so this narrow pattern is enough
+// without needing a more specific (and more fragile) selector.
+function modelSelectorButton(): HTMLElement | undefined {
+  const candidates = [...document.querySelectorAll<HTMLElement>('button[aria-expanded], [role="button"][aria-expanded]')]
+    .filter((el) => !el.closest('suno-create-assistant, [data-testid="clip-row"]'));
+  return visible(candidates.filter((el) => /^v\d/i.test(text(el).trim())));
+}
+
+export interface ClipRowInfo {
+  row: HTMLElement;
+  title: string;
+  songId: string;
+  status: string;
+}
+
+// Each row is `<div data-testid="clip-row" role="group" aria-label="<title>"
+// data-clip-status="...">` containing exactly one `<a href="/song/<uuid>">`
+// - confirmed in docs/alldom_ja.txt, alldom_en.txt, and docs/showmore.txt.
+// This is the only DOM-visible way to resolve a clip's title to its song id
+// without touching a private API.
+function findClipRows(): ClipRowInfo[] {
+  return [...document.querySelectorAll<HTMLElement>('[data-testid="clip-row"]')]
+    .map((row) => {
+      const title = row.getAttribute('aria-label') ?? '';
+      const href = row.querySelector<HTMLAnchorElement>('a[href^="/song/"]')?.getAttribute('href') ?? '';
+      const songId = href.match(/\/song\/([^/?#]+)/)?.[1] ?? '';
+      const status = row.getAttribute('data-clip-status') ?? '';
+      return { row, title, songId, status };
+    })
+    .filter((info): info is ClipRowInfo => !!info.songId);
+}
+
+// Anchor for mounting a per-clip control (e.g. "reuse parameters") next to
+// Suno's own row actions, rather than inside its context menu - the menu is
+// Base UI portal-rendered and was not observed in any DOM dump, so it is
+// unconfirmed and brittle; the visible action-button row is not.
+function clipRowActionAnchor(row: HTMLElement): HTMLElement | undefined {
+  const likeLabels = getAllClipRowLikeLabels();
+  const likeButton = [...row.querySelectorAll<HTMLElement>('button, [role="button"]')]
+    .find((btn) => likeLabels.some((l) => (btn.getAttribute('aria-label') ?? '').includes(l)));
+  return likeButton?.parentElement ?? undefined;
+}
+
+// Find the direct child element of the action container that represents the
+// "share" (copy link) action. Placing the reuse parameters button immediately
+// after this child (afterend) ensures:
+// 1. It sits between the share button and the publish button (if present)
+// 2. It stays a direct child of the action-button flex container, preserving
+//    proper button gap, height, and vertical center alignment
+// 3. It never gets trapped inside Suno's nested publish wrapper div, which
+//    would break alignment and hide the button when the clip is unpublished
+function findClipRowShareItem(row: HTMLElement): HTMLElement | undefined {
+  const container = clipRowActionAnchor(row);
+  if (!container) return undefined;
+
+  const shareLabels = getAllClipRowShareLabels();
+  const buttons = [...container.querySelectorAll<HTMLElement>('button, [role="button"]')];
+  const shareButton = buttons.find((btn) => {
+    const label = (btn.getAttribute('aria-label') ?? btn.getAttribute('title') ?? '').toLowerCase();
+    return shareLabels.some((l) => label.includes(l.toLowerCase()));
+  });
+
+  if (shareButton) {
+    let item: HTMLElement = shareButton;
+    while (item.parentElement && item.parentElement !== container) {
+      item = item.parentElement;
+    }
+    return item;
+  }
+
+  // Fallback: 4th child of the action container (like, dislike, pin, share)
+  const children = [...container.children] as HTMLElement[];
+  if (children.length >= 4) {
+    return children[3];
+  }
+
+  return undefined;
+}
+
+function clipRowActionPlacement(row: HTMLElement): Placement | undefined {
+  const shareItem = findClipRowShareItem(row);
+  if (shareItem) {
+    return { anchor: shareItem, position: 'afterend' };
+  }
+
+  const anchor = clipRowActionAnchor(row);
+  if (anchor) {
+    return { anchor, position: 'beforeend' };
+  }
+
+  return undefined;
+}
+
 export class SunoAdapter {
   private isInsertingLyricsTag = false;
 
@@ -816,8 +969,33 @@ export class SunoAdapter {
     // icon + input flex row. Let it wrap so the injected control can remain
     // inside that same card on a separate line; mounting at its parent puts
     // it below the separate destination card instead.
+    //
+    // titleAnchor() itself carries a fixed `height` (56px at the time this
+    // was checked, via getComputedStyle on the live site) and every one of
+    // its ancestors up to and including a ResizeObserver-driven
+    // `overflow: hidden` wrapper mirrors that same px value rather than
+    // sizing to content. flex-wrap: wrap alone therefore only makes the
+    // second line overflow the card and get clipped/overlap the next card
+    // below - it does not make the card taller. Confirmed directly (via a
+    // live-site console session against suno.com/create): forcing this
+    // element's `height` to `auto` while pinning `min-height` to its
+    // original (pre-wrap) height makes every ancestor, including that
+    // overflow: hidden wrapper, track the real content height - 56px with
+    // one line, and taller once the second line is present - while leaving
+    // the single-line case unchanged. `min-height` alone (height left at
+    // its default) does nothing: the element's own CSS class sets `height`
+    // directly, which wins over min-height for a card no taller than that.
+    // The `dataset` flag ensures the original height is captured only once,
+    // before this control's own host is mounted into this anchor - reading
+    // offsetHeight on a later call (e.g. after Suno recreates this element
+    // during a re-render) would otherwise capture the *wrapped* height.
     const anchor = this.titleAnchor();
-    if (anchor) anchor.style.flexWrap = 'wrap';
+    if (anchor && !anchor.dataset.sunoAssistantTitleWrap) {
+      anchor.dataset.sunoAssistantTitleWrap = 'true';
+      anchor.style.minHeight = `${anchor.offsetHeight}px`;
+      anchor.style.height = 'auto';
+      anchor.style.flexWrap = 'wrap';
+    }
     return anchor;
   }
 
@@ -899,6 +1077,22 @@ export class SunoAdapter {
     return audioTitle();
   }
 
+  getModelName(): string {
+    return text(modelSelectorButton());
+  }
+
+  clipRows(): ClipRowInfo[] {
+    return findClipRows();
+  }
+
+  clipRowActionAnchor(row: HTMLElement): HTMLElement | undefined {
+    return clipRowActionAnchor(row);
+  }
+
+  clipRowActionPlacement(row: HTMLElement): Placement | undefined {
+    return clipRowActionPlacement(row);
+  }
+
   optionsAnchor(): HTMLElement | undefined {
     // The accordion body and even its outer sibling can be replaced by Suno.
     // The header row (heading plus its reset action) is persistent, so
@@ -963,6 +1157,11 @@ export class SunoAdapter {
 
     const variationSlider = slider(panel, 'variation');
     readField('variation', !!variationSlider, () => { snapshot.variation = Number(variationSlider!.getAttribute('aria-valuenow') ?? snapshot.variation); });
+
+    // Only present once an audio reference (upload/remix) is attached, so
+    // this legitimately falls into `unreadable` the rest of the time.
+    const audioInfluenceSlider = slider(panel, 'audioInfluence');
+    readField('audioInfluence', !!audioInfluenceSlider, () => { snapshot.audioInfluence = Number(audioInfluenceSlider!.getAttribute('aria-valuenow') ?? snapshot.audioInfluence); });
 
     const personalizationRow = rowFor(panel, 'personalization');
     readField('personalization', !!personalizationRow, () => {
@@ -1100,6 +1299,10 @@ export class SunoAdapter {
     }
     if (partial.variation !== undefined) {
       success('variation', await setSlider('variation', partial.variation));
+      await settle();
+    }
+    if (partial.audioInfluence !== undefined) {
+      success('audioInfluence', await setSlider('audioInfluence', partial.audioInfluence));
       await settle();
     }
     if (partial.personalization !== undefined) {

@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { createServer } from 'node:https';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -40,10 +40,34 @@ const sunoFixture = `<!doctype html><html lang="ja"><body>
     </div></section>
     <section><div style="display:flex;flex-wrap:nowrap"><input placeholder="曲名(任意)" /></div><div>保存先…<button>Demo Workspace</button></div></section>
     <button id="create">作成</button>
+    <div id="clip-list"></div>
     <script>
+      let clipCounter = 0;
+      function addClipRow(title) {
+        clipCounter += 1;
+        const id = 'clip-' + clipCounter;
+        const row = document.createElement('div');
+        row.setAttribute('data-testid', 'clip-row');
+        row.setAttribute('role', 'group');
+        row.setAttribute('aria-label', title);
+        row.setAttribute('data-clip-status', 'complete');
+        row.innerHTML = '<a href="/song/' + id + '">' + title + '</a>'
+          + '<div>'
+          + '<button aria-label="クリップに「いいね」"></button>'
+          + '<button aria-label="クリップを低評価"></button>'
+          + '<button aria-label="クリップをワークスペースに固定"></button>'
+          + '<button aria-label="クリップを共有"></button>'
+          + '</div>';
+        document.querySelector('#clip-list').prepend(row);
+      }
       document.querySelector('#create').addEventListener('click', () => {
         document.body.dataset.created = 'true';
-        document.body.dataset.createdTitle = document.querySelector('input[placeholder="曲名(任意)"]').value;
+        const title = document.querySelector('input[placeholder="曲名(任意)"]').value;
+        document.body.dataset.createdTitle = title;
+        // Approximates Suno showing the newly generated clips (2 variations)
+        // in the workspace list right after a submission.
+        addClipRow(title);
+        addClipRow(title);
       });
       document.querySelector('#saved-styles').addEventListener('click', () => {
         const dialog = document.querySelector('[role="dialog"]');
@@ -106,6 +130,7 @@ test('mounts the Suno controls beside their anchors, survives host removal, and 
     await expect(sidebarButton).toBeVisible();
     await expect(sidebarButton).toHaveText(/拡張設定/);
     await expect(sidebarButton).toHaveAttribute('data-inactive', '');
+    await expect(sidebarButton.locator('svg.hxc-btn-icon')).toHaveCSS('color', 'rgb(234, 122, 59)');
     const titleHost = page.locator('suno-create-assistant[data-suno-create-assistant="title"]');
     await expect(titleHost).toHaveCount(1);
     expect(await titleHost.evaluate((host) => host.parentElement === document.querySelector('input[placeholder="曲名(任意)"]')?.parentElement)).toBe(true);
@@ -156,6 +181,11 @@ test('mounts the Suno controls beside their anchors, survives host removal, and 
     await expect(page.locator('#lyrics-header + suno-create-assistant[data-suno-create-assistant="lyrics"]')).toHaveCount(1);
     await expect(lyricsHost).toBeVisible();
 
+    // Verify section borders have subtle orange styling
+    await expect(lyricsHost.locator('.suno-assistant--lyrics')).toHaveCSS('border-top-color', 'rgba(234, 122, 59, 0.45)');
+    await expect(stylesHost.locator('.suno-assistant--styles')).toHaveCSS('border-top-color', 'rgba(234, 122, 59, 0.45)');
+    await expect(presetsHost.locator('.suno-assistant--presets')).toHaveCSS('border-top-color', 'rgba(234, 122, 59, 0.45)');
+
     // Verify tag buttons display without brackets
     const verse1Button = lyricsHost.getByRole('button', { name: 'Verse 1' });
     await expect(verse1Button).toBeVisible();
@@ -194,12 +224,37 @@ test('mounts the Suno controls beside their anchors, survives host removal, and 
     // Preset creation is now directly triggered via the "設定を保存" button next to the dropdown.
     await presetsHost.getByRole('button', { name: '設定を保存' }).click();
     const dialog = page.locator('suno-create-assistant[data-suno-create-assistant="settings"]');
+    // The dialog is now split into a sidebar of section tabs (see
+    // SettingsDialog.tsx's SECTION_ORDER) rather than one long scrolling
+    // page, so only one section's content is visible/interactable at a
+    // time - this helper switches tabs by their sidebar label.
+    const gotoTab = (label: string) => dialog.getByRole('button', { name: label, exact: true }).click();
+
     await expect(dialog.getByRole('heading', { name: 'Suno Create Assistant の設定' })).toBeVisible();
+    // "設定を保存" opens directly on the presets tab with Suno's current
+    // values already captured - there is no separate capture button inside
+    // the dialog.
+    await expect(dialog.getByRole('button', { name: '現在値からプリセットを作成' })).toHaveCount(0);
+    // Name and save it here, before visiting any other tab: switching tabs
+    // mid-edit intentionally clears the in-progress preset form (see the
+    // effect in SettingsDialog.tsx), the same way it always has for any
+    // other way of arriving at the presets section.
+    await dialog.getByRole('textbox', { name: '名前' }).fill('標準');
+    await dialog.getByRole('button', { name: '保存', exact: true }).click();
+    await expect(dialog.getByText('標準')).toBeVisible();
+    await expect(dialog.getByText('奇抜さ: 50%')).toBeVisible();
+
+    await gotoTab('曲名フォーマット');
     await expect(dialog.getByRole('heading', { name: '曲名フォーマット' })).toBeVisible();
     await expect(dialog.getByRole('textbox', { name: '曲名フォーマット' })).toHaveValue('{{WORKSPACE}} ({{STYLE}}) {{TAKE}}');
+    await expect(dialog.getByRole('heading', { name: '表示設定' })).toHaveCount(0);
+
+    await gotoTab('表示設定');
     await expect(dialog.getByRole('heading', { name: '表示設定' })).toBeVisible();
     const closeDisclosuresCheck = dialog.getByRole('checkbox', { name: 'アドバンスドタブを開いた時に歌詞、スタイル、その他のオプションを閉じる' });
     await expect(closeDisclosuresCheck).toBeChecked();
+
+    await gotoTab('歌詞タグ');
     await expect(dialog.getByRole('heading', { name: '歌詞タグ' })).toBeVisible();
     const lyricsTagsTextarea = dialog.locator('textarea.suno-assistant__tags-textarea');
     await expect(lyricsTagsTextarea).toBeVisible();
@@ -207,12 +262,10 @@ test('mounts the Suno controls beside their anchors, survives host removal, and 
     await lyricsTagsTextarea.fill('[Intro]\n[Solo]\n[Outro]');
     await dialog.getByRole('button', { name: 'タグを保存' }).click();
     await expect(dialog.locator('.suno-assistant__format-saved', { hasText: '保存しました' })).toBeVisible();
-    await expect(dialog.getByRole('button', { name: '現在値からプリセットを作成' })).toHaveCount(0);
 
-    await dialog.getByRole('textbox', { name: '名前' }).fill('標準');
-    await dialog.getByRole('button', { name: '保存', exact: true }).click();
-    await expect(dialog.getByText('標準')).toBeVisible();
-    await expect(dialog.getByText('奇抜さ: 50%')).toBeVisible();
+    // Back to presets, now showing the list (the tab switches above cleared
+    // the finished form), to edit the preset just saved.
+    await gotoTab('その他のオプションプリセット');
     await dialog.getByRole('button', { name: '編集' }).click();
     await expect(dialog.getByRole('textbox', { name: '名前' })).toHaveValue('標準');
     await dialog.getByRole('radio', { name: 'カスタム' }).check();
@@ -230,12 +283,14 @@ test('mounts the Suno controls beside their anchors, survives host removal, and 
     await dialog.getByRole('button', { name: '閉じる' }).click();
     await expect(dialog.getByRole('heading', { name: 'Suno Create Assistant の設定' })).toBeHidden();
 
-    // Open settings from sidebar button and verify active state
+    // Open settings from sidebar button and verify active state. The
+    // sidebar button opens on the first tab (display), matching SECTION_ORDER.
     await sidebarButton.click();
     await expect(dialog.getByRole('heading', { name: 'Suno Create Assistant の設定' })).toBeVisible();
     await expect(sidebarButton).toHaveAttribute('data-active', '');
 
     // Toggle closeDisclosuresOnAdvanced setting off
+    await gotoTab('表示設定');
     await closeDisclosuresCheck.uncheck();
     await expect(closeDisclosuresCheck).not.toBeChecked();
 
@@ -256,6 +311,7 @@ test('mounts the Suno controls beside their anchors, survives host removal, and 
 
     // Turn setting back ON from sidebar
     await sidebarButton.click();
+    await gotoTab('表示設定');
     await expect(closeDisclosuresCheck).not.toBeChecked();
     await closeDisclosuresCheck.check();
     await expect(closeDisclosuresCheck).toBeChecked();
@@ -309,6 +365,77 @@ test('mounts the Suno controls beside their anchors, survives host removal, and 
     await expect(page.locator('body')).toHaveAttribute('data-created', 'true');
     await expect(page.locator('body')).toHaveAttribute('data-created-title', 'Demo Workspace (ARIA) 2');
     await expect(page.locator('input[placeholder="曲名(任意)"]')).toHaveValue('Demo Workspace (ARIA) {{TAKE}}');
+
+    // Both creates recorded a take-history entry (see SunoController.
+    // executeCreateWithTake / captureTakeSnapshot), visible in Settings.
+    await sidebarButton.click();
+    await expect(dialog.getByRole('heading', { name: 'Suno Create Assistant の設定' })).toBeVisible();
+    await gotoTab('テイク履歴');
+    await expect(dialog.getByRole('heading', { name: 'テイク履歴' })).toBeVisible();
+    await expect(dialog.getByText('Demo Workspace (ARIA) 1', { exact: true })).toBeVisible();
+    await expect(dialog.getByText('Demo Workspace (ARIA) 2', { exact: true })).toBeVisible();
+
+    // Verify take history limit setting can be changed and saved
+    const limitInput = dialog.locator('.suno-assistant__take-history-limit input[type="number"]');
+    await expect(limitInput).toHaveValue('500');
+    await limitInput.fill('200');
+    await dialog.locator('.suno-assistant__take-history-limit button', { hasText: '保存' }).click();
+    await expect(dialog.locator('.suno-assistant__take-history-limit .suno-assistant__format-saved')).toBeVisible();
+
+    // Verify multiple song links are displayed for 2 generated clips
+    await expect(dialog.getByRole('link', { name: '曲1を開く' }).first()).toBeVisible();
+    await expect(dialog.getByRole('link', { name: '曲2を開く' }).first()).toBeVisible();
+
+    await dialog.getByRole('button', { name: '閉じる' }).click();
+    await expect(dialog.getByRole('heading', { name: 'Suno Create Assistant の設定' })).toBeHidden();
+
+    // Each submission's clip rows (simulated by the fixture's own #create
+    // handler, see addClipRow above) get a "パラメータを再利用" button once
+    // SunoController's clip-linker matches them to their take-history record.
+    const firstClipRows = page.locator('[data-testid="clip-row"]', { hasText: 'Demo Workspace (ARIA) 1' });
+    await expect(firstClipRows).toHaveCount(2);
+    const reuseBtn = firstClipRows.first().getByRole('button', { name: 'パラメータを再利用' });
+    await expect(reuseBtn).toBeVisible();
+    await expect(reuseBtn).toHaveCSS('color', 'rgb(234, 122, 59)');
+    await expect(firstClipRows.last().getByRole('button', { name: 'パラメータを再利用' })).toBeVisible();
+
+    const secondClipRows = page.locator('[data-testid="clip-row"]', { hasText: 'Demo Workspace (ARIA) 2' });
+    await expect(secondClipRows).toHaveCount(2);
+    await expect(secondClipRows.first().getByRole('button', { name: 'パラメータを再利用' })).toBeVisible();
+    await expect(secondClipRows.last().getByRole('button', { name: 'パラメータを再利用' })).toBeVisible();
+
+    // Clicking it re-applies the recorded More Options without touching Style.
+    const styleValueBeforeReuse = await page.locator('[data-testid="create-form-styles-wrapper"] textarea').inputValue();
+    await firstClipRows.first().getByRole('button', { name: 'パラメータを再利用' }).click();
+    await expect(page.locator('[data-testid="create-form-styles-wrapper"] textarea')).toHaveValue(styleValueBeforeReuse);
+
+    // Export downloads the live settings (including the two take-history
+    // entries just recorded) as a JSON backup file.
+    await sidebarButton.click();
+    await gotoTab('バックアップ');
+    await expect(dialog.getByRole('heading', { name: 'バックアップ' })).toBeVisible();
+    const downloadPromise = page.waitForEvent('download');
+    await dialog.getByRole('button', { name: 'エクスポート' }).click();
+    const download = await downloadPromise;
+    const exportPath = await download.path();
+    expect(exportPath).toBeTruthy();
+    const exported = JSON.parse(await readFile(exportPath!, 'utf-8'));
+    expect(exported.schemaVersion).toBe(2);
+    expect(exported.optionPresets).toHaveLength(1);
+    expect(exported.takeHistory.length).toBeGreaterThanOrEqual(2);
+
+    // Import replaces the entire stored schema with the chosen file, after
+    // a confirm() the user must accept.
+    const importPath = join(profile, 'import-backup.json');
+    await writeFile(importPath, JSON.stringify({
+      schemaVersion: 2, masteringPrompts: [], optionPresets: [], autoTitleEnabled: false, takeHistory: [],
+    }));
+    page.once('dialog', (nativeDialog) => void nativeDialog.accept());
+    await dialog.locator('input[type="file"]').setInputFiles(importPath);
+    await expect(dialog.getByText('設定を読み込みました。')).toBeVisible();
+    await gotoTab('テイク履歴');
+    await expect(dialog.getByRole('heading', { name: 'テイク履歴' })).toBeVisible();
+    await expect(dialog.getByText('まだ記録がありません。')).toBeVisible();
   } finally {
     await context?.close();
     await new Promise<void>((resolveClose, rejectClose) => server.close((error) => error ? rejectClose(error) : resolveClose()));

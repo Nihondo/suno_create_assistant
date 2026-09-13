@@ -1,10 +1,18 @@
 import { DEFAULT_TITLE_FORMAT } from '../domain/logic';
-import { DEFAULT_LYRICS_TAGS, type MasteringPrompt, type OtherOptionsPreset, type StorageSchemaV1 } from '../domain/models';
+import {
+  CURRENT_SCHEMA_VERSION,
+  DEFAULT_LYRICS_TAGS,
+  DEFAULT_TAKE_HISTORY_LIMIT,
+  type MasteringPrompt,
+  type OtherOptionsPreset,
+  type StorageSchema,
+  type TakeRecord,
+} from '../domain/models';
 
 const STORAGE_KEY = 'sunoCreateAssistant';
 
-const defaults = (): StorageSchemaV1 => ({
-  schemaVersion: 1,
+const defaults = (): StorageSchema => ({
+  schemaVersion: CURRENT_SCHEMA_VERSION,
   masteringPrompts: [],
   optionPresets: [],
   autoTitleEnabled: false,
@@ -12,36 +20,103 @@ const defaults = (): StorageSchemaV1 => ({
   takeNumbers: {},
   closeDisclosuresOnAdvanced: true,
   lyricsTags: [...DEFAULT_LYRICS_TAGS],
+  takeHistory: [],
+  takeHistoryLimit: DEFAULT_TAKE_HISTORY_LIMIT,
 });
 
-function isSchema(value: unknown): value is StorageSchemaV1 {
-  return !!value && typeof value === 'object' && (value as StorageSchemaV1).schemaVersion === 1
-    && Array.isArray((value as StorageSchemaV1).masteringPrompts)
-    && Array.isArray((value as StorageSchemaV1).optionPresets)
-    && typeof (value as StorageSchemaV1).autoTitleEnabled === 'boolean';
+// The minimal shape shared by every schema version so far - fields present
+// since v1 that every migration step is required to carry forward.
+interface KnownStorageShape {
+  schemaVersion: number;
+  masteringPrompts: unknown;
+  optionPresets: unknown;
+  autoTitleEnabled: unknown;
 }
 
-export async function readStorage(): Promise<StorageSchemaV1> {
+function isKnownStorageShape(value: unknown): value is KnownStorageShape {
+  return !!value && typeof value === 'object'
+    && typeof (value as KnownStorageShape).schemaVersion === 'number'
+    && Array.isArray((value as KnownStorageShape).masteringPrompts)
+    && Array.isArray((value as KnownStorageShape).optionPresets)
+    && typeof (value as KnownStorageShape).autoTitleEnabled === 'boolean';
+}
+
+// One step per version, keyed by the version it upgrades *from*. Each step
+// must only add/rename fields - never drop data the user already has.
+const migrations: Record<number, (value: Record<string, unknown>) => Record<string, unknown>> = {
+  1: (value) => ({ ...value, schemaVersion: 2, takeHistory: [] }),
+};
+
+// Walks a possibly-stale (or possibly-future) stored value up to the current
+// schema version. A version older than CURRENT is migrated step by step. A
+// version *newer* than CURRENT (written by a future build of the extension)
+// is deliberately passed through unchanged rather than reset to defaults -
+// resetting it would silently destroy a newer install's data the moment an
+// older build (or a downgrade) reads it. Returns undefined only when the
+// value does not even match the shape every known version shares, e.g. it
+// is missing, corrupted, or predates schemaVersion entirely.
+function migrate(value: unknown): StorageSchema | undefined {
+  if (!isKnownStorageShape(value)) return undefined;
+  let current: Record<string, unknown> = value as unknown as Record<string, unknown>;
+  while (typeof current.schemaVersion === 'number' && current.schemaVersion < CURRENT_SCHEMA_VERSION) {
+    const step = migrations[current.schemaVersion as number];
+    if (!step) break; // no known path forward - stop migrating, keep what we have
+    current = step(current);
+  }
+  return current as unknown as StorageSchema;
+}
+
+export async function readStorage(): Promise<StorageSchema> {
   const value = (await chrome.storage.local.get(STORAGE_KEY))[STORAGE_KEY];
-  if (!isSchema(value)) return defaults();
+  const migrated = migrate(value);
+  if (!migrated) return defaults();
   return {
     ...defaults(),
-    ...value,
-    titleFormat: value.titleFormat || DEFAULT_TITLE_FORMAT,
-    takeNumbers: value.takeNumbers ?? {},
-    closeDisclosuresOnAdvanced: value.closeDisclosuresOnAdvanced ?? true,
-    lyricsTags: Array.isArray(value.lyricsTags) ? value.lyricsTags : [...DEFAULT_LYRICS_TAGS],
+    ...migrated,
+    titleFormat: migrated.titleFormat || DEFAULT_TITLE_FORMAT,
+    takeNumbers: migrated.takeNumbers ?? {},
+    closeDisclosuresOnAdvanced: migrated.closeDisclosuresOnAdvanced ?? true,
+    lyricsTags: Array.isArray(migrated.lyricsTags) ? migrated.lyricsTags : [...DEFAULT_LYRICS_TAGS],
+    takeHistory: Array.isArray(migrated.takeHistory) ? migrated.takeHistory : [],
+    takeHistoryLimit: migrated.takeHistoryLimit ?? DEFAULT_TAKE_HISTORY_LIMIT,
   };
 }
 
-export async function writeStorage(next: StorageSchemaV1): Promise<void> {
+export async function writeStorage(next: StorageSchema): Promise<void> {
   await chrome.storage.local.set({ [STORAGE_KEY]: next });
 }
 
-export async function updateStorage(mutator: (current: StorageSchemaV1) => StorageSchemaV1): Promise<StorageSchemaV1> {
+export async function updateStorage(mutator: (current: StorageSchema) => StorageSchema): Promise<StorageSchema> {
   const next = mutator(await readStorage());
   await writeStorage(next);
   return next;
+}
+
+// Replaces the entire stored schema, e.g. from an imported backup file.
+// Callers are responsible for passing something that has already been
+// through `migrate()` (see importBackup in this module) so a backup saved
+// by an older build of the extension is upgraded, not written back as-is.
+export async function replaceStorage(next: StorageSchema): Promise<void> {
+  await writeStorage(next);
+}
+
+// Parses and migrates a JSON backup (as produced by exportBackup) without
+// writing it. Returns undefined if the content does not match any known
+// schema shape, so callers can show an error instead of silently wiping the
+// user's current settings.
+export function parseBackup(json: string): StorageSchema | undefined {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(json);
+  } catch {
+    return undefined;
+  }
+  return migrate(parsed);
+}
+
+export async function exportBackup(includeTakeHistory = true): Promise<StorageSchema> {
+  const current = await readStorage();
+  return includeTakeHistory ? current : { ...current, takeHistory: [] };
 }
 
 export async function setAutoTitleEnabled(autoTitleEnabled: boolean): Promise<void> {
@@ -142,6 +217,58 @@ export async function savePreset(input: Omit<OtherOptionsPreset, 'id' | 'created
 
 export async function deletePreset(id: string): Promise<void> {
   await updateStorage((current) => ({ ...current, optionPresets: current.optionPresets.filter((item) => item.id !== id) }));
+}
+
+export async function appendTakeRecord(input: Omit<TakeRecord, 'id' | 'createdAt'>): Promise<TakeRecord> {
+  const entry: TakeRecord = { ...input, id: crypto.randomUUID(), createdAt: new Date().toISOString() };
+  await updateStorage((current) => {
+    const limit = current.takeHistoryLimit ?? DEFAULT_TAKE_HISTORY_LIMIT;
+    // Newest first; drop the oldest once over the limit.
+    const takeHistory = [entry, ...current.takeHistory].slice(0, Math.max(0, limit));
+    return { ...current, takeHistory };
+  });
+  return entry;
+}
+
+export async function linkTakeToClips(id: string, clipIds: string[]): Promise<void> {
+  await updateStorage((current) => ({
+    ...current,
+    takeHistory: current.takeHistory.map((record) => (record.id === id
+      ? { ...record, clipIds: [...new Set([...record.clipIds, ...clipIds])], linkedAt: new Date().toISOString() }
+      : record)),
+  }));
+}
+
+export async function findUnlinkedTakeRecords(): Promise<TakeRecord[]> {
+  const current = await readStorage();
+  return current.takeHistory.filter((record) => record.clipIds.length < 2);
+}
+
+export async function getTakeHistoryLimit(): Promise<number> {
+  const current = await readStorage();
+  return current.takeHistoryLimit ?? DEFAULT_TAKE_HISTORY_LIMIT;
+}
+
+export async function findTakeByClipId(clipId: string): Promise<TakeRecord | undefined> {
+  const current = await readStorage();
+  return current.takeHistory.find((record) => record.clipIds.includes(clipId));
+}
+
+export async function deleteTakeRecord(id: string): Promise<void> {
+  await updateStorage((current) => ({ ...current, takeHistory: current.takeHistory.filter((record) => record.id !== id) }));
+}
+
+export async function clearTakeHistory(): Promise<void> {
+  await updateStorage((current) => ({ ...current, takeHistory: [] }));
+}
+
+export async function setTakeHistoryLimit(limit: number): Promise<void> {
+  const clamped = Math.max(0, Math.floor(limit));
+  await updateStorage((current) => ({
+    ...current,
+    takeHistoryLimit: clamped,
+    takeHistory: current.takeHistory.slice(0, clamped),
+  }));
 }
 
 export function subscribeStorage(listener: () => void): () => void {

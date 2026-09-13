@@ -110,6 +110,23 @@ describe('SunoAdapter options mount anchor', () => {
     expect(adapter.optionsAnchor()).toBe(document.querySelector('[role="button"]'));
   });
 
+  it('ignores a workspace clip row\'s own "その他のオプション" context-menu button, even when it precedes the real heading in DOM order', () => {
+    // Each clip-row in the workspace clip list has a context-menu trigger
+    // with the identical aria-label as the "More Options" disclosure
+    // heading (confirmed from docs/alldom_ja.txt / alldom_en.txt). DOM
+    // order between the create form and the clip list is not a contract,
+    // so the clip-row's button is placed first here to prove the exclusion
+    // does not merely rely on document order.
+    document.body.innerHTML = `
+      <div data-testid="clip-row"><button aria-label="その他のオプション" aria-haspopup="menu">…</button></div>
+      <button aria-expanded="false">その他のオプション</button>
+      <button aria-label="すべてリセット"></button>
+    `;
+    const adapter = new SunoAdapter();
+    const realHeading = document.querySelectorAll('button')[1];
+    expect(adapter.optionHeading()).toBe(realHeading);
+  });
+
   it('notifies the listener when its own host is removed, so callers can restore it', async () => {
     // A mutation record cannot distinguish "we just moved this host" from
     // "Suno deleted it"; the extension needs the latter to reach the
@@ -150,13 +167,16 @@ function optionsPanelFixture(): string {
 describe('SunoAdapter.readOtherOptions', () => {
   it('returns a partial snapshot with the missing control listed as unreadable, instead of failing outright', async () => {
     // "スタイルの影響" is deliberately omitted to simulate a single relabeled
-    // or removed control; every other field must still be read.
+    // or removed control; every other field must still be read. The fixture
+    // also has no audio reference attached, so "オーディオの影響" is
+    // legitimately absent too (see the readOtherOptions comment on
+    // audioInfluence) - both are expected to land in unreadable.
     document.body.innerHTML = optionsPanelFixture();
     const adapter = new SunoAdapter();
     const result = await adapter.readOtherOptions();
 
     expect(result).toBeDefined();
-    expect(result!.unreadable).toEqual(['styleInfluence']);
+    expect(result!.unreadable).toEqual(['styleInfluence', 'audioInfluence']);
     expect(result!.snapshot.excludedStyles).toBe('');
     expect(result!.snapshot.weirdness).toBe(50);
     expect(result!.snapshot.variation).toBe(0);
@@ -259,6 +279,101 @@ describe('SunoAdapter.applyOtherOptions', () => {
 
     expect(result.applied).toContain('weirdness');
     expect(weirdnessSlider.getAttribute('aria-valuenow')).toBe('57');
+  });
+
+  function sliderReadoutFixture(initialValue: number): string {
+    // Confirmed on the live site: the "NN%" readout - and, once revealed,
+    // the editable <input> - are always the slider's own nextElementSibling.
+    return `
+      <section id="options"><div role="button" aria-expanded="true">その他のオプション</div>
+        <div role="slider" aria-label="奇抜さ" aria-valuenow="${initialValue}"></div><div class="readout">${initialValue}%</div>
+      </section>
+    `;
+  }
+
+  it('commits a slider value via the double-click readout + Enter fast path, without falling back to arrow stepping', async () => {
+    // Confirmed manually on the live site (double-click 奇抜さ's "NN%"
+    // readout, type a value, press Enter, click an unrelated toggle, wait
+    // ~1-2s): the committed value survives a subsequent unrelated field's
+    // mutation - unlike an earlier, reverted attempt that never pressed
+    // Enter (see the comment above trySliderFastCommit in adapter.ts).
+    document.body.innerHTML = sliderReadoutFixture(50);
+    const adapter = new SunoAdapter();
+    const panel = document.querySelector<HTMLElement>('#options')!;
+    const readout = panel.querySelector<HTMLElement>('.readout')!;
+    const slider = panel.querySelector<HTMLElement>('[role="slider"][aria-label="奇抜さ"]')!;
+    let arrowKeyDispatched = false;
+    slider.addEventListener('keydown', () => { arrowKeyDispatched = true; });
+
+    readout.addEventListener('dblclick', () => {
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.value = slider.getAttribute('aria-valuenow') ?? '';
+      input.addEventListener('keydown', (event) => {
+        if ((event as KeyboardEvent).key !== 'Enter') return;
+        slider.setAttribute('aria-valuenow', input.value);
+        input.replaceWith(readout);
+        readout.textContent = `${input.value}%`;
+      });
+      readout.replaceWith(input);
+    });
+
+    const result = await adapter.applyOtherOptions({ weirdness: 80 });
+
+    expect(result.applied).toContain('weirdness');
+    expect(panel.querySelector('[role="slider"][aria-label="奇抜さ"]')!.getAttribute('aria-valuenow')).toBe('80');
+    expect(arrowKeyDispatched).toBe(false);
+  });
+
+  it('falls back to arrow-key stepping when double-clicking the readout reveals no input', async () => {
+    document.body.innerHTML = sliderReadoutFixture(50);
+    const adapter = new SunoAdapter();
+    const panel = document.querySelector<HTMLElement>('#options')!;
+    const slider = panel.querySelector<HTMLElement>('[role="slider"][aria-label="奇抜さ"]')!;
+    slider.addEventListener('keydown', (event) => {
+      const current = Number(slider.getAttribute('aria-valuenow'));
+      const delta = (event as KeyboardEvent).key === 'ArrowRight' ? 1 : -1;
+      slider.setAttribute('aria-valuenow', String(current + delta));
+    });
+
+    const result = await adapter.applyOtherOptions({ weirdness: 53 });
+
+    expect(result.applied).toContain('weirdness');
+    expect(slider.getAttribute('aria-valuenow')).toBe('53');
+  });
+
+  it('falls back to arrow-key stepping when the fast-commit path reveals an input but the value is never actually reflected back', async () => {
+    // Guards against trusting a "looks committed" result: if Enter is
+    // dispatched but aria-valuenow does not end up matching afterward,
+    // trySliderFastCommit() must report failure rather than a false
+    // success, so setSlider() falls through to the proven arrow-key path.
+    document.body.innerHTML = sliderReadoutFixture(50);
+    const adapter = new SunoAdapter();
+    const panel = document.querySelector<HTMLElement>('#options')!;
+    const readout = panel.querySelector<HTMLElement>('.readout')!;
+    const slider = panel.querySelector<HTMLElement>('[role="slider"][aria-label="奇抜さ"]')!;
+    let arrowKeyDispatched = false;
+    slider.addEventListener('keydown', (event) => {
+      arrowKeyDispatched = true;
+      const current = Number(slider.getAttribute('aria-valuenow'));
+      const delta = (event as KeyboardEvent).key === 'ArrowRight' ? 1 : -1;
+      slider.setAttribute('aria-valuenow', String(current + delta));
+    });
+
+    readout.addEventListener('dblclick', () => {
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.value = slider.getAttribute('aria-valuenow') ?? '';
+      // Deliberately never updates aria-valuenow, simulating a commit that
+      // silently does not take effect.
+      readout.replaceWith(input);
+    });
+
+    const result = await adapter.applyOtherOptions({ weirdness: 55 });
+
+    expect(result.applied).toContain('weirdness');
+    expect(slider.getAttribute('aria-valuenow')).toBe('55');
+    expect(arrowKeyDispatched).toBe(true);
   });
 });
 
@@ -727,6 +842,136 @@ describe('SunoAdapter getAudioTitle', () => {
   });
 });
 
+function clipRowFixture(songId: string, title: string): string {
+  // Structure confirmed from docs/alldom_ja.txt / docs/showmore.txt - the
+  // <a href="/song/<uuid>"> is the only DOM-visible way to resolve a
+  // clip's title to its song id.
+  return `
+    <div data-testid="clip-row" role="group" aria-label="${title}" data-clip-status="complete">
+      <div><a href="/song/${songId}">${title}</a></div>
+      <div>
+        <button aria-label="クリップに「いいね」"></button>
+        <button aria-label="クリップを低評価"></button>
+        <button aria-label="クリップをワークスペースに固定"></button>
+        <button aria-label="クリップを共有"></button>
+      </div>
+    </div>
+  `;
+}
+
+describe('SunoAdapter.clipRows', () => {
+  it('extracts title, song id, and status from each clip row', () => {
+    document.body.innerHTML = `
+      ${clipRowFixture('11111111-1111-1111-1111-111111111111', 'First Song')}
+      ${clipRowFixture('22222222-2222-2222-2222-222222222222', 'Second Song')}
+    `;
+    const adapter = new SunoAdapter();
+    const rows = adapter.clipRows();
+    expect(rows).toHaveLength(2);
+    expect(rows[0]).toMatchObject({ title: 'First Song', songId: '11111111-1111-1111-1111-111111111111', status: 'complete' });
+    expect(rows[1]).toMatchObject({ title: 'Second Song', songId: '22222222-2222-2222-2222-222222222222', status: 'complete' });
+  });
+
+  it('excludes a row with no resolvable song id', () => {
+    document.body.innerHTML = `
+      <div data-testid="clip-row" role="group" aria-label="Still generating" data-clip-status="pending"></div>
+    `;
+    const adapter = new SunoAdapter();
+    expect(adapter.clipRows()).toEqual([]);
+  });
+
+  it('anchors to the parent of the "like" action button, not the row itself', () => {
+    document.body.innerHTML = clipRowFixture('11111111-1111-1111-1111-111111111111', 'First Song');
+    const adapter = new SunoAdapter();
+    const [row] = adapter.clipRows();
+    const likeButton = document.querySelector('[aria-label="クリップに「いいね」"]')!;
+    expect(adapter.clipRowActionAnchor(row!.row)).toBe(likeButton.parentElement);
+  });
+
+  it('places action after the share button in the action container (between share and publish)', () => {
+    document.body.innerHTML = `
+      <div data-testid="clip-row" role="group" aria-label="First Song" data-clip-status="complete">
+        <div><a href="/song/11111111-1111-1111-1111-111111111111">First Song</a></div>
+        <div id="btn-container">
+          <button aria-label="クリップに「いいね」"></button>
+          <button aria-label="クリップを低評価"></button>
+          <button aria-label="クリップをワークスペースに固定"></button>
+          <button aria-label="クリップを共有"></button>
+          <div class="publish-wrapper">
+            <button type="button">公開</button>
+          </div>
+        </div>
+      </div>
+    `;
+    const adapter = new SunoAdapter();
+    const [row] = adapter.clipRows();
+    const shareButton = document.querySelector('[aria-label="クリップを共有"]')!;
+    expect(adapter.clipRowActionPlacement(row!.row)).toEqual({
+      anchor: shareButton,
+      position: 'afterend',
+    });
+  });
+
+  it('places action after the share button when publish button is absent', () => {
+    document.body.innerHTML = `
+      <div data-testid="clip-row" role="group" aria-label="First Song" data-clip-status="complete">
+        <div><a href="/song/11111111-1111-1111-1111-111111111111">First Song</a></div>
+        <div>
+          <button aria-label="クリップに「いいね」"></button>
+          <button aria-label="曲リンクをコピー"></button>
+        </div>
+      </div>
+    `;
+    const adapter = new SunoAdapter();
+    const [row] = adapter.clipRows();
+    const shareButton = document.querySelector('[aria-label="曲リンクをコピー"]')!;
+    expect(adapter.clipRowActionPlacement(row!.row)).toEqual({
+      anchor: shareButton,
+      position: 'afterend',
+    });
+  });
+
+  it('falls back to action container end when neither share button nor like button is found', () => {
+    document.body.innerHTML = `
+      <div data-testid="clip-row" role="group" aria-label="First Song" data-clip-status="complete">
+        <div><a href="/song/11111111-1111-1111-1111-111111111111">First Song</a></div>
+        <div id="btn-container">
+          <button>Random Action</button>
+        </div>
+      </div>
+    `;
+    const adapter = new SunoAdapter();
+    const [row] = adapter.clipRows();
+    expect(adapter.clipRowActionPlacement(row!.row)).toBeUndefined();
+  });
+});
+
+describe('SunoAdapter.getModelName', () => {
+  it('reads the model name from the aria-expanded selector button', () => {
+    document.body.innerHTML = `
+      <button aria-expanded="false">v6</button>
+      <div role="button" aria-expanded="true">その他のオプション</div>
+    `;
+    const adapter = new SunoAdapter();
+    expect(adapter.getModelName()).toBe('v6');
+  });
+
+  it('returns an empty string when no model selector can be found', () => {
+    document.body.innerHTML = `<div role="button" aria-expanded="true">その他のオプション</div>`;
+    const adapter = new SunoAdapter();
+    expect(adapter.getModelName()).toBe('');
+  });
+
+  it('ignores a clip row\'s own aria-expanded elements', () => {
+    document.body.innerHTML = `
+      <div data-testid="clip-row"><button aria-expanded="false">v6-mini</button></div>
+      <button aria-expanded="false">v6</button>
+    `;
+    const adapter = new SunoAdapter();
+    expect(adapter.getModelName()).toBe('v6');
+  });
+});
+
 describe('SunoAdapter English DOM localization (docs/alldom_en.txt)', () => {
   it('detects English More Options heading and reset button', () => {
     document.documentElement.lang = 'en';
@@ -832,6 +1077,7 @@ describe('SunoAdapter English DOM localization (docs/alldom_en.txt)', () => {
             <div role="slider" aria-label="Weirdness" aria-valuenow="65"></div>
             <div role="slider" aria-label="Style Influence" aria-valuenow="80"></div>
             <div role="slider" aria-label="Variety" aria-valuenow="10"></div>
+            <div role="slider" aria-label="Audio Influence" aria-valuenow="70"></div>
           </div>
           <div>
             Personalize
@@ -857,6 +1103,7 @@ describe('SunoAdapter English DOM localization (docs/alldom_en.txt)', () => {
       weirdness: 65,
       styleInfluence: 80,
       variation: 10,
+      audioInfluence: 70,
       personalization: { enabled: true, tasteName: 'My Taste' },
     });
   });
@@ -896,6 +1143,7 @@ describe('SunoAdapter English DOM localization (docs/alldom_en.txt)', () => {
             <div role="slider" aria-label="Weirdness" aria-valuenow="50"></div>
             <div role="slider" aria-label="Style Influence" aria-valuenow="50"></div>
             <div role="slider" aria-label="Variety" aria-valuenow="0"></div>
+            <div role="slider" aria-label="Audio Influence" aria-valuenow="70"></div>
           </div>
           <div>
             Personalize
@@ -923,6 +1171,7 @@ describe('SunoAdapter English DOM localization (docs/alldom_en.txt)', () => {
       weirdness: 50,
       styleInfluence: 50,
       variation: 0,
+      audioInfluence: 70,
     });
 
     expect(result.skipped).toEqual([]);
