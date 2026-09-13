@@ -187,7 +187,6 @@
 
 .suno-assistant__button:hover,
 .suno-assistant__select:hover { background: var(--sca-bg-control-hover); }
-.suno-assistant__button--clear { background: transparent; color: var(--sca-fg-secondary); }
 
 .suno-assistant__menu {
   position: fixed;
@@ -220,10 +219,15 @@
 
 .suno-assistant__menu button:hover,
 .suno-assistant__menu button[aria-selected="true"] { background: var(--sca-bg-menu-hover); }
-/* Pushes a settings gear to the right edge of its row (styles, presets, or
-   the lyrics tag palette), regardless of how much width the controls
-   before it take up. */
+/* Pushes a lone settings gear to the right edge of its row (the lyrics tag
+   palette, or the title row's own gear), regardless of how much width the
+   controls before it take up. */
 .suno-assistant__settings-button { margin-left: auto; }
+/* Styles/presets rows instead pair their clear/save action with the
+   settings gear: wrapping both in this flex group lets them sit closer to
+   each other (4px) than the row's own 8px gap, while still being pushed
+   to the row's right edge together via margin-left: auto on the group. */
+.suno-assistant__icon-group { display: flex; align-items: center; gap: 4px; margin-left: auto; }
 .suno-assistant__status { flex-basis: 100%; color: var(--sca-fg-secondary); font-size: 12px; }
 .suno-assistant__status--error { color: var(--sca-error); }
 

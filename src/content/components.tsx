@@ -54,6 +54,29 @@ function GearIcon({ className, style }: { className?: string; style?: React.CSSP
   );
 }
 
+// Suno's own trash-can glyph, confirmed identical (same `<path>` data) on
+// suno.com/create between the saved-styles dialog's "削除: <name>" button and
+// a workspace clip row's "ゴミ箱へ移動" context-menu item - not a guessed
+// icon-set shape.
+function TrashIcon({ className, style }: { className?: string; style?: React.CSSProperties }) {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="currentColor" className={className} style={style}>
+      <path d="M7.308 20.5a1.74 1.74 0 0 1-1.277-.531 1.74 1.74 0 0 1-.531-1.277V6h-.25a.73.73 0 0 1-.534-.216.73.73 0 0 1-.216-.534q0-.32.216-.535A.73.73 0 0 1 5.25 4.5H9q0-.368.259-.626a.85.85 0 0 1 .625-.259h4.232q.367 0 .625.259A.85.85 0 0 1 15 4.5h3.75q.318 0 .534.216a.73.73 0 0 1 .216.534q0 .32-.216.534A.73.73 0 0 1 18.75 6h-.25v12.692q0 .746-.531 1.277a1.74 1.74 0 0 1-1.277.531zm2.846-3.5q.319 0 .534-.215a.73.73 0 0 0 .216-.535v-7.5a.73.73 0 0 0-.216-.535.73.73 0 0 0-.535-.215.73.73 0 0 0-.534.215.73.73 0 0 0-.215.535v7.5q0 .318.216.535a.73.73 0 0 0 .534.215m3.693 0q.318 0 .534-.215a.73.73 0 0 0 .215-.535v-7.5a.73.73 0 0 0-.216-.535.73.73 0 0 0-.534-.215.73.73 0 0 0-.534.215.73.73 0 0 0-.216.535v7.5q0 .318.216.535a.73.73 0 0 0 .535.215" />
+    </svg>
+  );
+}
+
+// Suno has no native "bookmark" feature to measure, so this stays in the
+// same icon family GearIcon already uses (Material Icons Filled) rather
+// than guessing a shape from an unrelated icon set.
+function BookmarkIcon({ className, style }: { className?: string; style?: React.CSSProperties }) {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="currentColor" className={className} style={style}>
+      <path d="M17 3H7c-1.1 0-2 .9-2 2v16l7-3 7 3V5c0-1.1-.9-2-2-2z" />
+    </svg>
+  );
+}
+
 // Suno's own dropdown-trigger chevron, measured from its role="combobox"
 // buttons (the workspace sort/list-view controls, aria-label="新着"/"リスト"
 // in docs/showmore.txt) rather than the model selector's menu-trigger icon
@@ -167,10 +190,14 @@ export function StyleControls({ controller }: { controller: SunoController }) {
   return <div className="suno-assistant suno-assistant--styles" aria-label={ui.aria.styleSettings}>
     <Dropdown label={ui.style} valueLabel={state.stylesLoading ? ui.loading : styleLabel} items={styles} disabled={state.stylesLoading} onOpen={() => controller.refreshStyles()} onSelect={(style) => void controller.selectStyle(style)} />
     <Dropdown label={ui.mastering} valueLabel={state.mastering?.name ?? ui.unselected} items={masteringItems} onSelect={(mastering) => void controller.selectMastering(mastering)} />
-    <button type="button" className="suno-assistant__button suno-assistant__button--clear" onClick={() => controller.clearStyleAndMastering()}>{ui.clear}</button>
-    <button type="button" className="suno-assistant__tag-button suno-assistant__tag-button--settings suno-assistant__settings-button" aria-label={ui.aria.editMasterings} title={ui.aria.editMasterings} onClick={() => controller.openSettings('masterings')}>
-      <GearIcon />
-    </button>
+    <div className="suno-assistant__icon-group">
+      <button type="button" className="suno-assistant__tag-button suno-assistant__tag-button--settings" aria-label={ui.clear} title={ui.clear} onClick={() => controller.clearStyleAndMastering()}>
+        <TrashIcon />
+      </button>
+      <button type="button" className="suno-assistant__tag-button suno-assistant__tag-button--settings" aria-label={ui.aria.editMasterings} title={ui.aria.editMasterings} onClick={() => controller.openSettings('masterings')}>
+        <GearIcon />
+      </button>
+    </div>
     {state.styleFeedback && <output className={`suno-assistant__status ${state.styleFeedback.kind === 'error' ? 'suno-assistant__status--error' : ''}`}>{state.styleFeedback.message}</output>}
   </div>;
 }
@@ -185,10 +212,14 @@ export function PresetControls({ controller }: { controller: SunoController }) {
   ];
   return <div className="suno-assistant suno-assistant--presets" aria-label={ui.aria.presetSettings}>
     <Dropdown label={ui.preset} valueLabel={state.preset?.name ?? ui.unselected} items={items} onSelect={(preset) => void controller.applyPreset(preset)} />
-    <button type="button" className="suno-assistant__button" onClick={() => controller.openPresetCreation()}>{ui.savePreset}</button>
-    <button type="button" className="suno-assistant__tag-button suno-assistant__tag-button--settings suno-assistant__settings-button" aria-label={ui.aria.editPresets} title={ui.aria.editPresets} onClick={() => controller.openSettings('presets')}>
-      <GearIcon />
-    </button>
+    <div className="suno-assistant__icon-group">
+      <button type="button" className="suno-assistant__tag-button suno-assistant__tag-button--settings" aria-label={ui.savePreset} title={ui.savePreset} onClick={() => controller.openPresetCreation()}>
+        <BookmarkIcon />
+      </button>
+      <button type="button" className="suno-assistant__tag-button suno-assistant__tag-button--settings" aria-label={ui.aria.editPresets} title={ui.aria.editPresets} onClick={() => controller.openSettings('presets')}>
+        <GearIcon />
+      </button>
+    </div>
     {state.presetFeedback && <output className={`suno-assistant__status ${state.presetFeedback.kind === 'error' ? 'suno-assistant__status--error' : ''}`}>{state.presetFeedback.message}</output>}
   </div>;
 }
