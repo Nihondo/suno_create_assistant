@@ -1,4 +1,5 @@
-import type { MasteringPrompt, OtherOptionsPreset, SavedStyle } from './models';
+import { optionKeys, type MasteringPrompt, type OtherOptionsKey, type OtherOptionsPreset, type OtherOptionsSnapshot, type SavedStyle } from './models';
+import { getUiMessages, type SupportedLanguage } from '../locales';
 
 export function composePrompt(style?: string, mastering?: string): string | undefined {
   const value = [style?.trim(), mastering?.trim()].filter(Boolean).join('\n');
@@ -44,6 +45,18 @@ export function autoTitle(
   return result.replace(/\s+/g, ' ').trim();
 }
 
+// Strips fields the adapter could not read (see OtherOptionsCapture.unreadable)
+// out of a full snapshot, rather than storing whatever default value
+// emptyOtherOptions() seeded them with as if it had genuinely been read.
+// Shared by preset creation (SettingsDialog.tsx) and take-history recording
+// (SunoController.executeCreateWithTake) - both start from the same
+// SunoAdapter.readOtherOptions() result.
+export function readableOptionFields(snapshot: OtherOptionsSnapshot, unreadable: OtherOptionsKey[]): Partial<OtherOptionsSnapshot> {
+  return Object.fromEntries(optionKeys
+    .filter((key) => !unreadable.includes(key))
+    .map((key) => [key, snapshot[key]])) as Partial<OtherOptionsSnapshot>;
+}
+
 export function nextBaseAfterManualEdit(value: string, mastering?: MasteringPrompt): string {
   if (!mastering?.prompt) return value;
   const suffix = `\n${mastering.prompt}`;
@@ -54,11 +67,13 @@ export function validateUniqueName(
   value: string,
   entries: Array<MasteringPrompt | OtherOptionsPreset>,
   ignoredId?: string,
+  lang?: SupportedLanguage,
 ): string | undefined {
+  const ui = getUiMessages(lang);
   const normalized = value.trim();
-  if (!normalized) return '名前を入力してください。';
+  if (!normalized) return ui.feedback.nameRequired;
   if (entries.some((entry) => entry.id !== ignoredId && entry.name.trim().toLocaleLowerCase() === normalized.toLocaleLowerCase())) {
-    return '同じ名前が既にあります。';
+    return ui.feedback.nameDuplicated;
   }
   return undefined;
 }

@@ -3,6 +3,7 @@ import { emptyOtherOptions } from '../domain/models';
 import { calculateTagInsertion, normalizedInsertTag, savedStyleId } from '../domain/logic';
 import type { Placement } from '../content/mount';
 import {
+  getAllClipRowLikeLabels,
   getAllDestinationKeywords,
   getAllExcludedStylesPlaceholders,
   getAllHostLocales,
@@ -49,8 +50,17 @@ function optionHeading(): HTMLElement | undefined {
   // The disclosure trigger is a `<div role="button" tabindex="0">` on the
   // live site, not a `<button>` - confirmed from production DOM. Match
   // both so a future markup change to a real button keeps working too.
+  //
+  // Each clip row in the workspace clip list has its own "その他のオプション"
+  // / "More options" context-menu trigger button with the exact same
+  // aria-label as the disclosure heading we want here. It must be excluded
+  // - not just skipped by taking .at(0) - because DOM order between the
+  // create form and the clip list is an implementation detail, not a
+  // contract; relying on document order alone would silently break the
+  // moment Suno reorders the page.
   return [...document.querySelectorAll<HTMLElement>('button, [role="button"]')]
     .filter((element) => {
+      if (element.closest('[data-testid="clip-row"]')) return false;
       if (visible([element]) !== element) return false;
       const raw = text(element);
       const aria = element.getAttribute('aria-label') ?? '';
@@ -515,6 +525,52 @@ function dispatchEnter(target: HTMLElement): boolean {
   return success;
 }
 
+// Confirmed on the live site (docs/showmore.txt): the model selector is a
+// `<button aria-expanded="…">` whose accessible text is just the model
+// name, e.g. "v6". Nothing else with `aria-expanded` on the create form
+// starts with "v" followed by a digit, so this narrow pattern is enough
+// without needing a more specific (and more fragile) selector.
+function modelSelectorButton(): HTMLElement | undefined {
+  const candidates = [...document.querySelectorAll<HTMLElement>('button[aria-expanded], [role="button"][aria-expanded]')]
+    .filter((el) => !el.closest('suno-create-assistant, [data-testid="clip-row"]'));
+  return visible(candidates.filter((el) => /^v\d/i.test(text(el).trim())));
+}
+
+export interface ClipRowInfo {
+  row: HTMLElement;
+  title: string;
+  songId: string;
+  status: string;
+}
+
+// Each row is `<div data-testid="clip-row" role="group" aria-label="<title>"
+// data-clip-status="...">` containing exactly one `<a href="/song/<uuid>">`
+// - confirmed in docs/alldom_ja.txt, alldom_en.txt, and docs/showmore.txt.
+// This is the only DOM-visible way to resolve a clip's title to its song id
+// without touching a private API.
+function findClipRows(): ClipRowInfo[] {
+  return [...document.querySelectorAll<HTMLElement>('[data-testid="clip-row"]')]
+    .map((row) => {
+      const title = row.getAttribute('aria-label') ?? '';
+      const href = row.querySelector<HTMLAnchorElement>('a[href^="/song/"]')?.getAttribute('href') ?? '';
+      const songId = href.match(/\/song\/([^/?#]+)/)?.[1] ?? '';
+      const status = row.getAttribute('data-clip-status') ?? '';
+      return { row, title, songId, status };
+    })
+    .filter((info): info is ClipRowInfo => !!info.songId);
+}
+
+// Anchor for mounting a per-clip control (e.g. "reuse parameters") next to
+// Suno's own row actions, rather than inside its context menu - the menu is
+// Base UI portal-rendered and was not observed in any DOM dump, so it is
+// unconfirmed and brittle; the visible action-button row is not.
+function clipRowActionAnchor(row: HTMLElement): HTMLElement | undefined {
+  const likeLabels = getAllClipRowLikeLabels();
+  const likeButton = [...row.querySelectorAll<HTMLElement>('button, [role="button"]')]
+    .find((btn) => likeLabels.some((l) => (btn.getAttribute('aria-label') ?? '').includes(l)));
+  return likeButton?.parentElement ?? undefined;
+}
+
 export class SunoAdapter {
   private isInsertingLyricsTag = false;
 
@@ -899,6 +955,18 @@ export class SunoAdapter {
     return audioTitle();
   }
 
+  getModelName(): string {
+    return text(modelSelectorButton());
+  }
+
+  clipRows(): ClipRowInfo[] {
+    return findClipRows();
+  }
+
+  clipRowActionAnchor(row: HTMLElement): HTMLElement | undefined {
+    return clipRowActionAnchor(row);
+  }
+
   optionsAnchor(): HTMLElement | undefined {
     // The accordion body and even its outer sibling can be replaced by Suno.
     // The header row (heading plus its reset action) is persistent, so
@@ -963,6 +1031,11 @@ export class SunoAdapter {
 
     const variationSlider = slider(panel, 'variation');
     readField('variation', !!variationSlider, () => { snapshot.variation = Number(variationSlider!.getAttribute('aria-valuenow') ?? snapshot.variation); });
+
+    // Only present once an audio reference (upload/remix) is attached, so
+    // this legitimately falls into `unreadable` the rest of the time.
+    const audioInfluenceSlider = slider(panel, 'audioInfluence');
+    readField('audioInfluence', !!audioInfluenceSlider, () => { snapshot.audioInfluence = Number(audioInfluenceSlider!.getAttribute('aria-valuenow') ?? snapshot.audioInfluence); });
 
     const personalizationRow = rowFor(panel, 'personalization');
     readField('personalization', !!personalizationRow, () => {
@@ -1100,6 +1173,10 @@ export class SunoAdapter {
     }
     if (partial.variation !== undefined) {
       success('variation', await setSlider('variation', partial.variation));
+      await settle();
+    }
+    if (partial.audioInfluence !== undefined) {
+      success('audioInfluence', await setSlider('audioInfluence', partial.audioInfluence));
       await settle();
     }
     if (partial.personalization !== undefined) {

@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
-import { describe, expect, it, vi } from 'vitest';
-import type { OtherOptionsPreset } from '../src/domain/models';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { emptyOtherOptions, type OtherOptionsPreset, type TakeRecord } from '../src/domain/models';
 import { type ControllerState, SunoController } from '../src/suno/controller';
+import { readStorage } from '../src/storage/repository';
 
 const storageMock: Record<string, unknown> = {};
 globalThis.chrome = {
@@ -16,6 +17,10 @@ globalThis.chrome = {
     },
   },
 } as unknown as typeof chrome;
+
+beforeEach(() => {
+  for (const key of Object.keys(storageMock)) delete storageMock[key];
+});
 
 const preset: OtherOptionsPreset = {
   id: 'preset-1', name: '標準', fields: {}, createdAt: '', updatedAt: '',
@@ -176,6 +181,108 @@ describe('SunoController executeCreateWithTake and title format', () => {
   });
 });
 
+describe('SunoController take history recording', () => {
+  function mockAdapterForCreate(controller: SunoController, title: string) {
+    vi.spyOn(controller.adapter, 'getCreateButton').mockReturnValue(document.createElement('button'));
+    vi.spyOn(controller.adapter, 'getTitle').mockReturnValue(title);
+    vi.spyOn(controller.adapter, 'setTitle').mockReturnValue(true);
+    vi.spyOn(controller.adapter, 'triggerCreate').mockReturnValue(true);
+    vi.spyOn(controller.adapter, 'readOtherOptions').mockResolvedValue({
+      snapshot: { ...emptyOtherOptions(), weirdness: 70, styleInfluence: 80 },
+      unreadable: ['audioInfluence'],
+    });
+    vi.spyOn(controller.adapter, 'getStylePrompt').mockReturnValue('lofi chill synths');
+    vi.spyOn(controller.adapter, 'getModelName').mockReturnValue('v6');
+  }
+
+  it('records the submitted parameters when the {{TAKE}} placeholder is used', async () => {
+    const controller = new SunoController();
+    mockAdapterForCreate(controller, 'Workspace (ARIA) {{TAKE}}');
+
+    const created = await controller.executeCreateWithTake();
+    expect(created).toBe(true);
+
+    const stored = await readStorage();
+    expect(stored.takeHistory).toHaveLength(1);
+    const record = stored.takeHistory[0]!;
+    expect(record.title).toBe('Workspace (ARIA) 1');
+    expect(record.takeKey).toBe('Workspace (ARIA)');
+    expect(record.takeNumber).toBe(1);
+    expect(record.stylePrompt).toBe('lofi chill synths');
+    expect(record.model).toBe('v6');
+    expect(record.options).toEqual({
+      excludedStyles: '', vocalGender: 'none', duration: { mode: 'auto' }, maxMode: false,
+      weirdness: 70, styleInfluence: 80, variation: 0, personalization: { enabled: false },
+    });
+    expect(record.unreadable).toEqual(['audioInfluence']);
+    expect(record.clipIds).toEqual([]);
+  });
+
+  it('also records a history entry when there is no {{TAKE}} placeholder', async () => {
+    const controller = new SunoController();
+    mockAdapterForCreate(controller, 'Custom Song Title');
+
+    await controller.executeCreateWithTake();
+
+    const stored = await readStorage();
+    expect(stored.takeHistory).toHaveLength(1);
+    expect(stored.takeHistory[0]!.title).toBe('Custom Song Title');
+    expect(stored.takeHistory[0]!.takeNumber).toBeUndefined();
+  });
+
+  it('does not record anything when triggerCreate reports failure', async () => {
+    const controller = new SunoController();
+    mockAdapterForCreate(controller, 'Custom Song Title');
+    vi.spyOn(controller.adapter, 'triggerCreate').mockReturnValue(false);
+
+    await controller.executeCreateWithTake();
+
+    const stored = await readStorage();
+    expect(stored.takeHistory).toEqual([]);
+  });
+
+  it('does not record anything when no create button can be found', async () => {
+    const controller = new SunoController();
+    vi.spyOn(controller.adapter, 'getCreateButton').mockReturnValue(undefined);
+
+    await controller.executeCreateWithTake();
+
+    const stored = await readStorage();
+    expect(stored.takeHistory).toEqual([]);
+  });
+});
+
+describe('SunoController.reuseTake', () => {
+  it('applies only the recorded More Options, leaving the Style field untouched', async () => {
+    const controller = new SunoController();
+    const applySpy = vi.spyOn(controller.adapter, 'applyOtherOptions').mockResolvedValue({ applied: ['weirdness'], skipped: [] });
+    const setStyleSpy = vi.spyOn(controller.adapter, 'setStylePrompt');
+
+    const record: TakeRecord = {
+      id: 't1', createdAt: '2024-01-01T00:00:00.000Z', title: 'x',
+      stylePrompt: 'should not be written back to Suno',
+      options: { weirdness: 70 }, unreadable: [], clipIds: [],
+    };
+
+    const result = await controller.reuseTake(record);
+
+    expect(applySpy).toHaveBeenCalledWith({ weirdness: 70 });
+    expect(setStyleSpy).not.toHaveBeenCalled();
+    expect(result).toEqual({ applied: ['weirdness'], skipped: [] });
+  });
+
+  it('returns undefined instead of throwing when applyOtherOptions rejects', async () => {
+    const controller = new SunoController();
+    vi.spyOn(controller.adapter, 'applyOtherOptions').mockRejectedValue(new Error('boom'));
+
+    const record: TakeRecord = {
+      id: 't1', createdAt: '', title: 'x', stylePrompt: '', options: {}, unreadable: [], clipIds: [],
+    };
+    const result = await controller.reuseTake(record);
+    expect(result).toBeUndefined();
+  });
+});
+
 describe('SunoController closeDisclosuresOnAdvanced', () => {
   it('updates state and storage when setCloseDisclosuresOnAdvanced is called', async () => {
     const controller = new SunoController();
@@ -197,6 +304,43 @@ describe('SunoController closeDisclosuresOnAdvanced', () => {
 
     await controller.setCloseDisclosuresOnAdvanced(true);
     expect(closeSpy).toHaveBeenCalled();
+  });
+});
+
+describe('SunoController handleDocumentClick localization', () => {
+  it('marks styles dirty when an English "Delete" saved-style action is clicked, not only the Japanese label', async () => {
+    const controller = new SunoController();
+    await controller.initialize();
+    const current = watch(controller);
+    expect(current().stylesDirty).toBe(true);
+    // Simulate a fresh, already-refreshed list so the dirty flag change is observable.
+    controller['state'].stylesDirty = false;
+
+    const button = document.createElement('button');
+    button.setAttribute('aria-label', 'Delete: My Style');
+    document.body.appendChild(button);
+    button.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+
+    expect(current().stylesDirty).toBe(true);
+    document.body.removeChild(button);
+    controller.dispose();
+  });
+
+  it('resets extension selections when the English "Clear all form inputs" button is clicked', async () => {
+    const controller = new SunoController();
+    await controller.initialize();
+    const resetSpy = vi.spyOn(controller, 'resetExtensionSelections');
+
+    const button = document.createElement('button');
+    button.setAttribute('aria-label', 'Clear all form inputs');
+    document.body.appendChild(button);
+    button.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(resetSpy).toHaveBeenCalled();
+
+    document.body.removeChild(button);
+    controller.dispose();
   });
 });
 

@@ -17,6 +17,7 @@ export interface OtherOptionsSnapshot {
   weirdness: number;
   styleInfluence: number;
   variation: number;
+  audioInfluence: number;
   personalization: { enabled: boolean; tasteName?: string };
 }
 
@@ -55,6 +56,52 @@ export interface StorageSchemaV1 {
   lyricsTags?: string[];
 }
 
+// Records the full set of parameters used at the moment a take was
+// submitted, so a good take can be reproduced later even though Suno's own
+// song detail panel only keeps a handful of fields (see CLAUDE.md's
+// "workspace clip list and song detail panel" note). `options` mirrors the
+// same 9 fields as OtherOptionsSnapshot rather than reusing it directly,
+// because a field genuinely unreadable at submit time (see `unreadable`)
+// must be distinguishable from a field that was read and happened to be at
+// its default value.
+export interface TakeRecord {
+  id: string;
+  createdAt: string;
+  title: string;
+  takeKey?: string;
+  takeNumber?: number;
+  styleName?: string;
+  stylePrompt: string;
+  masteringId?: string;
+  masteringName?: string;
+  presetId?: string;
+  presetName?: string;
+  model?: string;
+  options: Partial<OtherOptionsSnapshot>;
+  unreadable: OtherOptionsKey[];
+  clipIds: string[];
+  linkedAt?: string;
+}
+
+export const DEFAULT_TAKE_HISTORY_LIMIT = 500;
+
+export interface StorageSchemaV2 {
+  schemaVersion: 2;
+  masteringPrompts: MasteringPrompt[];
+  optionPresets: OtherOptionsPreset[];
+  autoTitleEnabled: boolean;
+  titleFormat?: string;
+  takeNumbers?: Record<string, number>;
+  closeDisclosuresOnAdvanced?: boolean;
+  lyricsTags?: string[];
+  takeHistory: TakeRecord[];
+  takeHistoryLimit?: number;
+}
+
+export type StorageSchema = StorageSchemaV2;
+
+export const CURRENT_SCHEMA_VERSION = 2;
+
 export interface SavedStyle {
   id: string;
   name: string;
@@ -71,18 +118,19 @@ export interface OtherOptionsCapture {
   unreadable: OtherOptionsKey[];
 }
 
-export const optionLabels: Record<OtherOptionsKey, string> = {
-  excludedStyles: 'スタイルを除外',
-  vocalGender: 'ボーカル性別',
-  duration: '長さ',
-  maxMode: 'Maxモード',
-  weirdness: '奇抜さ',
-  styleInfluence: 'スタイルの影響',
-  variation: 'バリエーション',
-  personalization: 'パーソナライズ',
-};
-
-export const optionKeys = Object.keys(optionLabels) as OtherOptionsKey[];
+// Display order for the 9 fields of OtherOptionsSnapshot. Labels come from
+// ui.optionLabels (src/locales) exclusively - this array only fixes order.
+export const optionKeys: OtherOptionsKey[] = [
+  'excludedStyles',
+  'vocalGender',
+  'duration',
+  'maxMode',
+  'weirdness',
+  'styleInfluence',
+  'variation',
+  'audioInfluence',
+  'personalization',
+];
 
 export const emptyOtherOptions = (): OtherOptionsSnapshot => ({
   excludedStyles: '',
@@ -92,5 +140,6 @@ export const emptyOtherOptions = (): OtherOptionsSnapshot => ({
   weirdness: 50,
   styleInfluence: 50,
   variation: 0,
+  audioInfluence: 50,
   personalization: { enabled: false },
 });

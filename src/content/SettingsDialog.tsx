@@ -1,8 +1,8 @@
-import { useEffect, useId, useRef, useState } from 'react';
-import { DEFAULT_TITLE_FORMAT, formatLyricsTags, parseLyricsTags, validateUniqueName } from '../domain/logic';
-import { DEFAULT_LYRICS_TAGS, emptyOtherOptions, optionKeys, type MasteringPrompt, type OtherOptionsKey, type OtherOptionsPreset, type OtherOptionsSnapshot, type VocalGender } from '../domain/models';
-import { deleteMastering, deletePreset, saveMastering, savePreset } from '../storage/repository';
-import type { SunoController } from '../suno/controller';
+import { useEffect, useId, useRef, useState, type ChangeEvent, type RefObject } from 'react';
+import { DEFAULT_TITLE_FORMAT, formatLyricsTags, parseLyricsTags, readableOptionFields, validateUniqueName } from '../domain/logic';
+import { DEFAULT_LYRICS_TAGS, emptyOtherOptions, optionKeys, type MasteringPrompt, type OtherOptionsKey, type OtherOptionsPreset, type OtherOptionsSnapshot, type TakeRecord, type VocalGender } from '../domain/models';
+import { clearTakeHistory, deleteMastering, deletePreset, deleteTakeRecord, exportBackup, parseBackup, replaceStorage, saveMastering, savePreset } from '../storage/repository';
+import type { SettingsSection, SunoController } from '../suno/controller';
 import { useController, useStoredLists } from './components';
 import { getUiMessages, type UiMessages } from '../locales';
 
@@ -16,36 +16,33 @@ function cloneFields(fields: Partial<OtherOptionsSnapshot>): Partial<OtherOption
   };
 }
 
-function capturedFields(snapshot: OtherOptionsSnapshot, unreadable: OtherOptionsKey[]): Partial<OtherOptionsSnapshot> {
-  return Object.fromEntries(optionKeys
-    .filter((key) => !unreadable.includes(key))
-    .map((key) => [key, snapshot[key]])) as Partial<OtherOptionsSnapshot>;
-}
-
 function formatPreset(fields: Partial<OtherOptionsSnapshot>, ui: UiMessages): string {
   const values: string[] = [];
+  const onText = ui.dialog.onOption;
+  const offText = ui.dialog.offOption;
   if (fields.excludedStyles !== undefined) values.push(`${ui.optionLabels.excludedStyles}: ${fields.excludedStyles || ui.dialog.noneOption}`);
   if (fields.vocalGender !== undefined) values.push(`${ui.optionLabels.vocalGender}: ${fields.vocalGender === 'none' ? ui.dialog.noneOption : fields.vocalGender === 'male' ? ui.dialog.maleOption : ui.dialog.femaleOption}`);
   if (fields.duration !== undefined) values.push(`${ui.optionLabels.duration}: ${fields.duration.mode === 'auto' ? 'Auto' : `${ui.custom}${fields.duration.seconds ? ` (${fields.duration.seconds}${ui.dialog.secondsLabel})` : ''}`}`);
-  const onText = ui.optionLabels.vocalGender === 'ボーカル性別' ? 'オン' : 'On';
-  const offText = ui.optionLabels.vocalGender === 'ボーカル性別' ? 'オフ' : 'Off';
   if (fields.maxMode !== undefined) values.push(`${ui.optionLabels.maxMode}: ${fields.maxMode ? onText : offText}`);
   if (fields.weirdness !== undefined) values.push(`${ui.optionLabels.weirdness}: ${fields.weirdness}%`);
   if (fields.styleInfluence !== undefined) values.push(`${ui.optionLabels.styleInfluence}: ${fields.styleInfluence}%`);
   if (fields.variation !== undefined) values.push(`${ui.optionLabels.variation}: ${fields.variation}`);
+  if (fields.audioInfluence !== undefined) values.push(`${ui.optionLabels.audioInfluence}: ${fields.audioInfluence}%`);
   if (fields.personalization !== undefined) values.push(`${ui.optionLabels.personalization}: ${fields.personalization.enabled ? onText : offText}`);
   return values.join(' / ');
 }
 
 export function SettingsDialog({ controller }: { controller: SunoController }) {
   const state = useController(controller);
-  const { masterings, presets } = useStoredLists();
+  const { masterings, presets, takeHistory } = useStoredLists();
   const dialogRef = useRef<HTMLDialogElement>(null);
   const titleFormatSectionRef = useRef<HTMLElement>(null);
   const displaySectionRef = useRef<HTMLElement>(null);
   const lyricsTagsSectionRef = useRef<HTMLElement>(null);
+  const backupSectionRef = useRef<HTMLElement>(null);
   const masteringSectionRef = useRef<HTMLElement>(null);
   const presetSectionRef = useRef<HTMLElement>(null);
+  const takeHistorySectionRef = useRef<HTMLElement>(null);
   const [titleFormat, setTitleFormat] = useState(state.titleFormat);
   const [formatSavedNotice, setFormatSavedNotice] = useState(false);
   const [lyricsTagsText, setLyricsTagsText] = useState(formatLyricsTags(state.lyricsTags));
@@ -55,6 +52,9 @@ export function SettingsDialog({ controller }: { controller: SunoController }) {
   const [editingPreset, setEditingPreset] = useState<OtherOptionsPreset>();
   const [presetForm, setPresetForm] = useState<PresetForm>();
   const [localError, setLocalError] = useState<string>();
+  const [includeTakeHistoryOnExport, setIncludeTakeHistoryOnExport] = useState(true);
+  const [backupNotice, setBackupNotice] = useState<string>();
+  const importFileInputRef = useRef<HTMLInputElement>(null);
   const presetFormId = useId();
 
   const open = !!state.settings;
@@ -92,21 +92,22 @@ export function SettingsDialog({ controller }: { controller: SunoController }) {
         const result = await controller.captureOptions();
         if (!result) return;
         setEditingPreset(undefined);
-        setPresetForm({ name: '', fields: capturedFields(result.snapshot, result.unreadable) });
+        setPresetForm({ name: '', fields: readableOptionFields(result.snapshot, result.unreadable) });
         setLocalError(undefined);
       })();
     } else {
       setPresetForm(undefined);
     }
-    const target = state.settings?.section === 'masterings'
-      ? masteringSectionRef.current
-      : state.settings?.section === 'titleFormat'
-        ? titleFormatSectionRef.current
-        : state.settings?.section === 'display'
-          ? displaySectionRef.current
-          : state.settings?.section === 'lyricsTags'
-            ? lyricsTagsSectionRef.current
-            : presetSectionRef.current;
+    const sectionRefs: Partial<Record<SettingsSection, RefObject<HTMLElement | null>>> = {
+      masterings: masteringSectionRef,
+      titleFormat: titleFormatSectionRef,
+      display: displaySectionRef,
+      lyricsTags: lyricsTagsSectionRef,
+      backup: backupSectionRef,
+      presets: presetSectionRef,
+      takeHistory: takeHistorySectionRef,
+    };
+    const target = (state.settings?.section && sectionRefs[state.settings.section]?.current) || presetSectionRef.current;
     target?.scrollIntoView({ block: 'start' });
   }, [open, state.settings?.section, state.settings?.action, controller]);
 
@@ -121,9 +122,10 @@ export function SettingsDialog({ controller }: { controller: SunoController }) {
   const saveCurrentMastering = async () => {
     const name = masteringForm!.name.trim();
     const prompt = masteringForm!.prompt.trim();
+    const ui = getUiMessages();
     const issue = validateUniqueName(name, masterings, editingMastering?.id)
-      ?? (!prompt ? 'プロンプトを入力してください。' : undefined)
-      ?? (prompt.length > 1000 ? 'プロンプトは1000文字以内にしてください。' : undefined);
+      ?? (!prompt ? ui.feedback.promptRequired : undefined)
+      ?? (prompt.length > 1000 ? ui.feedback.promptTooLong(1000) : undefined);
     if (issue) { setLocalError(issue); return; }
     await saveMastering({ id: editingMastering?.id, name, prompt });
     cancelMastering();
@@ -137,8 +139,9 @@ export function SettingsDialog({ controller }: { controller: SunoController }) {
   const cancelPreset = () => { setPresetForm(undefined); setEditingPreset(undefined); };
   const saveCurrentPreset = async () => {
     const name = presetForm!.name.trim();
+    const ui = getUiMessages();
     const issue = validateUniqueName(name, presets, editingPreset?.id)
-      ?? (!Object.keys(presetForm!.fields).length ? '保存する項目を1つ以上選択してください。' : undefined);
+      ?? (!Object.keys(presetForm!.fields).length ? ui.feedback.selectAtLeastOneField : undefined);
     if (issue) { setLocalError(issue); return; }
     await savePreset({ id: editingPreset?.id, name, fields: cloneFields(presetForm!.fields) });
     cancelPreset();
@@ -174,6 +177,63 @@ export function SettingsDialog({ controller }: { controller: SunoController }) {
   };
   const handleResetLyricsTags = () => {
     setLyricsTagsText(formatLyricsTags(DEFAULT_LYRICS_TAGS));
+  };
+
+  const handleExportBackup = async () => {
+    const backup = await exportBackup(includeTakeHistoryOnExport);
+    const date = new Date().toISOString().slice(0, 10).replaceAll('-', '');
+    const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `suno-create-assistant-${date}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleImportClick = () => importFileInputRef.current?.click();
+
+  const handleImportFile = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    const ui = getUiMessages();
+    const text = await file.text();
+    const parsed = parseBackup(text);
+    if (!parsed) {
+      setBackupNotice(ui.dialog.importInvalidFile);
+      return;
+    }
+    // A native confirm() is the simplest way to gate a destructive
+    // full-replace; there is no options page or background worker to host
+    // a custom modal outside this dialog.
+    if (!window.confirm(ui.dialog.importConfirm)) return;
+    await replaceStorage(parsed);
+    setBackupNotice(ui.dialog.importSuccess);
+    setTimeout(() => setBackupNotice(undefined), 2000);
+  };
+
+  const restoreTake = (record: TakeRecord) => {
+    void controller.reuseTake(record);
+  };
+
+  const saveTakeAsPreset = (record: TakeRecord) => {
+    // Reuses the existing preset-creation form rather than saving directly,
+    // so the user can name it (and drop/adjust fields) before it is
+    // persisted - the same form startPreset()/saveCurrentPreset() already
+    // drive for "設定を保存" and "編集".
+    controller.openSettings('presets');
+    setEditingPreset(undefined);
+    setPresetForm({ name: record.title, fields: cloneFields(record.options) });
+    setLocalError(undefined);
+  };
+
+  const handleClearTakeHistory = async () => {
+    const ui = getUiMessages();
+    if (!window.confirm(ui.dialog.clearAllHistoryConfirm)) return;
+    await clearTakeHistory();
   };
 
   const ui = getUiMessages();
@@ -246,6 +306,32 @@ export function SettingsDialog({ controller }: { controller: SunoController }) {
         </div>
       </section>
 
+      <section ref={backupSectionRef} aria-labelledby="suno-assistant-backup-heading">
+        <h3 id="suno-assistant-backup-heading">{ui.dialog.backupHeading}</h3>
+        <p className="suno-assistant__hint">{ui.dialog.backupHint}</p>
+        <label className="suno-assistant__dialog-toggle-label">
+          <input
+            type="checkbox"
+            className="suno-assistant__check"
+            checked={includeTakeHistoryOnExport}
+            onChange={(event) => setIncludeTakeHistoryOnExport(event.target.checked)}
+          />
+          {ui.dialog.includeTakeHistoryLabel}
+        </label>
+        <div className="suno-assistant__format-actions">
+          <button type="button" onClick={() => void handleExportBackup()}>{ui.dialog.exportButton}</button>
+          <button type="button" onClick={handleImportClick}>{ui.dialog.importButton}</button>
+          <input
+            ref={importFileInputRef}
+            type="file"
+            accept="application/json"
+            hidden
+            onChange={(event) => void handleImportFile(event)}
+          />
+          {backupNotice && <span className="suno-assistant__format-saved">{backupNotice}</span>}
+        </div>
+      </section>
+
       <section ref={masteringSectionRef} aria-labelledby="suno-assistant-mastering-heading">
         <h3 id="suno-assistant-mastering-heading">{ui.dialog.masteringHeading}</h3>
         <p className="suno-assistant__hint">{ui.dialog.masteringHint}</p>
@@ -301,7 +387,7 @@ export function SettingsDialog({ controller }: { controller: SunoController }) {
                   {key === 'vocalGender' && <fieldset><legend>{ui.optionLabels.vocalGender}</legend>{(['none', 'male', 'female'] as VocalGender[]).map((value) => <label key={value}><input name={`${presetFormId}-vocal-gender`} type="radio" checked={presetForm.fields.vocalGender === value} onChange={() => updatePresetField('vocalGender', value)} />{value === 'none' ? ui.dialog.noneOption : value === 'male' ? ui.dialog.maleOption : ui.dialog.femaleOption}</label>)}</fieldset>}
                   {key === 'duration' && <fieldset><legend>{ui.optionLabels.duration}</legend><label><input name={`${presetFormId}-duration`} type="radio" checked={presetForm.fields.duration?.mode === 'auto'} onChange={() => updatePresetField('duration', { mode: 'auto' })} />Auto</label><label><input name={`${presetFormId}-duration`} type="radio" checked={presetForm.fields.duration?.mode === 'custom'} onChange={() => updatePresetField('duration', { mode: 'custom', seconds: presetForm.fields.duration?.seconds })} />{ui.custom}</label>{presetForm.fields.duration?.mode === 'custom' && <label className="suno-assistant__duration-seconds"><span>{ui.dialog.secondsLabel}</span><input name={`${presetFormId}-duration-seconds`} type="number" min="1" inputMode="numeric" value={presetForm.fields.duration.seconds ?? ''} onChange={(event) => updatePresetField('duration', { mode: 'custom', seconds: event.target.value ? Number(event.target.value) : undefined })} /></label>}</fieldset>}
                   {key === 'maxMode' && <label><input name={`${presetFormId}-max-mode`} type="checkbox" checked={presetForm.fields.maxMode ?? false} onChange={(event) => updatePresetField('maxMode', event.target.checked)} />{ui.dialog.maxModeToggle}</label>}
-                  {(key === 'weirdness' || key === 'styleInfluence' || key === 'variation') && (() => { const value = presetForm.fields[key] ?? 0; return <label>{ui.optionLabels[key]}<span className="suno-assistant__range"><input name={`${presetFormId}-${key}`} type="range" min="0" max="100" value={value} onChange={(event) => updatePresetField(key, Number(event.target.value))} /><output>{key === 'variation' ? value : `${value}%`}</output></span></label>; })()}
+                  {(key === 'weirdness' || key === 'styleInfluence' || key === 'variation' || key === 'audioInfluence') && (() => { const value = presetForm.fields[key] ?? 0; return <label>{ui.optionLabels[key]}<span className="suno-assistant__range"><input name={`${presetFormId}-${key}`} type="range" min="0" max="100" value={value} onChange={(event) => updatePresetField(key, Number(event.target.value))} /><output>{key === 'variation' ? value : `${value}%`}</output></span></label>; })()}
                   {key === 'personalization' && <label><input name={`${presetFormId}-personalization`} type="checkbox" checked={presetForm.fields.personalization?.enabled ?? false} onChange={(event) => updatePresetField('personalization', { ...presetForm.fields.personalization, enabled: event.target.checked })} />{ui.dialog.personalizationToggle}</label>}
                 </div>}
               </div>;
@@ -312,6 +398,28 @@ export function SettingsDialog({ controller }: { controller: SunoController }) {
             <button type="submit">{ui.dialog.save}</button>
           </div>
         </form>}
+      </section>
+
+      <section ref={takeHistorySectionRef} aria-labelledby="suno-assistant-take-history-heading">
+        <h3 id="suno-assistant-take-history-heading">{ui.dialog.takeHistoryHeading}</h3>
+        <p className="suno-assistant__hint">{ui.dialog.takeHistoryHint}</p>
+        <ul className="suno-assistant__list">
+          {takeHistory.map((record) => <li key={record.id}>
+            <div>
+              <strong>{record.title}</strong>
+              <p>{new Date(record.createdAt).toLocaleString()}</p>
+              <p>{formatPreset(record.options, ui)}</p>
+              {record.clipIds[0] && <a href={`/song/${record.clipIds[0]}`}>{ui.dialog.linkedToSong}</a>}
+            </div>
+            <div className="suno-assistant__list-actions">
+              <button type="button" onClick={() => restoreTake(record)}>{ui.dialog.restoreParams}</button>
+              <button type="button" onClick={() => saveTakeAsPreset(record)}>{ui.dialog.saveAsPreset}</button>
+              <button type="button" onClick={() => void deleteTakeRecord(record.id)}>{ui.dialog.delete}</button>
+            </div>
+          </li>)}
+        </ul>
+        {!takeHistory.length && <p className="suno-assistant__hint">{ui.dialog.takeHistoryEmpty}</p>}
+        {!!takeHistory.length && <button type="button" className="suno-assistant__button" onClick={() => void handleClearTakeHistory()}>{ui.dialog.clearAllHistory}</button>}
       </section>
     </div>
   </dialog>;

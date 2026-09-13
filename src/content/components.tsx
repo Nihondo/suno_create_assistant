@@ -1,6 +1,6 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { DEFAULT_TITLE_FORMAT, displayTagName } from '../domain/logic';
-import type { MasteringPrompt, OtherOptionsPreset, SavedStyle } from '../domain/models';
+import type { MasteringPrompt, OtherOptionsPreset, SavedStyle, TakeRecord } from '../domain/models';
 import { readStorage, subscribeStorage } from '../storage/repository';
 import type { ControllerState, SunoController } from '../suno/controller';
 import { getUiMessages } from '../locales';
@@ -13,12 +13,12 @@ export function useController(controller: SunoController): ControllerState {
   return state;
 }
 
-export function useStoredLists(): { masterings: MasteringPrompt[]; presets: OtherOptionsPreset[] } {
-  const [lists, setLists] = useState<{ masterings: MasteringPrompt[]; presets: OtherOptionsPreset[] }>({ masterings: [], presets: [] });
+export function useStoredLists(): { masterings: MasteringPrompt[]; presets: OtherOptionsPreset[]; takeHistory: TakeRecord[] } {
+  const [lists, setLists] = useState<{ masterings: MasteringPrompt[]; presets: OtherOptionsPreset[]; takeHistory: TakeRecord[] }>({ masterings: [], presets: [], takeHistory: [] });
   useEffect(() => {
     const update = async () => {
       const stored = await readStorage();
-      setLists({ masterings: stored.masteringPrompts, presets: stored.optionPresets });
+      setLists({ masterings: stored.masteringPrompts, presets: stored.optionPresets, takeHistory: stored.takeHistory });
     };
     void update();
     return subscribeStorage(() => { void update(); });
@@ -83,6 +83,16 @@ function Dropdown<T>({ label, valueLabel, items, disabled, onOpen, onSelect }: {
       event.preventDefault();
       setOpen(true);
       setActive((current) => (current + (event.key === 'ArrowDown' ? 1 : items.length - 1)) % Math.max(items.length, 1));
+    }
+    if (event.key === 'Home' && items.length) {
+      event.preventDefault();
+      setOpen(true);
+      setActive(0);
+    }
+    if (event.key === 'End' && items.length) {
+      event.preventDefault();
+      setOpen(true);
+      setActive(items.length - 1);
     }
     if (event.key === 'Escape') setOpen(false);
     if (event.key === 'Enter' && open && items[active]) choose(items[active]);
@@ -168,6 +178,40 @@ export function SidebarSettingsButton({ controller }: { controller: SunoControll
           <path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z" />
         </svg>
         <span className="overflow-hidden whitespace-nowrap transition-opacity duration-200 group-data-[show-content=false]/sidebar:opacity-0">{ui.extensionSettings}</span>
+      </span>
+    </button>
+  );
+}
+
+export function ReuseParamsButton({ controller, record }: { controller: SunoController; record: TakeRecord }) {
+  const ui = getUiMessages();
+  const [busy, setBusy] = useState(false);
+
+  const handleClick = async () => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      await controller.reuseTake(record);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <button
+      type="button"
+      data-suno-assistant="reuse-params-button"
+      aria-label={ui.aria.reuseParameters}
+      title={ui.aria.reuseParameters}
+      disabled={busy}
+      className="hxc-btn-base hxc-btn-variant-tertiary-legacy hxc-btn-size-small hxc-btn-shape-pill hxc-btn-background hxc-btn-icon-only hxc-btn-square"
+      onClick={() => void handleClick()}
+    >
+      <span aria-hidden="true" className="hxc-btn-overlay-slot hxc-btn-border" />
+      <span className="hxc-btn-content">
+        <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z" />
+        </svg>
       </span>
     </button>
   );

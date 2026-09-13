@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { createServer } from 'node:https';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -40,10 +40,35 @@ const sunoFixture = `<!doctype html><html lang="ja"><body>
     </div></section>
     <section><div style="display:flex;flex-wrap:nowrap"><input placeholder="曲名(任意)" /></div><div>保存先…<button>Demo Workspace</button></div></section>
     <button id="create">作成</button>
+    <div id="clip-list"></div>
     <script>
+      let clipCounter = 0;
+      function addClipRow(title) {
+        clipCounter += 1;
+        const id = 'clip-' + clipCounter;
+        const row = document.createElement('div');
+        row.setAttribute('data-testid', 'clip-row');
+        row.setAttribute('role', 'group');
+        row.setAttribute('aria-label', title);
+        row.setAttribute('data-clip-status', 'complete');
+        row.innerHTML = '<a href="/song/' + id + '">' + title + '</a>'
+          + '<div>'
+          + '<button aria-label="クリップに「いいね」"></button>'
+          + '<button aria-label="クリップを低評価"></button>'
+          + '<button aria-label="クリップをワークスペースに固定"></button>'
+          + '<button aria-label="クリップを共有"></button>'
+          + '</div>';
+        document.querySelector('#clip-list').prepend(row);
+      }
       document.querySelector('#create').addEventListener('click', () => {
         document.body.dataset.created = 'true';
-        document.body.dataset.createdTitle = document.querySelector('input[placeholder="曲名(任意)"]').value;
+        const title = document.querySelector('input[placeholder="曲名(任意)"]').value;
+        document.body.dataset.createdTitle = title;
+        // Approximates Suno showing the newly generated clip in the
+        // workspace list right after a submission - real timing/placeholder
+        // states are not modeled, only that a matching row eventually
+        // appears with the submitted title.
+        addClipRow(title);
       });
       document.querySelector('#saved-styles').addEventListener('click', () => {
         const dialog = document.querySelector('[role="dialog"]');
@@ -309,6 +334,55 @@ test('mounts the Suno controls beside their anchors, survives host removal, and 
     await expect(page.locator('body')).toHaveAttribute('data-created', 'true');
     await expect(page.locator('body')).toHaveAttribute('data-created-title', 'Demo Workspace (ARIA) 2');
     await expect(page.locator('input[placeholder="曲名(任意)"]')).toHaveValue('Demo Workspace (ARIA) {{TAKE}}');
+
+    // Both creates recorded a take-history entry (see SunoController.
+    // executeCreateWithTake / captureTakeSnapshot), visible in Settings.
+    await sidebarButton.click();
+    await expect(dialog.getByRole('heading', { name: 'Suno Create Assistant の設定' })).toBeVisible();
+    await expect(dialog.getByRole('heading', { name: 'テイク履歴' })).toBeVisible();
+    await expect(dialog.getByText('Demo Workspace (ARIA) 1', { exact: true })).toBeVisible();
+    await expect(dialog.getByText('Demo Workspace (ARIA) 2', { exact: true })).toBeVisible();
+    await dialog.getByRole('button', { name: '閉じる' }).click();
+    await expect(dialog.getByRole('heading', { name: 'Suno Create Assistant の設定' })).toBeHidden();
+
+    // Each submission's clip row (simulated by the fixture's own #create
+    // handler, see addClipRow above) gets a "パラメータを再利用" button once
+    // SunoController's clip-linker matches it to its take-history record.
+    const firstClipRow = page.locator('[data-testid="clip-row"]', { hasText: 'Demo Workspace (ARIA) 1' });
+    await expect(firstClipRow.getByRole('button', { name: 'パラメータを再利用' })).toBeVisible();
+    const secondClipRow = page.locator('[data-testid="clip-row"]', { hasText: 'Demo Workspace (ARIA) 2' });
+    await expect(secondClipRow.getByRole('button', { name: 'パラメータを再利用' })).toBeVisible();
+
+    // Clicking it re-applies the recorded More Options without touching Style.
+    const styleValueBeforeReuse = await page.locator('[data-testid="create-form-styles-wrapper"] textarea').inputValue();
+    await firstClipRow.getByRole('button', { name: 'パラメータを再利用' }).click();
+    await expect(page.locator('[data-testid="create-form-styles-wrapper"] textarea')).toHaveValue(styleValueBeforeReuse);
+
+    // Export downloads the live settings (including the two take-history
+    // entries just recorded) as a JSON backup file.
+    await sidebarButton.click();
+    await expect(dialog.getByRole('heading', { name: 'バックアップ' })).toBeVisible();
+    const downloadPromise = page.waitForEvent('download');
+    await dialog.getByRole('button', { name: 'エクスポート' }).click();
+    const download = await downloadPromise;
+    const exportPath = await download.path();
+    expect(exportPath).toBeTruthy();
+    const exported = JSON.parse(await readFile(exportPath!, 'utf-8'));
+    expect(exported.schemaVersion).toBe(2);
+    expect(exported.optionPresets).toHaveLength(1);
+    expect(exported.takeHistory.length).toBeGreaterThanOrEqual(2);
+
+    // Import replaces the entire stored schema with the chosen file, after
+    // a confirm() the user must accept.
+    const importPath = join(profile, 'import-backup.json');
+    await writeFile(importPath, JSON.stringify({
+      schemaVersion: 2, masteringPrompts: [], optionPresets: [], autoTitleEnabled: false, takeHistory: [],
+    }));
+    page.once('dialog', (nativeDialog) => void nativeDialog.accept());
+    await dialog.locator('input[type="file"]').setInputFiles(importPath);
+    await expect(dialog.getByText('設定を読み込みました。')).toBeVisible();
+    await expect(dialog.getByRole('heading', { name: 'テイク履歴' })).toBeVisible();
+    await expect(dialog.getByText('まだ記録がありません。')).toBeVisible();
   } finally {
     await context?.close();
     await new Promise<void>((resolveClose, rejectClose) => server.close((error) => error ? rejectClose(error) : resolveClose()));
