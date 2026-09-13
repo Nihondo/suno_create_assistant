@@ -7,16 +7,19 @@ import {
   extractTakeKey,
   formatDate,
   formatLyricsTags,
+  formatPreset,
   formatTakeNumber,
   formatTime,
   hasTakePlaceholder,
   nextBaseAfterManualEdit,
   normalizedInsertTag,
+  optionFieldSummaryLines,
   parseLyricsTags,
   replaceTakePlaceholder,
   validateUniqueName,
 } from '../src/domain/logic';
 import type { MasteringPrompt } from '../src/domain/models';
+import { getUiMessages } from '../src/locales';
 
 describe('prompt composition', () => {
   it('joins style and mastering with one newline', () => {
@@ -173,6 +176,23 @@ describe('lyrics tags logic', () => {
     const res = calculateTagInsertion(text, 7, 7, 'Bridge');
     expect(res.newText).toBe('Line 1\n[Bridge]\nLine 2');
     expect(res.newCursor).toBe('Line 1\n[Bridge]\n'.length);
+  });
+});
+
+describe('option field summaries', () => {
+  const ui = getUiMessages('ja');
+
+  it('renders one label: value line per present field, in optionKeys order, skipping absent ones', () => {
+    const lines = optionFieldSummaryLines({ weirdness: 70, maxMode: true }, ui);
+    expect(lines).toEqual(['Maxモード: オン', '奇抜さ: 70%']);
+  });
+
+  it('returns no lines for an empty snapshot', () => {
+    expect(optionFieldSummaryLines({}, ui)).toEqual([]);
+  });
+
+  it('joins the same lines with " / " for the preset summary string', () => {
+    expect(formatPreset({ weirdness: 70, maxMode: true }, ui)).toBe('Maxモード: オン / 奇抜さ: 70%');
   });
 });
 

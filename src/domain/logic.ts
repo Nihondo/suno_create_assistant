@@ -1,5 +1,5 @@
 import { optionKeys, type MasteringPrompt, type OtherOptionsKey, type OtherOptionsPreset, type OtherOptionsSnapshot, type SavedStyle } from './models';
-import { getUiMessages, type SupportedLanguage } from '../locales';
+import { getUiMessages, type SupportedLanguage, type UiMessages } from '../locales';
 
 export function composePrompt(style?: string, mastering?: string): string | undefined {
   const value = [style?.trim(), mastering?.trim()].filter(Boolean).join('\n');
@@ -139,6 +139,30 @@ export function readableOptionFields(snapshot: OtherOptionsSnapshot, unreadable:
   return Object.fromEntries(optionKeys
     .filter((key) => !unreadable.includes(key))
     .map((key) => [key, snapshot[key]])) as Partial<OtherOptionsSnapshot>;
+}
+
+// One "label: value" line per field present in `fields`, in optionKeys order.
+// Shared by the preset list/editor (SettingsDialog.tsx, joined with " / " via
+// formatPreset below) and the take-history reuse-parameters hover popup
+// (ReuseParamsButton in components.tsx, rendered one line per array entry).
+export function optionFieldSummaryLines(fields: Partial<OtherOptionsSnapshot>, ui: UiMessages): string[] {
+  const values: string[] = [];
+  const onText = ui.dialog.onOption;
+  const offText = ui.dialog.offOption;
+  if (fields.excludedStyles !== undefined) values.push(`${ui.optionLabels.excludedStyles}: ${fields.excludedStyles || ui.dialog.noneOption}`);
+  if (fields.vocalGender !== undefined) values.push(`${ui.optionLabels.vocalGender}: ${fields.vocalGender === 'none' ? ui.dialog.noneOption : fields.vocalGender === 'male' ? ui.dialog.maleOption : ui.dialog.femaleOption}`);
+  if (fields.duration !== undefined) values.push(`${ui.optionLabels.duration}: ${fields.duration.mode === 'auto' ? 'Auto' : `${ui.custom}${fields.duration.seconds ? ` (${fields.duration.seconds}${ui.dialog.secondsLabel})` : ''}`}`);
+  if (fields.maxMode !== undefined) values.push(`${ui.optionLabels.maxMode}: ${fields.maxMode ? onText : offText}`);
+  if (fields.weirdness !== undefined) values.push(`${ui.optionLabels.weirdness}: ${fields.weirdness}%`);
+  if (fields.styleInfluence !== undefined) values.push(`${ui.optionLabels.styleInfluence}: ${fields.styleInfluence}%`);
+  if (fields.variation !== undefined) values.push(`${ui.optionLabels.variation}: ${fields.variation}`);
+  if (fields.audioInfluence !== undefined) values.push(`${ui.optionLabels.audioInfluence}: ${fields.audioInfluence}%`);
+  if (fields.personalization !== undefined) values.push(`${ui.optionLabels.personalization}: ${fields.personalization.enabled ? onText : offText}`);
+  return values;
+}
+
+export function formatPreset(fields: Partial<OtherOptionsSnapshot>, ui: UiMessages): string {
+  return optionFieldSummaryLines(fields, ui).join(' / ');
 }
 
 export function nextBaseAfterManualEdit(value: string, mastering?: MasteringPrompt): string {

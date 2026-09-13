@@ -1,5 +1,5 @@
 import { useEffect, useId, useMemo, useRef, useState, type ChangeEvent } from 'react';
-import { autoTitle, DEFAULT_TITLE_FORMAT, formatLyricsTags, parseLyricsTags, readableOptionFields, replaceTakePlaceholder, validateUniqueName } from '../domain/logic';
+import { autoTitle, DEFAULT_TITLE_FORMAT, formatLyricsTags, formatPreset, parseLyricsTags, readableOptionFields, replaceTakePlaceholder, validateUniqueName } from '../domain/logic';
 import { DEFAULT_LYRICS_TAGS, DEFAULT_TAKE_HISTORY_LIMIT, emptyOtherOptions, optionKeys, type MasteringPrompt, type OtherOptionsKey, type OtherOptionsPreset, type OtherOptionsSnapshot, type TakeRecord, type VocalGender } from '../domain/models';
 import { clearTakeHistory, deleteMastering, deletePreset, deleteTakeRecord, exportBackup, parseBackup, replaceStorage, saveMastering, savePreset, setTakeHistoryLimit } from '../storage/repository';
 import type { SettingsSection, SunoController } from '../suno/controller';
@@ -14,22 +14,6 @@ function cloneFields(fields: Partial<OtherOptionsSnapshot>): Partial<OtherOption
     ...(fields.duration && { duration: { ...fields.duration } }),
     ...(fields.personalization && { personalization: { ...fields.personalization } }),
   };
-}
-
-function formatPreset(fields: Partial<OtherOptionsSnapshot>, ui: UiMessages): string {
-  const values: string[] = [];
-  const onText = ui.dialog.onOption;
-  const offText = ui.dialog.offOption;
-  if (fields.excludedStyles !== undefined) values.push(`${ui.optionLabels.excludedStyles}: ${fields.excludedStyles || ui.dialog.noneOption}`);
-  if (fields.vocalGender !== undefined) values.push(`${ui.optionLabels.vocalGender}: ${fields.vocalGender === 'none' ? ui.dialog.noneOption : fields.vocalGender === 'male' ? ui.dialog.maleOption : ui.dialog.femaleOption}`);
-  if (fields.duration !== undefined) values.push(`${ui.optionLabels.duration}: ${fields.duration.mode === 'auto' ? 'Auto' : `${ui.custom}${fields.duration.seconds ? ` (${fields.duration.seconds}${ui.dialog.secondsLabel})` : ''}`}`);
-  if (fields.maxMode !== undefined) values.push(`${ui.optionLabels.maxMode}: ${fields.maxMode ? onText : offText}`);
-  if (fields.weirdness !== undefined) values.push(`${ui.optionLabels.weirdness}: ${fields.weirdness}%`);
-  if (fields.styleInfluence !== undefined) values.push(`${ui.optionLabels.styleInfluence}: ${fields.styleInfluence}%`);
-  if (fields.variation !== undefined) values.push(`${ui.optionLabels.variation}: ${fields.variation}`);
-  if (fields.audioInfluence !== undefined) values.push(`${ui.optionLabels.audioInfluence}: ${fields.audioInfluence}%`);
-  if (fields.personalization !== undefined) values.push(`${ui.optionLabels.personalization}: ${fields.personalization.enabled ? onText : offText}`);
-  return values.join(' / ');
 }
 
 // Order and identity of the sidebar's section tabs. Labels are resolved

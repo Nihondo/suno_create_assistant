@@ -1,5 +1,5 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
-import { DEFAULT_TITLE_FORMAT, displayTagName } from '../domain/logic';
+import { DEFAULT_TITLE_FORMAT, displayTagName, optionFieldSummaryLines } from '../domain/logic';
 import { DEFAULT_TAKE_HISTORY_LIMIT, type MasteringPrompt, type OtherOptionsPreset, type SavedStyle, type TakeRecord } from '../domain/models';
 import { readStorage, subscribeStorage } from '../storage/repository';
 import type { ControllerState, SunoController } from '../suno/controller';
@@ -265,6 +265,40 @@ export function ReuseParamsButton({ controller, record }: { controller: SunoCont
   const ui = getUiMessages();
   const [busy, setBusy] = useState(false);
   const [hovered, setHovered] = useState(false);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const popupRef = useRef<HTMLDivElement>(null);
+  const summaryLines = optionFieldSummaryLines(record.options, ui);
+
+  // A plain position:absolute popup gets clipped by the clip row's own
+  // rounded-card `overflow: hidden` the moment it's near the top of a
+  // scrolled workspace list. The Popover API (already used by Dropdown's
+  // menu above) renders in the top layer instead, escaping every ancestor's
+  // overflow/stacking context - anchored here to the button's viewport rect
+  // via `bottom`/`right` (not `top`/`left`) so it grows upward-left from the
+  // button without needing the popup's own (pre-show, unmeasurable) size.
+  useLayoutEffect(() => {
+    const popup = popupRef.current;
+    const button = buttonRef.current;
+    if (!popup || !button) return;
+    if (!hovered) {
+      if (popup.matches(':popover-open')) popup.hidePopover();
+      return;
+    }
+    const positionPopup = () => {
+      const rect = button.getBoundingClientRect();
+      popup.style.bottom = `${Math.max(8, window.innerHeight - rect.top + 8)}px`;
+      popup.style.right = `${Math.max(8, window.innerWidth - rect.right)}px`;
+    };
+    positionPopup();
+    if (!popup.matches(':popover-open')) popup.showPopover();
+    window.addEventListener('resize', positionPopup);
+    window.addEventListener('scroll', positionPopup, true);
+    return () => {
+      window.removeEventListener('resize', positionPopup);
+      window.removeEventListener('scroll', positionPopup, true);
+      if (popup.matches(':popover-open')) popup.hidePopover();
+    };
+  }, [hovered]);
 
   const handleClick = async () => {
     if (busy) return;
@@ -277,30 +311,66 @@ export function ReuseParamsButton({ controller, record }: { controller: SunoCont
   };
 
   return (
-    <button
-      type="button"
-      data-suno-assistant="reuse-params-button"
-      aria-label={ui.aria.reuseParameters}
-      title={ui.aria.reuseParameters}
-      disabled={busy}
-      className="hxc-btn-base hxc-btn-variant-tertiary-legacy hxc-btn-size-small hxc-btn-shape-pill hxc-btn-background hxc-btn-icon-only hxc-btn-square"
-      style={{
-        color: hovered ? '#f59e0b' : '#ea7a3b',
-        backgroundColor: hovered ? 'rgb(234 122 59 / 22%)' : 'rgb(234 122 59 / 12%)',
-        borderColor: hovered ? 'rgb(234 122 59 / 60%)' : 'rgb(234 122 59 / 35%)',
-        transition: 'all 0.15s ease',
-      }}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      onClick={() => void handleClick()}
-    >
-      <span aria-hidden="true" className="hxc-btn-overlay-slot hxc-btn-border" />
-      <span className="hxc-btn-content">
-        <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="currentColor">
-          <path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z" />
-        </svg>
-      </span>
-    </button>
+    // Mounted shadow:false (Light DOM) alongside Suno's own clip-row action
+    // buttons, so this popup can't rely on suno-ui.css - every style below
+    // is inline.
+    <>
+      <button
+        ref={buttonRef}
+        type="button"
+        data-suno-assistant="reuse-params-button"
+        aria-label={ui.aria.reuseParameters}
+        disabled={busy}
+        className="hxc-btn-base hxc-btn-variant-tertiary-legacy hxc-btn-size-small hxc-btn-shape-pill hxc-btn-background hxc-btn-icon-only hxc-btn-square"
+        style={{
+          color: hovered ? '#f59e0b' : '#ea7a3b',
+          backgroundColor: hovered ? 'rgb(234 122 59 / 22%)' : 'rgb(234 122 59 / 12%)',
+          borderColor: hovered ? 'rgb(234 122 59 / 60%)' : 'rgb(234 122 59 / 35%)',
+          transition: 'all 0.15s ease',
+        }}
+        onMouseEnter={() => setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
+        onClick={() => void handleClick()}
+      >
+        <span aria-hidden="true" className="hxc-btn-overlay-slot hxc-btn-border" />
+        <span className="hxc-btn-content">
+          <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z" />
+          </svg>
+        </span>
+      </button>
+      <div
+        ref={popupRef}
+        popover="manual"
+        role="tooltip"
+        style={{
+          position: 'fixed',
+          inset: 'auto',
+          margin: 0,
+          minWidth: 200,
+          maxWidth: 320,
+          padding: '10px 12px',
+          borderRadius: 10,
+          background: 'rgba(22, 20, 18, 0.97)',
+          border: '1px solid rgba(234, 122, 59, 0.45)',
+          boxShadow: '0 12px 30px rgba(0, 0, 0, 0.35)',
+          color: '#f5f5f6',
+          fontSize: 12,
+          lineHeight: 1.5,
+          pointerEvents: 'none',
+          whiteSpace: 'normal',
+        }}
+      >
+        <div style={{ fontWeight: 600, color: '#ea7a3b', marginBottom: 4 }}>{ui.aria.reuseParameters}</div>
+        {summaryLines.length > 0 ? (
+          <ul style={{ margin: 0, padding: 0, listStyle: 'none' }}>
+            {summaryLines.map((line) => <li key={line}>{line}</li>)}
+          </ul>
+        ) : (
+          <div>{ui.dialog.noneOption}</div>
+        )}
+      </div>
+    </>
   );
 }
 
