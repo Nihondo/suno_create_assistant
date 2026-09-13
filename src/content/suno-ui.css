@@ -157,6 +157,11 @@
   text-align: left;
 }
 
+.suno-assistant__chevron {
+  display: inline-flex;
+  vertical-align: -2px;
+}
+
 .suno-assistant__select:focus-visible,
 .suno-assistant__button:focus-visible,
 .suno-assistant__check:focus-visible {

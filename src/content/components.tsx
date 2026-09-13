@@ -54,6 +54,20 @@ function GearIcon({ className, style }: { className?: string; style?: React.CSSP
   );
 }
 
+// Suno's own dropdown-trigger chevron, measured from its role="combobox"
+// buttons (the workspace sort/list-view controls, aria-label="新着"/"リスト"
+// in docs/showmore.txt) rather than the model selector's menu-trigger icon
+// (a different, more angular shape) - those combobox buttons share our
+// Dropdown's exact semantics (label text followed by a chevron), so their
+// icon is the correct reference, not a guessed shape.
+function ChevronDownIcon({ className, style }: { className?: string; style?: React.CSSProperties }) {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="currentColor" className={className} style={style}>
+      <path d="m11.995 14.65 6.337-6.337q.323-.324.765-.313t.766.334q.323.324.323.766t-.323.765l-6.64 6.618a1.7 1.7 0 0 1-.582.388 1.7 1.7 0 0 1-.646.129 1.7 1.7 0 0 1-.647-.13 1.7 1.7 0 0 1-.582-.387l-6.64-6.64a1 1 0 0 1-.312-.754q.011-.43.334-.755.324-.323.766-.323t.765.323z" />
+    </svg>
+  );
+}
+
 interface MenuItem<T> { id: string; label: string; value?: T }
 
 function Dropdown<T>({ label, valueLabel, items, disabled, onOpen, onSelect }: {
@@ -127,7 +141,7 @@ function Dropdown<T>({ label, valueLabel, items, disabled, onOpen, onSelect }: {
   };
   return <div className="suno-assistant__dropdown" ref={container}>
     <button ref={trigger} type="button" className="suno-assistant__select" aria-label={`${label}: ${valueLabel}`} aria-haspopup="listbox" aria-expanded={open} aria-controls={listId} disabled={disabled} onClick={() => void toggle()} onKeyDown={onKeyDown}>
-      {valueLabel} <span aria-hidden="true">▼</span>
+      {valueLabel} <span aria-hidden="true" className="suno-assistant__chevron"><ChevronDownIcon /></span>
     </button>
     {open && <div ref={menu} id={listId} className="suno-assistant__menu" popover="auto" role="listbox" aria-label={label} onToggle={() => {
       if (!menu.current?.matches(':popover-open')) setOpen(false);
