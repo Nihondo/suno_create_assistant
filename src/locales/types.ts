@@ -102,6 +102,7 @@ export interface UiMessages {
     lyricsTagPalette: string;
     editLyricsTags: string;
     reuseParameters: string;
+    settingsSections: string;
   };
   dialog: {
     title: string;

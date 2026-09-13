@@ -181,11 +181,21 @@
   border: 1px solid var(--sca-border-solid);
   border-radius: 14px;
   padding: 0;
-  width: min(560px, calc(100vw - 32px));
+  width: min(880px, calc(100vw - 32px));
+  min-height: 50dvh;
   max-height: calc(100dvh - 48px);
   font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   font-size: 13px;
   line-height: 1.4;
+}
+
+.suno-assistant__dialog:not([open]) {
+  display: none;
+}
+
+.suno-assistant__dialog[open] {
+  display: flex;
+  flex-direction: column;
 }
 
 .suno-assistant__dialog::backdrop {
@@ -195,20 +205,19 @@
 .suno-assistant__dialog-body {
   display: flex;
   flex-direction: column;
-  gap: 18px;
-  padding: 18px 20px 22px;
-  overflow: auto;
+  flex: 1 1 auto;
+  min-height: 0;
+  height: 100%;
   max-height: calc(100dvh - 48px);
+  overflow: hidden;
 }
 
 .suno-assistant__dialog-header {
-  position: sticky;
-  top: -18px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  margin: -18px -20px 0;
+  flex-shrink: 0;
   padding: 14px 20px;
   background: var(--sca-bg-control);
   border-bottom: 1px solid var(--sca-border);
@@ -217,6 +226,82 @@
 .suno-assistant__dialog-header h2 { margin: 0; font-size: 15px; }
 .suno-assistant__dialog-body h3 { margin: 0 0 4px; font-size: 14px; }
 .suno-assistant__hint { margin: 0 0 10px; color: var(--sca-fg-secondary); font-size: 12px; }
+
+/* Sidebar section tabs, replacing the old single scrolling column of every
+   section stacked in a row. Only the content pane scrolls; the header and
+   nav stay put. */
+.suno-assistant__dialog-layout {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.suno-assistant__dialog-nav {
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  gap: 2px;
+  width: 260px;
+  padding: 14px 10px;
+  overflow-y: auto;
+  border-right: 1px solid var(--sca-border);
+}
+
+/* Extra-specific selector (three classes) is deliberate: it must outrank
+   `.suno-assistant__dialog-body button:not(.suno-assistant__button)` below,
+   which otherwise applies its pill-button look (rounded background on
+   every button) to these nav items regardless of source order - only the
+   active tab should ever show a filled background. */
+.suno-assistant__dialog-body .suno-assistant__dialog-nav .suno-assistant__dialog-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 10px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--sca-fg-secondary);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.suno-assistant__dialog-body .suno-assistant__dialog-nav .suno-assistant__dialog-nav-item:hover {
+  background: var(--sca-bg-input);
+  color: var(--sca-fg);
+}
+.suno-assistant__dialog-body .suno-assistant__dialog-nav .suno-assistant__dialog-nav-item[aria-current="page"] {
+  background: var(--sca-accent);
+  color: #fff;
+  font-weight: 600;
+}
+.suno-assistant__dialog-nav-item svg { flex-shrink: 0; width: 17px; height: 17px; }
+
+.suno-assistant__dialog-content {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-y: auto;
+  padding: 18px 20px 22px;
+}
+
+.suno-assistant__dialog-feedback { margin: 14px 20px 0; }
+
+@media (max-width: 640px) {
+  .suno-assistant__dialog-layout { flex-direction: column; }
+  .suno-assistant__dialog-nav {
+    flex-direction: row;
+    width: auto;
+    gap: 4px;
+    padding: 8px 10px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    border-right: none;
+    border-bottom: 1px solid var(--sca-border);
+  }
+  .suno-assistant__dialog-nav-item { flex-shrink: 0; }
+}
 
 .suno-assistant__dialog-body label {
   display: block;

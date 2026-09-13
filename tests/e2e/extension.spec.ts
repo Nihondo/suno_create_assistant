@@ -219,12 +219,37 @@ test('mounts the Suno controls beside their anchors, survives host removal, and 
     // Preset creation is now directly triggered via the "設定を保存" button next to the dropdown.
     await presetsHost.getByRole('button', { name: '設定を保存' }).click();
     const dialog = page.locator('suno-create-assistant[data-suno-create-assistant="settings"]');
+    // The dialog is now split into a sidebar of section tabs (see
+    // SettingsDialog.tsx's SECTION_ORDER) rather than one long scrolling
+    // page, so only one section's content is visible/interactable at a
+    // time - this helper switches tabs by their sidebar label.
+    const gotoTab = (label: string) => dialog.getByRole('button', { name: label, exact: true }).click();
+
     await expect(dialog.getByRole('heading', { name: 'Suno Create Assistant の設定' })).toBeVisible();
+    // "設定を保存" opens directly on the presets tab with Suno's current
+    // values already captured - there is no separate capture button inside
+    // the dialog.
+    await expect(dialog.getByRole('button', { name: '現在値からプリセットを作成' })).toHaveCount(0);
+    // Name and save it here, before visiting any other tab: switching tabs
+    // mid-edit intentionally clears the in-progress preset form (see the
+    // effect in SettingsDialog.tsx), the same way it always has for any
+    // other way of arriving at the presets section.
+    await dialog.getByRole('textbox', { name: '名前' }).fill('標準');
+    await dialog.getByRole('button', { name: '保存', exact: true }).click();
+    await expect(dialog.getByText('標準')).toBeVisible();
+    await expect(dialog.getByText('奇抜さ: 50%')).toBeVisible();
+
+    await gotoTab('曲名フォーマット');
     await expect(dialog.getByRole('heading', { name: '曲名フォーマット' })).toBeVisible();
     await expect(dialog.getByRole('textbox', { name: '曲名フォーマット' })).toHaveValue('{{WORKSPACE}} ({{STYLE}}) {{TAKE}}');
+    await expect(dialog.getByRole('heading', { name: '表示設定' })).toHaveCount(0);
+
+    await gotoTab('表示設定');
     await expect(dialog.getByRole('heading', { name: '表示設定' })).toBeVisible();
     const closeDisclosuresCheck = dialog.getByRole('checkbox', { name: 'アドバンスドタブを開いた時に歌詞、スタイル、その他のオプションを閉じる' });
     await expect(closeDisclosuresCheck).toBeChecked();
+
+    await gotoTab('歌詞タグ');
     await expect(dialog.getByRole('heading', { name: '歌詞タグ' })).toBeVisible();
     const lyricsTagsTextarea = dialog.locator('textarea.suno-assistant__tags-textarea');
     await expect(lyricsTagsTextarea).toBeVisible();
@@ -232,12 +257,10 @@ test('mounts the Suno controls beside their anchors, survives host removal, and 
     await lyricsTagsTextarea.fill('[Intro]\n[Solo]\n[Outro]');
     await dialog.getByRole('button', { name: 'タグを保存' }).click();
     await expect(dialog.locator('.suno-assistant__format-saved', { hasText: '保存しました' })).toBeVisible();
-    await expect(dialog.getByRole('button', { name: '現在値からプリセットを作成' })).toHaveCount(0);
 
-    await dialog.getByRole('textbox', { name: '名前' }).fill('標準');
-    await dialog.getByRole('button', { name: '保存', exact: true }).click();
-    await expect(dialog.getByText('標準')).toBeVisible();
-    await expect(dialog.getByText('奇抜さ: 50%')).toBeVisible();
+    // Back to presets, now showing the list (the tab switches above cleared
+    // the finished form), to edit the preset just saved.
+    await gotoTab('その他のオプションプリセット');
     await dialog.getByRole('button', { name: '編集' }).click();
     await expect(dialog.getByRole('textbox', { name: '名前' })).toHaveValue('標準');
     await dialog.getByRole('radio', { name: 'カスタム' }).check();
@@ -255,12 +278,14 @@ test('mounts the Suno controls beside their anchors, survives host removal, and 
     await dialog.getByRole('button', { name: '閉じる' }).click();
     await expect(dialog.getByRole('heading', { name: 'Suno Create Assistant の設定' })).toBeHidden();
 
-    // Open settings from sidebar button and verify active state
+    // Open settings from sidebar button and verify active state. The
+    // sidebar button opens on the first tab (display), matching SECTION_ORDER.
     await sidebarButton.click();
     await expect(dialog.getByRole('heading', { name: 'Suno Create Assistant の設定' })).toBeVisible();
     await expect(sidebarButton).toHaveAttribute('data-active', '');
 
     // Toggle closeDisclosuresOnAdvanced setting off
+    await gotoTab('表示設定');
     await closeDisclosuresCheck.uncheck();
     await expect(closeDisclosuresCheck).not.toBeChecked();
 
@@ -281,6 +306,7 @@ test('mounts the Suno controls beside their anchors, survives host removal, and 
 
     // Turn setting back ON from sidebar
     await sidebarButton.click();
+    await gotoTab('表示設定');
     await expect(closeDisclosuresCheck).not.toBeChecked();
     await closeDisclosuresCheck.check();
     await expect(closeDisclosuresCheck).toBeChecked();
@@ -339,6 +365,7 @@ test('mounts the Suno controls beside their anchors, survives host removal, and 
     // executeCreateWithTake / captureTakeSnapshot), visible in Settings.
     await sidebarButton.click();
     await expect(dialog.getByRole('heading', { name: 'Suno Create Assistant の設定' })).toBeVisible();
+    await gotoTab('テイク履歴');
     await expect(dialog.getByRole('heading', { name: 'テイク履歴' })).toBeVisible();
     await expect(dialog.getByText('Demo Workspace (ARIA) 1', { exact: true })).toBeVisible();
     await expect(dialog.getByText('Demo Workspace (ARIA) 2', { exact: true })).toBeVisible();
@@ -361,6 +388,7 @@ test('mounts the Suno controls beside their anchors, survives host removal, and 
     // Export downloads the live settings (including the two take-history
     // entries just recorded) as a JSON backup file.
     await sidebarButton.click();
+    await gotoTab('バックアップ');
     await expect(dialog.getByRole('heading', { name: 'バックアップ' })).toBeVisible();
     const downloadPromise = page.waitForEvent('download');
     await dialog.getByRole('button', { name: 'エクスポート' }).click();
@@ -381,6 +409,7 @@ test('mounts the Suno controls beside their anchors, survives host removal, and 
     page.once('dialog', (nativeDialog) => void nativeDialog.accept());
     await dialog.locator('input[type="file"]').setInputFiles(importPath);
     await expect(dialog.getByText('設定を読み込みました。')).toBeVisible();
+    await gotoTab('テイク履歴');
     await expect(dialog.getByRole('heading', { name: 'テイク履歴' })).toBeVisible();
     await expect(dialog.getByText('まだ記録がありません。')).toBeVisible();
   } finally {

@@ -170,7 +170,7 @@ export function SidebarSettingsButton({ controller }: { controller: SunoControll
       data-suno-assistant="sidebar-settings-button"
       {...(isOpen ? { 'data-active': '' } : { 'data-inactive': '' })}
       className="hxc-btn-base hxc-btn-variant-tertiary-legacy hxc-btn-size-mini hxc-btn-shape-pill hxc-btn-background [--hxc-btn-px:1rem] [--hxc-btn-py:0.5rem] [--hxc-btn-font-size:0.875rem] [--hxc-btn-line-height:2rem] [--hxc-btn-icon-size:1.125rem] [--hxc-btn-icon-margin-y:0.4375rem] [--hxc-btn-icon-margin-x:0rem] [--hxc-btn-content-gap:0.75rem] text-foreground-tertiary data-[active]:text-foreground-primary data-[active]:[--hxc-btn-overlay-opacity:0.5] data-[active]:hover:[--hxc-btn-overlay-opacity:0.8] data-[active]:[--hxc-btn-overlay:var(--color-background-glass-dense)] hover:text-foreground-primary focus-visible:text-foreground-primary data-[popup-open]:text-foreground-primary w-full overflow-hidden text-left justify-start cursor-pointer border-0"
-      onClick={() => controller.openSettings('titleFormat')}
+      onClick={() => controller.openSettings('display')}
     >
       <span aria-hidden="true" className="hxc-btn-overlay-slot hxc-btn-border" />
       <span className="hxc-btn-content">

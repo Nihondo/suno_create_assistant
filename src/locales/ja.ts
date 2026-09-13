@@ -74,6 +74,7 @@ export const jaUiMessages: UiMessages = {
     lyricsTagPalette: '歌詞タグパレット',
     editLyricsTags: 'タグを編集',
     reuseParameters: 'パラメータを再利用',
+    settingsSections: '設定カテゴリ',
   },
   dialog: {
     title: 'Suno Create Assistant の設定',

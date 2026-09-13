@@ -37,7 +37,7 @@ import {
 } from '../locales';
 
 export type SettingsSection = 'masterings' | 'presets' | 'titleFormat' | 'display' | 'lyricsTags' | 'backup' | 'takeHistory';
-export type SettingsAction = 'create-preset';
+export type SettingsAction = 'create-preset' | 'reuse-as-preset';
 
 export interface Feedback {
   message: string;
@@ -232,7 +232,7 @@ export class SunoController {
     }
   }
 
-  openSettings(section: SettingsSection = 'titleFormat', action?: SettingsAction): void {
+  openSettings(section: SettingsSection = 'display', action?: SettingsAction): void {
     this.state.settings = { section, action };
     this.state.settingsFeedback = undefined;
     this.emit();

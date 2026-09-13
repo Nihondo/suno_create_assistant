@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState, type ChangeEvent, type RefObject } from 'react';
+import { useEffect, useId, useRef, useState, type ChangeEvent } from 'react';
 import { DEFAULT_TITLE_FORMAT, formatLyricsTags, parseLyricsTags, readableOptionFields, validateUniqueName } from '../domain/logic';
 import { DEFAULT_LYRICS_TAGS, emptyOtherOptions, optionKeys, type MasteringPrompt, type OtherOptionsKey, type OtherOptionsPreset, type OtherOptionsSnapshot, type TakeRecord, type VocalGender } from '../domain/models';
 import { clearTakeHistory, deleteMastering, deletePreset, deleteTakeRecord, exportBackup, parseBackup, replaceStorage, saveMastering, savePreset } from '../storage/repository';
@@ -32,17 +32,50 @@ function formatPreset(fields: Partial<OtherOptionsSnapshot>, ui: UiMessages): st
   return values.join(' / ');
 }
 
+// Order and identity of the sidebar's section tabs. Labels are resolved
+// from `ui.dialog.*Heading` at render time (see sectionLabel below) so this
+// stays language-agnostic.
+const SECTION_ORDER: SettingsSection[] = ['display', 'lyricsTags', 'masterings', 'presets', 'titleFormat', 'takeHistory', 'backup'];
+
+// Generic (non-brand) glyphs, one per tab, purely as a visual anchor next
+// to each label - matching the icon-before-label pattern of the reference
+// sidebar the user asked to follow.
+const SECTION_ICON_PATHS: Record<SettingsSection, string> = {
+  titleFormat: 'M3 17.25V21h3.75L17.81 9.94l-3.75-3.75zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34a.9959.9959 0 0 0-1.41 0l-1.83 1.83 3.75 3.75z',
+  display: 'M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5C21.27 7.61 17 4.5 12 4.5m0 12.5c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5m0-8a3 3 0 1 0 0 6 3 3 0 0 0 0-6',
+  lyricsTags: 'M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3z',
+  backup: 'M19 12v7H5v-7H3v7a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7zM13 12.67l2.59-2.58L17 11.5l-5 5-5-5 1.41-1.41L11 12.67V3h2z',
+  masterings: 'M17 3H7a2 2 0 0 0-2 2v16l7-3 7 3V5a2 2 0 0 0-2-2',
+  presets: 'M3 17v2h6v-2zM3 5v2h10V5zm10 16v-2h8v-2h-8v-2h-2v6zM7 9v2H3v2h4v2h2V9zm14 4v-2H11v2zm-6-4h2V7h4V5h-4V3h-2v6z',
+  takeHistory: 'M13 3a9 9 0 0 0-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42A8.954 8.954 0 0 0 13 21a9 9 0 0 0 0-18m-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8z',
+};
+
+function SectionIcon({ section }: { section: SettingsSection }) {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <path d={SECTION_ICON_PATHS[section]} />
+    </svg>
+  );
+}
+
+function sectionLabel(section: SettingsSection, ui: UiMessages): string {
+  switch (section) {
+    case 'titleFormat': return ui.dialog.titleFormatHeading;
+    case 'display': return ui.dialog.displayHeading;
+    case 'lyricsTags': return ui.dialog.lyricsTagsHeading;
+    case 'backup': return ui.dialog.backupHeading;
+    case 'masterings': return ui.dialog.masteringHeading;
+    case 'presets': return ui.dialog.presetHeading;
+    case 'takeHistory': return ui.dialog.takeHistoryHeading;
+    default: return section;
+  }
+}
+
 export function SettingsDialog({ controller }: { controller: SunoController }) {
   const state = useController(controller);
   const { masterings, presets, takeHistory } = useStoredLists();
   const dialogRef = useRef<HTMLDialogElement>(null);
-  const titleFormatSectionRef = useRef<HTMLElement>(null);
-  const displaySectionRef = useRef<HTMLElement>(null);
-  const lyricsTagsSectionRef = useRef<HTMLElement>(null);
-  const backupSectionRef = useRef<HTMLElement>(null);
-  const masteringSectionRef = useRef<HTMLElement>(null);
-  const presetSectionRef = useRef<HTMLElement>(null);
-  const takeHistorySectionRef = useRef<HTMLElement>(null);
+  const activeSection: SettingsSection = state.settings?.section ?? 'display';
   const [titleFormat, setTitleFormat] = useState(state.titleFormat);
   const [formatSavedNotice, setFormatSavedNotice] = useState(false);
   const [lyricsTagsText, setLyricsTagsText] = useState(formatLyricsTags(state.lyricsTags));
@@ -95,20 +128,15 @@ export function SettingsDialog({ controller }: { controller: SunoController }) {
         setPresetForm({ name: '', fields: readableOptionFields(result.snapshot, result.unreadable) });
         setLocalError(undefined);
       })();
-    } else {
+    } else if (state.settings?.action !== 'reuse-as-preset') {
+      // 'reuse-as-preset' (see saveTakeAsPreset below) already set presetForm
+      // itself in the same click; clearing it here would immediately wipe
+      // that out on the very next render. Every other way of arriving at
+      // the presets section (the "プリセットを管理…" dropdown item, or
+      // simply clicking its sidebar tab) should show the list, not a
+      // leftover form from a previous edit.
       setPresetForm(undefined);
     }
-    const sectionRefs: Partial<Record<SettingsSection, RefObject<HTMLElement | null>>> = {
-      masterings: masteringSectionRef,
-      titleFormat: titleFormatSectionRef,
-      display: displaySectionRef,
-      lyricsTags: lyricsTagsSectionRef,
-      backup: backupSectionRef,
-      presets: presetSectionRef,
-      takeHistory: takeHistorySectionRef,
-    };
-    const target = (state.settings?.section && sectionRefs[state.settings.section]?.current) || presetSectionRef.current;
-    target?.scrollIntoView({ block: 'start' });
   }, [open, state.settings?.section, state.settings?.action, controller]);
 
   const close = () => controller.closeSettings();
@@ -223,8 +251,9 @@ export function SettingsDialog({ controller }: { controller: SunoController }) {
     // Reuses the existing preset-creation form rather than saving directly,
     // so the user can name it (and drop/adjust fields) before it is
     // persisted - the same form startPreset()/saveCurrentPreset() already
-    // drive for "設定を保存" and "編集".
-    controller.openSettings('presets');
+    // drive for "設定を保存" and "編集". The 'reuse-as-preset' action tells
+    // the effect above not to clear presetForm right back out again.
+    controller.openSettings('presets', 'reuse-as-preset');
     setEditingPreset(undefined);
     setPresetForm({ name: record.title, fields: cloneFields(record.options) });
     setLocalError(undefined);
@@ -245,32 +274,28 @@ export function SettingsDialog({ controller }: { controller: SunoController }) {
         <button type="button" className="suno-assistant__button" onClick={close}>{ui.dialog.close}</button>
       </div>
       {(state.settingsFeedback || localError) && (
-        <p className={`suno-assistant__status ${localError || state.settingsFeedback?.kind === 'error' ? 'suno-assistant__status--error' : ''}`} role={localError || state.settingsFeedback?.kind === 'error' ? 'alert' : 'status'}>
+        <p className={`suno-assistant__status suno-assistant__dialog-feedback ${localError || state.settingsFeedback?.kind === 'error' ? 'suno-assistant__status--error' : ''}`} role={localError || state.settingsFeedback?.kind === 'error' ? 'alert' : 'status'}>
           {localError ?? state.settingsFeedback?.message}
         </p>
       )}
 
-      <section ref={titleFormatSectionRef} aria-labelledby="suno-assistant-title-format-heading">
-        <h3 id="suno-assistant-title-format-heading">{ui.dialog.titleFormatHeading}</h3>
-        <p className="suno-assistant__hint">
-          {ui.dialog.titleFormatHint}
-        </p>
-        <div className="suno-assistant__format-field">
-          <input
-            type="text"
-            aria-label={ui.aria.titleFormatInput}
-            value={titleFormat}
-            onChange={(event) => setTitleFormat(event.target.value)}
-          />
-          <div className="suno-assistant__format-actions">
-            <button type="button" onClick={handleResetTitleFormat}>{ui.dialog.resetDefault}</button>
-            <button type="button" onClick={() => void handleSaveTitleFormat()}>{ui.dialog.saveFormat}</button>
-            {formatSavedNotice && <span className="suno-assistant__format-saved">{ui.dialog.savedNotice}</span>}
-          </div>
-        </div>
-      </section>
-
-      <section ref={displaySectionRef} aria-labelledby="suno-assistant-display-heading">
+      <div className="suno-assistant__dialog-layout">
+        <nav className="suno-assistant__dialog-nav" aria-label={ui.aria.settingsSections}>
+          {SECTION_ORDER.map((section) => (
+            <button
+              key={section}
+              type="button"
+              className="suno-assistant__dialog-nav-item"
+              aria-current={activeSection === section ? 'page' : undefined}
+              onClick={() => controller.openSettings(section)}
+            >
+              <SectionIcon section={section} />
+              {sectionLabel(section, ui)}
+            </button>
+          ))}
+        </nav>
+        <div className="suno-assistant__dialog-content">
+      {activeSection === 'display' && <section aria-labelledby="suno-assistant-display-heading">
         <h3 id="suno-assistant-display-heading">{ui.dialog.displayHeading}</h3>
         <label className="suno-assistant__dialog-toggle-label">
           <input
@@ -284,9 +309,9 @@ export function SettingsDialog({ controller }: { controller: SunoController }) {
         <p className="suno-assistant__hint">
           {ui.dialog.closeDisclosuresHint}
         </p>
-      </section>
+      </section>}
 
-      <section ref={lyricsTagsSectionRef} aria-labelledby="suno-assistant-lyrics-tags-heading">
+      {activeSection === 'lyricsTags' && <section aria-labelledby="suno-assistant-lyrics-tags-heading">
         <h3 id="suno-assistant-lyrics-tags-heading">{ui.dialog.lyricsTagsHeading}</h3>
         <p className="suno-assistant__hint">
           {ui.dialog.lyricsTagsHint}
@@ -304,35 +329,9 @@ export function SettingsDialog({ controller }: { controller: SunoController }) {
             {lyricsTagsSavedNotice && <span className="suno-assistant__format-saved">{ui.dialog.lyricsTagsSavedNotice}</span>}
           </div>
         </div>
-      </section>
+      </section>}
 
-      <section ref={backupSectionRef} aria-labelledby="suno-assistant-backup-heading">
-        <h3 id="suno-assistant-backup-heading">{ui.dialog.backupHeading}</h3>
-        <p className="suno-assistant__hint">{ui.dialog.backupHint}</p>
-        <label className="suno-assistant__dialog-toggle-label">
-          <input
-            type="checkbox"
-            className="suno-assistant__check"
-            checked={includeTakeHistoryOnExport}
-            onChange={(event) => setIncludeTakeHistoryOnExport(event.target.checked)}
-          />
-          {ui.dialog.includeTakeHistoryLabel}
-        </label>
-        <div className="suno-assistant__format-actions">
-          <button type="button" onClick={() => void handleExportBackup()}>{ui.dialog.exportButton}</button>
-          <button type="button" onClick={handleImportClick}>{ui.dialog.importButton}</button>
-          <input
-            ref={importFileInputRef}
-            type="file"
-            accept="application/json"
-            hidden
-            onChange={(event) => void handleImportFile(event)}
-          />
-          {backupNotice && <span className="suno-assistant__format-saved">{backupNotice}</span>}
-        </div>
-      </section>
-
-      <section ref={masteringSectionRef} aria-labelledby="suno-assistant-mastering-heading">
+      {activeSection === 'masterings' && <section aria-labelledby="suno-assistant-mastering-heading">
         <h3 id="suno-assistant-mastering-heading">{ui.dialog.masteringHeading}</h3>
         <p className="suno-assistant__hint">{ui.dialog.masteringHint}</p>
         {!masteringForm && <>
@@ -356,9 +355,9 @@ export function SettingsDialog({ controller }: { controller: SunoController }) {
             <button type="submit">{ui.dialog.save}</button>
           </div>
         </form>}
-      </section>
+      </section>}
 
-      <section ref={presetSectionRef} aria-labelledby="suno-assistant-preset-heading">
+      {activeSection === 'presets' && <section aria-labelledby="suno-assistant-preset-heading">
         <h3 id="suno-assistant-preset-heading">{ui.dialog.presetHeading}</h3>
         <p className="suno-assistant__hint">{ui.dialog.presetHint}</p>
         {!presetForm && <>
@@ -398,9 +397,29 @@ export function SettingsDialog({ controller }: { controller: SunoController }) {
             <button type="submit">{ui.dialog.save}</button>
           </div>
         </form>}
-      </section>
+      </section>}
 
-      <section ref={takeHistorySectionRef} aria-labelledby="suno-assistant-take-history-heading">
+      {activeSection === 'titleFormat' && <section aria-labelledby="suno-assistant-title-format-heading">
+        <h3 id="suno-assistant-title-format-heading">{ui.dialog.titleFormatHeading}</h3>
+        <p className="suno-assistant__hint">
+          {ui.dialog.titleFormatHint}
+        </p>
+        <div className="suno-assistant__format-field">
+          <input
+            type="text"
+            aria-label={ui.aria.titleFormatInput}
+            value={titleFormat}
+            onChange={(event) => setTitleFormat(event.target.value)}
+          />
+          <div className="suno-assistant__format-actions">
+            <button type="button" onClick={handleResetTitleFormat}>{ui.dialog.resetDefault}</button>
+            <button type="button" onClick={() => void handleSaveTitleFormat()}>{ui.dialog.saveFormat}</button>
+            {formatSavedNotice && <span className="suno-assistant__format-saved">{ui.dialog.savedNotice}</span>}
+          </div>
+        </div>
+      </section>}
+
+      {activeSection === 'takeHistory' && <section aria-labelledby="suno-assistant-take-history-heading">
         <h3 id="suno-assistant-take-history-heading">{ui.dialog.takeHistoryHeading}</h3>
         <p className="suno-assistant__hint">{ui.dialog.takeHistoryHint}</p>
         <ul className="suno-assistant__list suno-assistant__list--stacked">
@@ -420,7 +439,35 @@ export function SettingsDialog({ controller }: { controller: SunoController }) {
         </ul>
         {!takeHistory.length && <p className="suno-assistant__hint">{ui.dialog.takeHistoryEmpty}</p>}
         {!!takeHistory.length && <button type="button" className="suno-assistant__button" onClick={() => void handleClearTakeHistory()}>{ui.dialog.clearAllHistory}</button>}
-      </section>
+      </section>}
+
+      {activeSection === 'backup' && <section aria-labelledby="suno-assistant-backup-heading">
+        <h3 id="suno-assistant-backup-heading">{ui.dialog.backupHeading}</h3>
+        <p className="suno-assistant__hint">{ui.dialog.backupHint}</p>
+        <label className="suno-assistant__dialog-toggle-label">
+          <input
+            type="checkbox"
+            className="suno-assistant__check"
+            checked={includeTakeHistoryOnExport}
+            onChange={(event) => setIncludeTakeHistoryOnExport(event.target.checked)}
+          />
+          {ui.dialog.includeTakeHistoryLabel}
+        </label>
+        <div className="suno-assistant__format-actions">
+          <button type="button" onClick={() => void handleExportBackup()}>{ui.dialog.exportButton}</button>
+          <button type="button" onClick={handleImportClick}>{ui.dialog.importButton}</button>
+          <input
+            ref={importFileInputRef}
+            type="file"
+            accept="application/json"
+            hidden
+            onChange={(event) => void handleImportFile(event)}
+          />
+          {backupNotice && <span className="suno-assistant__format-saved">{backupNotice}</span>}
+        </div>
+      </section>}
+        </div>
+      </div>
     </div>
   </dialog>;
 }

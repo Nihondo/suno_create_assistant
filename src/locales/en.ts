@@ -74,6 +74,7 @@ export const enUiMessages: UiMessages = {
     lyricsTagPalette: 'Lyrics Tag Palette',
     editLyricsTags: 'Edit Tags',
     reuseParameters: 'Reuse parameters',
+    settingsSections: 'Settings categories',
   },
   dialog: {
     title: 'Suno Create Assistant Settings',

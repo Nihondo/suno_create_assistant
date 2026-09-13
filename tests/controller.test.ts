@@ -101,13 +101,13 @@ describe('SunoController feedback scopes', () => {
     expect(current().settings).toEqual({ section: 'presets', action: 'create-preset' });
   });
 
-  it('defaults to titleFormat section when openSettings is called without arguments', () => {
+  it('defaults to display section when openSettings is called without arguments', () => {
     const controller = new SunoController();
     const current = watch(controller);
 
     controller.openSettings();
 
-    expect(current().settings).toEqual({ section: 'titleFormat', action: undefined });
+    expect(current().settings).toEqual({ section: 'display', action: undefined });
   });
 });
 
