@@ -3,6 +3,9 @@ import { defineConfig } from 'wxt';
 export default defineConfig({
   outDir: 'install',
   outDirTemplate: 'suno-create-assistant',
+  zip: {
+    artifactTemplate: 'suno-create-assistant.zip',
+  },
   modules: ['@wxt-dev/module-react'],
   manifest: {
     name: 'Suno Create Assistant',

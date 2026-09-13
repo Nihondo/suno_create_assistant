@@ -8,6 +8,8 @@ Permissions are `['storage']` only. There is no `tabs` permission, no background
 
 Run `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm test:e2e`, and `pnpm build` before handoff. The unpacked build output is `install/suno-create-assistant` (configured via `outDirTemplate` in `wxt.config.ts`, rather than WXT's default `{browser}-mv{manifestVersion}` naming).
 
+For a release zip (e.g. to attach to a GitHub release), run `pnpm zip` only — it runs its own build internally (`wxt zip` rebuilds before zipping), so a separate `pnpm build` beforehand is redundant. It outputs a fixed `install/suno-create-assistant.zip` (`zip.artifactTemplate` in `wxt.config.ts`, overriding WXT's default versioned/browser-suffixed name) so the filename matches the `releases/latest/download/suno-create-assistant.zip` link used in README.md/README_ja.md regardless of version bumps.
+
 `tests/e2e/extension.spec.ts` starts a local HTTPS fixture mapped to `suno.com` only inside Playwright Chromium. Install its browser with `pnpm exec playwright install chromium`; the E2E test does not contact Suno.
 
 ## Suno integration rules

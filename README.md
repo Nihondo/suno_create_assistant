@@ -6,11 +6,11 @@ A local Chrome extension for the Advanced tab of [Suno Create](https://suno.com/
 
 ## Installation
 
-Pre-built extension files are included in this repository under `install/suno-create-assistant`, so you can install and use it right away without needing Node.js or any build tools.
+A pre-built release is available, so you can install and use it right away without needing Node.js or any build tools.
 
-1. Download this repository (**Code** → **Download ZIP**) and extract it, or run `git clone https://github.com/Nihondo/suno_create_assistant.git`.
+1. Download [suno-create-assistant.zip](https://github.com/Nihondo/suno_create_assistant/releases/latest/download/suno-create-assistant.zip) and extract it.
 2. In Google Chrome, navigate to `chrome://extensions` and enable **Developer mode** in the upper-right corner.
-3. Click **Load unpacked** and select the `install/suno-create-assistant` directory inside the repository.
+3. Click **Load unpacked** and select the extracted `suno-create-assistant` directory.
 4. Open [Suno Create](https://suno.com/create) and select the **Advanced** tab.
 
 ## Features
