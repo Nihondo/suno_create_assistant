@@ -607,25 +607,6 @@ function findClipRows(): ClipRowInfo[] {
     .filter((info): info is ClipRowInfo => !!info.songId);
 }
 
-function findClipRowShareButton(row: HTMLElement): HTMLElement | undefined {
-  const shareLabels = getAllClipRowShareLabels();
-  const buttons = [...row.querySelectorAll<HTMLElement>('button, [role="button"]')];
-  return buttons.find((btn) => {
-    const label = (btn.getAttribute('aria-label') ?? btn.getAttribute('title') ?? '').toLowerCase();
-    return shareLabels.some((l) => label.includes(l.toLowerCase()));
-  });
-}
-
-function findClipRowPublishButton(row: HTMLElement): HTMLElement | undefined {
-  const buttons = [...row.querySelectorAll<HTMLElement>('button, [role="button"]')];
-  return buttons.find((btn) => {
-    const text = btn.textContent?.trim() ?? '';
-    if (/^(?:公開|publish|public)$/i.test(text)) return true;
-    const label = btn.getAttribute('aria-label') ?? btn.getAttribute('title') ?? '';
-    return /^(?:公開|publish|public)$/i.test(label.trim());
-  });
-}
-
 // Anchor for mounting a per-clip control (e.g. "reuse parameters") next to
 // Suno's own row actions, rather than inside its context menu - the menu is
 // Base UI portal-rendered and was not observed in any DOM dump, so it is
@@ -637,15 +618,46 @@ function clipRowActionAnchor(row: HTMLElement): HTMLElement | undefined {
   return likeButton?.parentElement ?? undefined;
 }
 
-function clipRowActionPlacement(row: HTMLElement): Placement | undefined {
-  const publishButton = findClipRowPublishButton(row);
-  if (publishButton) {
-    return { anchor: publishButton, position: 'beforebegin' };
+// Find the direct child element of the action container that represents the
+// "share" (copy link) action. Placing the reuse parameters button immediately
+// after this child (afterend) ensures:
+// 1. It sits between the share button and the publish button (if present)
+// 2. It stays a direct child of the action-button flex container, preserving
+//    proper button gap, height, and vertical center alignment
+// 3. It never gets trapped inside Suno's nested publish wrapper div, which
+//    would break alignment and hide the button when the clip is unpublished
+function findClipRowShareItem(row: HTMLElement): HTMLElement | undefined {
+  const container = clipRowActionAnchor(row);
+  if (!container) return undefined;
+
+  const shareLabels = getAllClipRowShareLabels();
+  const buttons = [...container.querySelectorAll<HTMLElement>('button, [role="button"]')];
+  const shareButton = buttons.find((btn) => {
+    const label = (btn.getAttribute('aria-label') ?? btn.getAttribute('title') ?? '').toLowerCase();
+    return shareLabels.some((l) => label.includes(l.toLowerCase()));
+  });
+
+  if (shareButton) {
+    let item: HTMLElement = shareButton;
+    while (item.parentElement && item.parentElement !== container) {
+      item = item.parentElement;
+    }
+    return item;
   }
 
-  const shareButton = findClipRowShareButton(row);
-  if (shareButton) {
-    return { anchor: shareButton, position: 'afterend' };
+  // Fallback: 4th child of the action container (like, dislike, pin, share)
+  const children = [...container.children] as HTMLElement[];
+  if (children.length >= 4) {
+    return children[3];
+  }
+
+  return undefined;
+}
+
+function clipRowActionPlacement(row: HTMLElement): Placement | undefined {
+  const shareItem = findClipRowShareItem(row);
+  if (shareItem) {
+    return { anchor: shareItem, position: 'afterend' };
   }
 
   const anchor = clipRowActionAnchor(row);
