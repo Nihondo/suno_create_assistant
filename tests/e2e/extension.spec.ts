@@ -7,7 +7,7 @@ import { join, resolve } from 'node:path';
 import { chromium, type BrowserContext } from 'playwright';
 import { generate } from 'selfsigned';
 
-const extensionPath = resolve('install/chrome-mv3');
+const extensionPath = resolve('install/suno-create-assistant');
 
 const sunoFixture = `<!doctype html><html lang="ja"><body>
   <aside class="group/sidebar">

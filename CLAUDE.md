@@ -6,7 +6,7 @@ This is a Manifest V3 Chrome extension built with WXT, React, TypeScript, and pn
 
 Permissions are `['storage']` only. There is no `tabs` permission, no background service worker, and no options page: all styling, presets, mastering management, and keyboard shortcuts run purely in the content script inside the Suno tab itself.
 
-Run `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm test:e2e`, and `pnpm build` before handoff. The unpacked build output is `install/chrome-mv3`.
+Run `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm test:e2e`, and `pnpm build` before handoff. The unpacked build output is `install/suno-create-assistant` (configured via `outDirTemplate` in `wxt.config.ts`, rather than WXT's default `{browser}-mv{manifestVersion}` naming).
 
 `tests/e2e/extension.spec.ts` starts a local HTTPS fixture mapped to `suno.com` only inside Playwright Chromium. Install its browser with `pnpm exec playwright install chromium`; the E2E test does not contact Suno.
 
