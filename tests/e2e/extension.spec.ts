@@ -178,7 +178,7 @@ test('mounts the Suno controls beside their anchors, survives host removal, and 
 
     await expect(stylesHost).toBeVisible();
 
-    await expect(page.locator('#inspiration')).toHaveText('＋ ひらめき');
+    await expect(page.locator('#inspiration')).toHaveText('＋ Inspo');
     await expect(page.getByRole('button', { name: /^プリセット:/ })).toBeVisible();
     await page.getByRole('button', { name: /^スタイル:/ }).click();
     await expect(page.getByRole('option', { name: 'ARIA' })).toBeVisible();

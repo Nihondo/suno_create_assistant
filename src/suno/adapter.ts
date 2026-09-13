@@ -828,10 +828,10 @@ export class SunoAdapter {
 
     const walker = document.createTreeWalker(button, NodeFilter.SHOW_TEXT);
     for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-      if (node.nodeValue?.includes('インスピレーション')) node.nodeValue = node.nodeValue.replaceAll('インスピレーション', 'ひらめき');
+      if (node.nodeValue?.includes('インスピレーション')) node.nodeValue = node.nodeValue.replaceAll('インスピレーション', 'Inspo');
     }
     const accessibleName = button.getAttribute('aria-label');
-    if (accessibleName?.includes('インスピレーション')) button.setAttribute('aria-label', accessibleName.replaceAll('インスピレーション', 'ひらめき'));
+    if (accessibleName?.includes('インスピレーション')) button.setAttribute('aria-label', accessibleName.replaceAll('インスピレーション', 'Inspo'));
   }
 
   isCreateButton(candidate: HTMLElement): boolean {
