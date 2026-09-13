@@ -403,7 +403,7 @@ export function SettingsDialog({ controller }: { controller: SunoController }) {
       <section ref={takeHistorySectionRef} aria-labelledby="suno-assistant-take-history-heading">
         <h3 id="suno-assistant-take-history-heading">{ui.dialog.takeHistoryHeading}</h3>
         <p className="suno-assistant__hint">{ui.dialog.takeHistoryHint}</p>
-        <ul className="suno-assistant__list">
+        <ul className="suno-assistant__list suno-assistant__list--stacked">
           {takeHistory.map((record) => <li key={record.id}>
             <div>
               <strong>{record.title}</strong>

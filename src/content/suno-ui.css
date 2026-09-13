@@ -264,6 +264,14 @@
 .suno-assistant__list li p { margin: 2px 0 0; color: var(--sca-fg-secondary); font-size: 12px; }
 .suno-assistant__list-actions { display: flex; gap: 6px; flex-shrink: 0; }
 
+/* Take history rows carry far more text (title, timestamp, a full options
+   summary line) than mastering/preset rows, so they get their own layout:
+   the info block spans the row's full width and the action buttons move to
+   their own row underneath, instead of squeezing beside a fixed-width
+   button column. */
+.suno-assistant__list--stacked li { flex-direction: column; align-items: stretch; }
+.suno-assistant__list--stacked .suno-assistant__list-actions { justify-content: flex-end; flex-wrap: wrap; }
+
 .suno-assistant__checks { display: flex; flex-wrap: wrap; gap: 8px 14px; margin: 10px 0; }
 .suno-assistant__checks label { display: inline-flex; align-items: center; gap: 5px; margin: 0; }
 
