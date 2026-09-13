@@ -4,7 +4,6 @@ export const jaHostLocale: SunoHostLocale = {
   lang: 'ja',
   titlePlaceholders: ['曲名(任意)'],
   destinationKeywords: ['保存先…'],
-  optionHeadingRegex: /その他のオプション/i,
   optionResetLabels: ['すべてリセット'],
   excludedStylesPlaceholders: ['スタイルを除外'],
   clearFormLabels: ['すべてのフォーム入力をクリア'],
@@ -40,7 +39,6 @@ export const jaHostLocale: SunoHostLocale = {
   savedStyles: {
     triggerAriaLabels: ['保存したスタイルプロンプトを見る'],
     dialogAriaLabels: ['保存したスタイル'],
-    excludedActionRegex: /^(?:削除|名前を変更|グリッド表示)$/i,
     dateRegex: /^(?:保存(?:日|済み|された日)?|作成(?:日)?|更新(?:日)?)\s*[:：]?|^(?:\d{4}[/-]\d{1,2}[/-]\d{1,2}|\d{4}年\d{1,2}月\d{1,2}日|(?:今日|昨日)|\d+\s*(?:分|時間|日)\s*(?:前)?)$/i,
     mutationLabels: ['削除', '名前を変更'],
     saveNewLabels: ['プロンプトを保存'],
@@ -49,9 +47,6 @@ export const jaHostLocale: SunoHostLocale = {
     likeLabels: ['クリップに「いいね」'],
     shareLabels: ['クリップを共有', '曲リンクをコピー', 'リンクをコピー', '共有'],
   },
-  lyricsHeadings: ['歌詞', 'Lyrics'],
-  lyricsPlaceholders: ['歌詞', 'Lyrics'],
-  styleHeadings: ['スタイル', 'Styles', 'Style'],
 };
 
 export const jaUiMessages: UiMessages = {

@@ -4,7 +4,6 @@ export const enHostLocale: SunoHostLocale = {
   lang: 'en',
   titlePlaceholders: ['Song Title (Optional)', 'Song Title'],
   destinationKeywords: ['Save to...', 'Save to'],
-  optionHeadingRegex: /(?:More|Other)\s*Options/i,
   optionResetLabels: ['Reset All'],
   excludedStylesPlaceholders: ['Exclude styles'],
   clearFormLabels: ['Clear all form inputs'],
@@ -40,7 +39,6 @@ export const enHostLocale: SunoHostLocale = {
   savedStyles: {
     triggerAriaLabels: ['View saved style prompts'],
     dialogAriaLabels: ['Saved Styles', 'Saved style prompts'],
-    excludedActionRegex: /^(?:Delete|Rename|Grid View)$/i,
     dateRegex: /^(?:saved|created|updated)\s*[:：]?|^(?:\d{4}[/-]\d{1,2}[/-]\d{1,2}|today|yesterday|\d+\s*(?:minutes?|hours?|days?|weeks?|months?)\s*(?:ago)?)$/i,
     mutationLabels: ['Delete', 'Rename'],
     saveNewLabels: ['Save prompt'],
@@ -49,9 +47,6 @@ export const enHostLocale: SunoHostLocale = {
     likeLabels: ['Like clip'],
     shareLabels: ['Share clip', 'Copy link', 'Share'],
   },
-  lyricsHeadings: ['Lyrics'],
-  lyricsPlaceholders: ['Lyrics'],
-  styleHeadings: ['Styles', 'Style'],
 };
 
 export const enUiMessages: UiMessages = {

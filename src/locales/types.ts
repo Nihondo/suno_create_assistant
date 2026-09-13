@@ -37,7 +37,6 @@ export interface SunoHostSliders {
 export interface SunoHostSavedStyles {
   triggerAriaLabels: string[];
   dialogAriaLabels: string[];
-  excludedActionRegex: RegExp;
   dateRegex: RegExp;
   // Words that mark a saved-styles row as just mutated (deleted / renamed),
   // seen either as a standalone action label or as the start of a
@@ -61,7 +60,6 @@ export interface SunoHostLocale {
   lang: SupportedLanguage;
   titlePlaceholders: string[];
   destinationKeywords: string[];
-  optionHeadingRegex: RegExp;
   optionResetLabels: string[];
   excludedStylesPlaceholders: string[];
   // Label for Suno's own "Clear all form inputs" action. When clicked, the
@@ -77,9 +75,6 @@ export interface SunoHostLocale {
   };
   savedStyles: SunoHostSavedStyles;
   clipRow: SunoHostClipRow;
-  lyricsHeadings: string[];
-  lyricsPlaceholders: string[];
-  styleHeadings: string[];
 }
 
 export interface UiMessages {
