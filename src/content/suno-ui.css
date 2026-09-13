@@ -33,6 +33,9 @@
   --sca-border-solid: #4a4a50;
   --sca-accent: #3182f6;
   --sca-accent-strong: #5b9cff;
+  --sca-orange: #ea7a3b;
+  --sca-orange-subtle: rgb(234 122 59 / 45%);
+  --sca-orange-subtle-hover: rgb(234 122 59 / 75%);
   --sca-error: #ff8fa3;
   --sca-backdrop: rgb(0 0 0 / 55%);
 
@@ -52,6 +55,9 @@
   --sca-border-solid: #d9d9e0;
   --sca-accent: #2563eb;
   --sca-accent-strong: #1d4ed8;
+  --sca-orange: #d96520;
+  --sca-orange-subtle: rgb(217 101 32 / 50%);
+  --sca-orange-subtle-hover: rgb(217 101 32 / 80%);
   --sca-error: #c23652;
   --sca-backdrop: rgb(0 0 0 / 35%);
 }
@@ -91,6 +97,35 @@
 :host([data-suno-create-assistant="presets"]) .suno-assistant,
 :host([data-suno-create-assistant="lyrics"]) .suno-assistant {
   margin: 0 12px 12px;
+}
+
+.suno-assistant--lyrics,
+.suno-assistant--styles,
+.suno-assistant--presets,
+:host([data-suno-create-assistant="styles"]) .suno-assistant,
+:host([data-suno-create-assistant="presets"]) .suno-assistant,
+:host([data-suno-create-assistant="lyrics"]) .suno-assistant {
+  border: 1px solid var(--sca-orange-subtle);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.suno-assistant--lyrics:hover,
+.suno-assistant--styles:hover,
+.suno-assistant--presets:hover,
+:host([data-suno-create-assistant="styles"]) .suno-assistant:hover,
+:host([data-suno-create-assistant="presets"]) .suno-assistant:hover,
+:host([data-suno-create-assistant="lyrics"]) .suno-assistant:hover {
+  border-color: var(--sca-orange-subtle-hover);
+  box-shadow: 0 0 8px rgb(234 122 59 / 15%);
+}
+
+:host([data-theme="light"]) .suno-assistant--lyrics:hover,
+:host([data-theme="light"]) .suno-assistant--styles:hover,
+:host([data-theme="light"]) .suno-assistant--presets:hover,
+:host([data-theme="light"][data-suno-create-assistant="styles"]) .suno-assistant:hover,
+:host([data-theme="light"][data-suno-create-assistant="presets"]) .suno-assistant:hover,
+:host([data-theme="light"][data-suno-create-assistant="lyrics"]) .suno-assistant:hover {
+  box-shadow: 0 0 8px rgb(217 101 32 / 15%);
 }
 
 /* titleControlAnchor() enables wrapping on Suno's title-card row; reserve

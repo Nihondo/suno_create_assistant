@@ -143,7 +143,7 @@ export function StyleControls({ controller }: { controller: SunoController }) {
     { id: 'manage', label: ui.manage, manage: true },
   ];
   const styleLabel = state.isCustomStyle ? ui.custom : state.style?.name ?? ui.unselected;
-  return <div className="suno-assistant" aria-label={ui.aria.styleSettings}>
+  return <div className="suno-assistant suno-assistant--styles" aria-label={ui.aria.styleSettings}>
     <Dropdown label={ui.style} valueLabel={state.stylesLoading ? ui.loading : styleLabel} items={styles} disabled={state.stylesLoading} onOpen={() => controller.refreshStyles()} onSelect={(style) => void controller.selectStyle(style)} />
     <Dropdown label={ui.mastering} valueLabel={state.mastering?.name ?? ui.unselected} items={masteringItems} onSelect={(mastering, manage) => manage ? controller.openSettings('masterings') : void controller.selectMastering(mastering)} />
     <button type="button" className="suno-assistant__button suno-assistant__button--clear" onClick={() => controller.clearStyleAndMastering()}>{ui.clear}</button>
@@ -160,7 +160,7 @@ export function PresetControls({ controller }: { controller: SunoController }) {
     ...presets.map((preset) => ({ id: preset.id, label: preset.name, value: preset })),
     { id: 'manage', label: ui.managePresets, manage: true },
   ];
-  return <div className="suno-assistant" aria-label={ui.aria.presetSettings}>
+  return <div className="suno-assistant suno-assistant--presets" aria-label={ui.aria.presetSettings}>
     <Dropdown label={ui.preset} valueLabel={state.preset?.name ?? ui.unselected} items={items} onSelect={(preset, manage) => manage ? controller.openSettings('presets') : void controller.applyPreset(preset)} />
     <button type="button" className="suno-assistant__button" onClick={() => controller.openPresetCreation()}>{ui.savePreset}</button>
     {state.presetFeedback && <output className={`suno-assistant__status ${state.presetFeedback.kind === 'error' ? 'suno-assistant__status--error' : ''}`}>{state.presetFeedback.message}</output>}
@@ -194,7 +194,15 @@ export function SidebarSettingsButton({ controller }: { controller: SunoControll
     >
       <span aria-hidden="true" className="hxc-btn-overlay-slot hxc-btn-border" />
       <span className="hxc-btn-content">
-        <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="currentColor" className="hxc-btn-icon">
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="1em"
+          height="1em"
+          viewBox="0 0 24 24"
+          fill="currentColor"
+          className="hxc-btn-icon"
+          style={{ color: '#ea7a3b' }}
+        >
           <path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z" />
         </svg>
         <span className="overflow-hidden whitespace-nowrap transition-opacity duration-200 group-data-[show-content=false]/sidebar:opacity-0">{ui.extensionSettings}</span>
@@ -206,6 +214,7 @@ export function SidebarSettingsButton({ controller }: { controller: SunoControll
 export function ReuseParamsButton({ controller, record }: { controller: SunoController; record: TakeRecord }) {
   const ui = getUiMessages();
   const [busy, setBusy] = useState(false);
+  const [hovered, setHovered] = useState(false);
 
   const handleClick = async () => {
     if (busy) return;
@@ -225,6 +234,14 @@ export function ReuseParamsButton({ controller, record }: { controller: SunoCont
       title={ui.aria.reuseParameters}
       disabled={busy}
       className="hxc-btn-base hxc-btn-variant-tertiary-legacy hxc-btn-size-small hxc-btn-shape-pill hxc-btn-background hxc-btn-icon-only hxc-btn-square"
+      style={{
+        color: hovered ? '#f59e0b' : '#ea7a3b',
+        backgroundColor: hovered ? 'rgb(234 122 59 / 22%)' : 'rgb(234 122 59 / 12%)',
+        borderColor: hovered ? 'rgb(234 122 59 / 60%)' : 'rgb(234 122 59 / 35%)',
+        transition: 'all 0.15s ease',
+      }}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
       onClick={() => void handleClick()}
     >
       <span aria-hidden="true" className="hxc-btn-overlay-slot hxc-btn-border" />

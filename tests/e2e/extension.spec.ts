@@ -130,6 +130,7 @@ test('mounts the Suno controls beside their anchors, survives host removal, and 
     await expect(sidebarButton).toBeVisible();
     await expect(sidebarButton).toHaveText(/拡張設定/);
     await expect(sidebarButton).toHaveAttribute('data-inactive', '');
+    await expect(sidebarButton.locator('svg.hxc-btn-icon')).toHaveCSS('color', 'rgb(234, 122, 59)');
     const titleHost = page.locator('suno-create-assistant[data-suno-create-assistant="title"]');
     await expect(titleHost).toHaveCount(1);
     expect(await titleHost.evaluate((host) => host.parentElement === document.querySelector('input[placeholder="曲名(任意)"]')?.parentElement)).toBe(true);
@@ -179,6 +180,11 @@ test('mounts the Suno controls beside their anchors, survives host removal, and 
     const lyricsHost = page.locator('suno-create-assistant[data-suno-create-assistant="lyrics"]');
     await expect(page.locator('#lyrics-header + suno-create-assistant[data-suno-create-assistant="lyrics"]')).toHaveCount(1);
     await expect(lyricsHost).toBeVisible();
+
+    // Verify section borders have subtle orange styling
+    await expect(lyricsHost.locator('.suno-assistant--lyrics')).toHaveCSS('border-top-color', 'rgba(234, 122, 59, 0.45)');
+    await expect(stylesHost.locator('.suno-assistant--styles')).toHaveCSS('border-top-color', 'rgba(234, 122, 59, 0.45)');
+    await expect(presetsHost.locator('.suno-assistant--presets')).toHaveCSS('border-top-color', 'rgba(234, 122, 59, 0.45)');
 
     // Verify tag buttons display without brackets
     const verse1Button = lyricsHost.getByRole('button', { name: 'Verse 1' });
@@ -388,7 +394,9 @@ test('mounts the Suno controls beside their anchors, survives host removal, and 
     // SunoController's clip-linker matches them to their take-history record.
     const firstClipRows = page.locator('[data-testid="clip-row"]', { hasText: 'Demo Workspace (ARIA) 1' });
     await expect(firstClipRows).toHaveCount(2);
-    await expect(firstClipRows.first().getByRole('button', { name: 'パラメータを再利用' })).toBeVisible();
+    const reuseBtn = firstClipRows.first().getByRole('button', { name: 'パラメータを再利用' });
+    await expect(reuseBtn).toBeVisible();
+    await expect(reuseBtn).toHaveCSS('color', 'rgb(234, 122, 59)');
     await expect(firstClipRows.last().getByRole('button', { name: 'パラメータを再利用' })).toBeVisible();
 
     const secondClipRows = page.locator('[data-testid="clip-row"]', { hasText: 'Demo Workspace (ARIA) 2' });
