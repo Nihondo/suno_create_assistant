@@ -280,6 +280,101 @@ describe('SunoAdapter.applyOtherOptions', () => {
     expect(result.applied).toContain('weirdness');
     expect(weirdnessSlider.getAttribute('aria-valuenow')).toBe('57');
   });
+
+  function sliderReadoutFixture(initialValue: number): string {
+    // Confirmed on the live site: the "NN%" readout - and, once revealed,
+    // the editable <input> - are always the slider's own nextElementSibling.
+    return `
+      <section id="options"><div role="button" aria-expanded="true">その他のオプション</div>
+        <div role="slider" aria-label="奇抜さ" aria-valuenow="${initialValue}"></div><div class="readout">${initialValue}%</div>
+      </section>
+    `;
+  }
+
+  it('commits a slider value via the double-click readout + Enter fast path, without falling back to arrow stepping', async () => {
+    // Confirmed manually on the live site (double-click 奇抜さ's "NN%"
+    // readout, type a value, press Enter, click an unrelated toggle, wait
+    // ~1-2s): the committed value survives a subsequent unrelated field's
+    // mutation - unlike an earlier, reverted attempt that never pressed
+    // Enter (see the comment above trySliderFastCommit in adapter.ts).
+    document.body.innerHTML = sliderReadoutFixture(50);
+    const adapter = new SunoAdapter();
+    const panel = document.querySelector<HTMLElement>('#options')!;
+    const readout = panel.querySelector<HTMLElement>('.readout')!;
+    const slider = panel.querySelector<HTMLElement>('[role="slider"][aria-label="奇抜さ"]')!;
+    let arrowKeyDispatched = false;
+    slider.addEventListener('keydown', () => { arrowKeyDispatched = true; });
+
+    readout.addEventListener('dblclick', () => {
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.value = slider.getAttribute('aria-valuenow') ?? '';
+      input.addEventListener('keydown', (event) => {
+        if ((event as KeyboardEvent).key !== 'Enter') return;
+        slider.setAttribute('aria-valuenow', input.value);
+        input.replaceWith(readout);
+        readout.textContent = `${input.value}%`;
+      });
+      readout.replaceWith(input);
+    });
+
+    const result = await adapter.applyOtherOptions({ weirdness: 80 });
+
+    expect(result.applied).toContain('weirdness');
+    expect(panel.querySelector('[role="slider"][aria-label="奇抜さ"]')!.getAttribute('aria-valuenow')).toBe('80');
+    expect(arrowKeyDispatched).toBe(false);
+  });
+
+  it('falls back to arrow-key stepping when double-clicking the readout reveals no input', async () => {
+    document.body.innerHTML = sliderReadoutFixture(50);
+    const adapter = new SunoAdapter();
+    const panel = document.querySelector<HTMLElement>('#options')!;
+    const slider = panel.querySelector<HTMLElement>('[role="slider"][aria-label="奇抜さ"]')!;
+    slider.addEventListener('keydown', (event) => {
+      const current = Number(slider.getAttribute('aria-valuenow'));
+      const delta = (event as KeyboardEvent).key === 'ArrowRight' ? 1 : -1;
+      slider.setAttribute('aria-valuenow', String(current + delta));
+    });
+
+    const result = await adapter.applyOtherOptions({ weirdness: 53 });
+
+    expect(result.applied).toContain('weirdness');
+    expect(slider.getAttribute('aria-valuenow')).toBe('53');
+  });
+
+  it('falls back to arrow-key stepping when the fast-commit path reveals an input but the value is never actually reflected back', async () => {
+    // Guards against trusting a "looks committed" result: if Enter is
+    // dispatched but aria-valuenow does not end up matching afterward,
+    // trySliderFastCommit() must report failure rather than a false
+    // success, so setSlider() falls through to the proven arrow-key path.
+    document.body.innerHTML = sliderReadoutFixture(50);
+    const adapter = new SunoAdapter();
+    const panel = document.querySelector<HTMLElement>('#options')!;
+    const readout = panel.querySelector<HTMLElement>('.readout')!;
+    const slider = panel.querySelector<HTMLElement>('[role="slider"][aria-label="奇抜さ"]')!;
+    let arrowKeyDispatched = false;
+    slider.addEventListener('keydown', (event) => {
+      arrowKeyDispatched = true;
+      const current = Number(slider.getAttribute('aria-valuenow'));
+      const delta = (event as KeyboardEvent).key === 'ArrowRight' ? 1 : -1;
+      slider.setAttribute('aria-valuenow', String(current + delta));
+    });
+
+    readout.addEventListener('dblclick', () => {
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.value = slider.getAttribute('aria-valuenow') ?? '';
+      // Deliberately never updates aria-valuenow, simulating a commit that
+      // silently does not take effect.
+      readout.replaceWith(input);
+    });
+
+    const result = await adapter.applyOtherOptions({ weirdness: 55 });
+
+    expect(result.applied).toContain('weirdness');
+    expect(slider.getAttribute('aria-valuenow')).toBe('55');
+    expect(arrowKeyDispatched).toBe(true);
+  });
 });
 
 describe('SunoAdapter triggerCreate', () => {

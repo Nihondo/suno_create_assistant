@@ -196,19 +196,26 @@ async function settle(): Promise<void> {
   await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
 }
 
-// DO NOT replace this with the slider's double-click-to-edit "NN%" readout
-// (dblclick it, type into the revealed <input type="text">, commit with
-// Enter). That path was tried and reverted: confirmed on the live site, it
-// only sets a transient DOM attribute, not Suno's real underlying state.
-// A single slider changed this way and left alone stays looking correct
-// indefinitely (nothing re-renders it) - but the moment anything else
-// triggers a re-render of the panel (in practice: applyOtherOptions()
-// moving on to the next field), Suno reconciles the display back to its
-// real, never-actually-updated value. Measured on the live site: the
-// slider read the correct value for ~120ms after commit, then silently
-// reverted once the next field's own change ran. Stepping arrow keys one
-// at a time is the only mechanism confirmed to update Suno's real state,
-// so it is slower but it is the only one that stays correct.
+// An EARLIER attempt at the double-click-to-edit "NN%" readout (dblclick it,
+// type into the revealed <input type="text">, but commit only by moving
+// focus/reading the attribute back - never a real Enter keypress) was tried
+// and reverted: confirmed on the live site, that path only set a transient
+// DOM attribute, not Suno's real underlying state, and silently reverted the
+// moment anything else re-rendered the panel. That is why arrow-key
+// stepping became the only mechanism used, despite being slow.
+//
+// Retried later, deliberately committing with a real Enter keypress this
+// time (see trySliderFastCommit below): confirmed manually on the live site
+// (double-click 奇抜さ's "NN%" readout, type a new value, press Enter, then
+// click an unrelated toggle and wait ~1-2s) that the committed value
+// *does* survive a subsequent unrelated field's mutation. The missing
+// Enter commit in the original attempt is believed to be exactly what made
+// the difference. trySliderFastCommit() is tried first; setSlider() falls
+// back to the arrow-key loop below on any failure of that path (element not
+// found/disabled, dblclick did not reveal an <input>, or the committed
+// aria-valuenow does not match afterward), so a live-site surprise here
+// degrades to the slower but previously-exhaustively-verified method rather
+// than silently applying a wrong value.
 //
 // Confirmed on the live site: firing several ArrowRight keydowns
 // back-to-back, with no yield in between, only moves the slider by ONE
@@ -219,7 +226,46 @@ async function settle(): Promise<void> {
 // guards against Suno replacing the slider's DOM node between steps.
 const SLIDER_STEP_GUARD = 200;
 
+// Confirmed on the live site (docs/showmore.txt and manual inspection): the
+// "NN%" readout - and, once revealed, the editable <input> - are always the
+// slider's own nextElementSibling, not reachable by any stable class name
+// (Suno's CSS classes are hashed per build). Re-fetching the panel/slider
+// fresh before and after the dblclick, exactly like the arrow-key path
+// below, guards the same way against Suno replacing the subtree mid-flight.
+async function trySliderFastCommit(panel: HTMLElement, target: keyof SunoHostSliders | string, value: number): Promise<boolean> {
+  const element = slider(panel, target);
+  if (!element || element.getAttribute('aria-disabled') === 'true') return false;
+  const readout = element.nextElementSibling;
+  if (!(readout instanceof HTMLElement)) return false;
+
+  readout.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, cancelable: true }));
+  await settle();
+
+  const freshPanel = optionPanel();
+  const freshElement = freshPanel && slider(freshPanel, target);
+  const revealed = freshElement?.nextElementSibling;
+  if (!(revealed instanceof HTMLInputElement)) return false;
+
+  nativeSetValue(revealed, String(value));
+  const eventInit: KeyboardEventInit = { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true, cancelable: true };
+  revealed.dispatchEvent(new KeyboardEvent('keydown', eventInit));
+  revealed.dispatchEvent(new KeyboardEvent('keypress', eventInit));
+  revealed.dispatchEvent(new KeyboardEvent('keyup', eventInit));
+  await settle();
+
+  const committedPanel = optionPanel();
+  const committedElement = committedPanel && slider(committedPanel, target);
+  return Number(committedElement?.getAttribute('aria-valuenow')) === value;
+}
+
 async function setSlider(target: keyof SunoHostSliders | string, value: number): Promise<boolean> {
+  const startPanel = optionPanel();
+  const startElement = startPanel && slider(startPanel, target);
+  if (!startElement || startElement.getAttribute('aria-disabled') === 'true') return false;
+  if (Number(startElement.getAttribute('aria-valuenow')) === value) return true;
+
+  if (startPanel && await trySliderFastCommit(startPanel, target, value)) return true;
+
   let moved = false;
   for (let guard = 0; guard < SLIDER_STEP_GUARD; guard += 1) {
     const panel = optionPanel();
