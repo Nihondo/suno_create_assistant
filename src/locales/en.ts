@@ -73,6 +73,7 @@ export const enUiMessages: UiMessages = {
     editLyricsTags: 'Edit Tags',
     editMasterings: 'Manage Masterings',
     editPresets: 'Manage Presets',
+    editTitleFormat: 'Edit Title Format',
     reuseParameters: 'Reuse parameters',
     settingsSections: 'Settings categories',
   },

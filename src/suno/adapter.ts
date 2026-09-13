@@ -969,8 +969,33 @@ export class SunoAdapter {
     // icon + input flex row. Let it wrap so the injected control can remain
     // inside that same card on a separate line; mounting at its parent puts
     // it below the separate destination card instead.
+    //
+    // titleAnchor() itself carries a fixed `height` (56px at the time this
+    // was checked, via getComputedStyle on the live site) and every one of
+    // its ancestors up to and including a ResizeObserver-driven
+    // `overflow: hidden` wrapper mirrors that same px value rather than
+    // sizing to content. flex-wrap: wrap alone therefore only makes the
+    // second line overflow the card and get clipped/overlap the next card
+    // below - it does not make the card taller. Confirmed directly (via a
+    // live-site console session against suno.com/create): forcing this
+    // element's `height` to `auto` while pinning `min-height` to its
+    // original (pre-wrap) height makes every ancestor, including that
+    // overflow: hidden wrapper, track the real content height - 56px with
+    // one line, and taller once the second line is present - while leaving
+    // the single-line case unchanged. `min-height` alone (height left at
+    // its default) does nothing: the element's own CSS class sets `height`
+    // directly, which wins over min-height for a card no taller than that.
+    // The `dataset` flag ensures the original height is captured only once,
+    // before this control's own host is mounted into this anchor - reading
+    // offsetHeight on a later call (e.g. after Suno recreates this element
+    // during a re-render) would otherwise capture the *wrapped* height.
     const anchor = this.titleAnchor();
-    if (anchor) anchor.style.flexWrap = 'wrap';
+    if (anchor && !anchor.dataset.sunoAssistantTitleWrap) {
+      anchor.dataset.sunoAssistantTitleWrap = 'true';
+      anchor.style.minHeight = `${anchor.offsetHeight}px`;
+      anchor.style.height = 'auto';
+      anchor.style.flexWrap = 'wrap';
+    }
     return anchor;
   }
 

@@ -84,9 +84,6 @@
 
 .suno-assistant--title {
   margin: 0 0 0 8px;
-  padding: 3px 8px;
-  background: transparent;
-  border: 0;
 }
 
 /* Both the styles row and the presets row sit directly inside one of
@@ -102,6 +99,7 @@
 .suno-assistant--lyrics,
 .suno-assistant--styles,
 .suno-assistant--presets,
+.suno-assistant--title,
 :host([data-suno-create-assistant="styles"]) .suno-assistant,
 :host([data-suno-create-assistant="presets"]) .suno-assistant,
 :host([data-suno-create-assistant="lyrics"]) .suno-assistant {
@@ -112,6 +110,7 @@
 .suno-assistant--lyrics:hover,
 .suno-assistant--styles:hover,
 .suno-assistant--presets:hover,
+.suno-assistant--title:hover,
 :host([data-suno-create-assistant="styles"]) .suno-assistant:hover,
 :host([data-suno-create-assistant="presets"]) .suno-assistant:hover,
 :host([data-suno-create-assistant="lyrics"]) .suno-assistant:hover {
@@ -122,6 +121,7 @@
 :host([data-theme="light"]) .suno-assistant--lyrics:hover,
 :host([data-theme="light"]) .suno-assistant--styles:hover,
 :host([data-theme="light"]) .suno-assistant--presets:hover,
+:host([data-theme="light"]) .suno-assistant--title:hover,
 :host([data-theme="light"][data-suno-create-assistant="styles"]) .suno-assistant:hover,
 :host([data-theme="light"][data-suno-create-assistant="presets"]) .suno-assistant:hover,
 :host([data-theme="light"][data-suno-create-assistant="lyrics"]) .suno-assistant:hover {

@@ -73,6 +73,7 @@ export const jaUiMessages: UiMessages = {
     editLyricsTags: 'タグを編集',
     editMasterings: 'マスタリングを管理',
     editPresets: 'プリセットを管理',
+    editTitleFormat: '曲名フォーマットを編集',
     reuseParameters: 'パラメータを再利用',
     settingsSections: '設定カテゴリ',
   },

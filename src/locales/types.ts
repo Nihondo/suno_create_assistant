@@ -101,6 +101,7 @@ export interface UiMessages {
     editLyricsTags: string;
     editMasterings: string;
     editPresets: string;
+    editTitleFormat: string;
     reuseParameters: string;
     settingsSections: string;
   };

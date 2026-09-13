@@ -202,6 +202,9 @@ export function AutoTitleControl({ controller }: { controller: SunoController })
       <input id={id} className="suno-assistant__check" type="checkbox" checked={state.autoTitleEnabled} onChange={(event) => void controller.setAutoTitle(event.target.checked)} />
       {ui.autoTitle}
     </label>
+    <button type="button" className="suno-assistant__tag-button suno-assistant__tag-button--settings suno-assistant__settings-button" aria-label={ui.aria.editTitleFormat} title={ui.aria.editTitleFormat} onClick={() => controller.openSettings('titleFormat')}>
+      <GearIcon />
+    </button>
   </div>;
 }
 
