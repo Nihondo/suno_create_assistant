@@ -2,6 +2,8 @@
 
 A local Chrome extension for the Advanced tab of [Suno Create](https://suno.com/create). It adds quick access to saved styles, your own mastering prompts, reusable advanced-option presets, and automatic song titles. Works with both English and Japanese Suno interfaces, detected automatically.
 
+![](./images/suno_lead.png)
+
 ## Installation
 
 Pre-built extension files are included in this repository under `install/chrome-mv3`, so you can install and use it right away without needing Node.js or any build tools.
