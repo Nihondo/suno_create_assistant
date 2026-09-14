@@ -1,3 +1,4 @@
+import { EXPECTED_CLIPS_PER_TAKE } from '../domain/models';
 import { findUnlinkedTakeRecords, linkTakeToClips } from '../storage/repository';
 import type { SunoAdapter } from './adapter';
 
@@ -13,7 +14,7 @@ export interface ClipLinker {
  * cases are deliberately left unlinked rather than guessed at (see
  * linkPendingTakes below).
  */
-export const EXPECTED_CLIPS_PER_TAKE = 2;
+export { EXPECTED_CLIPS_PER_TAKE };
 
 export function createClipLinker(adapter: SunoAdapter): ClipLinker {
   // Snapshot every song id already present when the linker is created (page

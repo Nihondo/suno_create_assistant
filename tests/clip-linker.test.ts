@@ -155,6 +155,32 @@ describe('createClipLinker', () => {
     expect(stored.takeHistory[0]!.clipIds).toEqual([]);
   });
 
+  it('claims only EXPECTED_CLIPS_PER_TAKE clips per record even when more same-title candidates are visible at once', async () => {
+    // Deliberate, tested boundary (see EXPECTED_CLIPS_PER_TAKE in
+    // domain/models.ts): Suno generates a pair of clips per submission by
+    // default, so a record is considered fully linked - and stops being
+    // offered fresh matches by findUnlinkedTakeRecords() - once it reaches
+    // that count. A third same-title row (e.g. a coincidentally identical
+    // title from an unrelated later submission) must not be swept in.
+    await seedTakeHistory([
+      pendingRecord({ id: 'r1', createdAt: '2024-01-01T00:00:00.000Z', title: 'Triple Title' }),
+    ]);
+    const adapter = new SunoAdapter();
+    const linker = createClipLinker(adapter);
+
+    document.body.innerHTML = clipRow('song-a', 'Triple Title') + clipRow('song-b', 'Triple Title') + clipRow('song-c', 'Triple Title');
+    await linker.linkPendingTakes();
+
+    const stored = await readStorage();
+    expect(stored.takeHistory[0]!.clipIds.sort()).toEqual(['song-a', 'song-b']);
+
+    // The record is now "fully linked" and is no longer reconsidered, even
+    // on a later pass where song-c is still visible and still unclaimed.
+    await linker.linkPendingTakes();
+    const restored = await readStorage();
+    expect(restored.takeHistory[0]!.clipIds.sort()).toEqual(['song-a', 'song-b']);
+  });
+
   it('links both clips when two clips for the same take appear sequentially over multiple runs', async () => {
     await seedTakeHistory([
       pendingRecord({ id: 'r1', createdAt: '2024-01-01T00:00:00.000Z', title: 'Sequential Take' }),

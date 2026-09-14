@@ -3,6 +3,7 @@ import {
   CURRENT_SCHEMA_VERSION,
   DEFAULT_LYRICS_TAGS,
   DEFAULT_TAKE_HISTORY_LIMIT,
+  EXPECTED_CLIPS_PER_TAKE,
   type MasteringPrompt,
   type OtherOptionsPreset,
   type StorageSchema,
@@ -86,18 +87,40 @@ export async function writeStorage(next: StorageSchema): Promise<void> {
   await chrome.storage.local.set({ [STORAGE_KEY]: next });
 }
 
+// Every storage mutation (updateStorage and replaceStorage below) is chained
+// onto this single promise rather than run independently. Without this, two
+// callers racing a read-modify-write cycle - e.g. appendTakeRecord() from a
+// Create submission and linkTakeToClips() from the clip-button sync that
+// runs on every refreshMounts() cycle - could both read the same pre-write
+// snapshot and then each write back their own version, silently discarding
+// whichever finished last. Chaining onto writeQueue forces every caller's
+// readStorage() to wait until the previous caller's writeStorage() has
+// actually completed, closing that window entirely.
+let writeQueue: Promise<unknown> = Promise.resolve();
+
 export async function updateStorage(mutator: (current: StorageSchema) => StorageSchema): Promise<StorageSchema> {
-  const next = mutator(await readStorage());
-  await writeStorage(next);
-  return next;
+  const run = writeQueue.then(async () => {
+    const next = mutator(await readStorage());
+    await writeStorage(next);
+    return next;
+  });
+  // Swallow here (not on `run`, which callers still observe) so one
+  // caller's rejected mutation doesn't permanently wedge the queue for
+  // every mutation queued after it.
+  writeQueue = run.catch(() => undefined);
+  return run;
 }
 
 // Replaces the entire stored schema, e.g. from an imported backup file.
 // Callers are responsible for passing something that has already been
 // through `migrate()` (see importBackup in this module) so a backup saved
 // by an older build of the extension is upgraded, not written back as-is.
+// Chained onto the same writeQueue as updateStorage() so a full-replace
+// import can't race an in-flight mutation from elsewhere.
 export async function replaceStorage(next: StorageSchema): Promise<void> {
-  await writeStorage(next);
+  const run = writeQueue.then(() => writeStorage(next));
+  writeQueue = run.catch(() => undefined);
+  return run;
 }
 
 // Parses and migrates a JSON backup (as produced by exportBackup) without
@@ -241,7 +264,7 @@ export async function linkTakeToClips(id: string, clipIds: string[]): Promise<vo
 
 export async function findUnlinkedTakeRecords(): Promise<TakeRecord[]> {
   const current = await readStorage();
-  return current.takeHistory.filter((record) => record.clipIds.length < 2);
+  return current.takeHistory.filter((record) => record.clipIds.length < EXPECTED_CLIPS_PER_TAKE);
 }
 
 export async function getTakeHistoryLimit(): Promise<number> {

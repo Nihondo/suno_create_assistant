@@ -85,6 +85,14 @@ export interface TakeRecord {
 
 export const DEFAULT_TAKE_HISTORY_LIMIT = 500;
 
+// Suno creates a pair of clips (2 variations) by default per submission.
+// Single source of truth for both storage/repository.ts's
+// findUnlinkedTakeRecords() (which record counts as still pending) and
+// suno/clip-linker.ts's linkPendingTakes() (how many clips one record can
+// claim per pass) - keeping this in one place instead of two independently
+// hardcoded numbers is what actually prevents them drifting apart.
+export const EXPECTED_CLIPS_PER_TAKE = 2;
+
 export interface StorageSchemaV2 {
   schemaVersion: 2;
   masteringPrompts: MasteringPrompt[];

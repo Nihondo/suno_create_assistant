@@ -7,6 +7,7 @@ import {
   exportBackup,
   findTakeByClipId,
   findUnlinkedTakeRecords,
+  getNextTakeNumber,
   getTakeHistoryLimit,
   linkTakeToClips,
   parseBackup,
@@ -163,6 +164,54 @@ describe('take history', () => {
 
     await setTakeHistoryLimit(200);
     expect(await getTakeHistoryLimit()).toBe(200);
+  });
+});
+
+describe('concurrent storage writes', () => {
+  beforeEach(() => {
+    mockChrome();
+  });
+
+  // Regression test for a lost-update race: appendTakeRecord() (fired on
+  // every Create submission) and linkTakeToClips() (fired on every
+  // refreshMounts() cycle by the clip-button sync) both go through
+  // updateStorage()'s read-modify-write cycle. Before updateStorage()
+  // serialized its callers via writeQueue, two overlapping calls like these
+  // would each read the same pre-write snapshot and the one that wrote last
+  // would silently discard the other's change.
+  it('does not lose a write when appendTakeRecord and linkTakeToClips race', async () => {
+    const seeded = await appendTakeRecord({ ...takeInput, title: 'Seed' });
+
+    const [appended] = await Promise.all([
+      appendTakeRecord({ ...takeInput, title: 'Second' }),
+      linkTakeToClips(seeded.id, ['song-1']),
+    ]);
+
+    const stored = await readStorage();
+    expect(stored.takeHistory).toHaveLength(2);
+    expect(stored.takeHistory.some((r) => r.title === 'Second')).toBe(true);
+    expect(stored.takeHistory.find((r) => r.id === seeded.id)?.clipIds).toEqual(['song-1']);
+    expect(appended.title).toBe('Second');
+  });
+
+  it('serializes overlapping take-number increments for the same key without dropping any', async () => {
+    const numbers = await Promise.all([
+      getNextTakeNumber('same-key'),
+      getNextTakeNumber('same-key'),
+      getNextTakeNumber('same-key'),
+    ]);
+
+    expect(numbers.sort((a, b) => a - b)).toEqual([1, 2, 3]);
+    const stored = await readStorage();
+    expect(stored.takeNumbers?.['same-key']).toBe(3);
+  });
+
+  it('keeps both keys when incrementing take numbers for two different keys concurrently', async () => {
+    const [a, b] = await Promise.all([getNextTakeNumber('a'), getNextTakeNumber('b')]);
+    expect(a).toBe(1);
+    expect(b).toBe(1);
+    const stored = await readStorage();
+    expect(stored.takeNumbers).toEqual({ a: 1, b: 1 });
   });
 });
 
