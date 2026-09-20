@@ -10,6 +10,7 @@ export default defineConfig({
   manifest: {
     name: 'Suno Create Assistant',
     description: 'Saved styles, mastering prompts, option presets, and auto titles for Suno Create.',
+    homepage_url: 'https://products.desireforwealth.com/products/suno-create-assistant',
     permissions: ['storage'],
     host_permissions: ['https://suno.com/*'],
     icons: {

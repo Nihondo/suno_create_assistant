@@ -1,6 +1,6 @@
 # Suno Create Assistant
 
-A local Chrome extension for the Advanced tab of [Suno Create](https://suno.com/create). It adds quick access to saved styles, your own mastering prompts, reusable advanced-option presets, and automatic song titles. Works with both English and Japanese Suno interfaces, detected automatically.
+A local Chrome extension for the Advanced tab of [Suno Create](https://suno.com/create). It adds quick access to saved styles, your own mastering prompts, reusable advanced-option presets, and automatic song titles. Works with both English and Japanese Suno interfaces, detected automatically. Currently, other languages are not supported.
 
 ![](./images/suno_lead.png)
 
@@ -43,7 +43,7 @@ The Preset dropdown appears directly under the **More Options** heading, so it s
 
 ### Recent workspace switcher
 
-The extension adds a **Recent Workspaces** dropdown in the upper-right corner of Suno Create, outlined in orange like the other extension controls.
+The extension adds an orange-outlined **Recent Workspaces** dropdown in the workspace header, immediately before the **Workspaces > …** breadcrumb. The breadcrumb shifts right so neither pane nor a song-details panel is covered.
 
 - Open it to choose from the ten most recently used workspaces shown by Suno.
 - Selecting an item delegates the switch to Suno's own visible workspace row, so the list stays in sync with renamed or archived workspaces without calling a private API or storing workspace data.
@@ -101,7 +101,7 @@ Under **Backup** in the settings dialog, export all your settings — mastering 
 
 ## Privacy
 
-All your settings — mastering prompts, presets, take history, the Auto title preference, the title format, and take-number counters — are stored locally in your browser and never leave it. The extension does not call any private Suno API or send data to a server, and it does not permanently store the saved-style prompts it reads from Suno's dialog. Exporting settings saves a file directly on your device; nothing is ever uploaded anywhere.
+All your settings — mastering prompts, presets, take history, the Auto title preference, the title format, and take-number counters — are stored locally in your browser and never leave it. The extension does not call any private Suno API or send data to a developer-operated server, and it does not permanently store the saved-style prompts it reads from Suno's dialog. Exporting settings saves a file directly on your device; nothing is ever uploaded anywhere. See the [Privacy Policy](PRIVACY.md) for complete details.
 
 ## Disclaimer
 

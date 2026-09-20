@@ -10,6 +10,10 @@ Run `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm test:e2e`, and `pnpm build
 
 For a release zip (e.g. to attach to a GitHub release), run `pnpm zip` only — it runs its own build internally (`wxt zip` rebuilds before zipping), so a separate `pnpm build` beforehand is redundant. It outputs a fixed `install/suno-create-assistant.zip` (`zip.artifactTemplate` in `wxt.config.ts`, overriding WXT's default versioned/browser-suffixed name) so the filename matches the `releases/latest/download/suno-create-assistant.zip` link used in README.md/README_ja.md regardless of version bumps.
 
+## Chrome Web Store release materials
+
+`STORE_LISTING.md` is the source of truth for the Chrome Web Store listing copy, declared data practices, permission justifications, and pre-submission checklist. Its claims must stay consistent with `PRIVACY.md`, README.md, and README_ja.md whenever features, permissions, or local storage change. Store images live in `store-assets/`: `icon-128.png` (128×128), `screenshot-1.png` (1280×800), and `promo-small.png` (440×280). Before submission, verify that the screenshots still show the current extension UI and replace them if necessary. The `homepage_url` in `wxt.config.ts` intentionally points to the existing product page; a public, stable URL for `PRIVACY.md` must be entered in the Store dashboard only after the policy has been published. Do not upload, submit, or publish on behalf of a user without explicit authorization.
+
 `tests/e2e/extension.spec.ts` starts a local HTTPS fixture mapped to `suno.com` only inside Playwright Chromium. Install its browser with `pnpm exec playwright install chromium`; the E2E test does not contact Suno.
 
 ## Suno integration rules
