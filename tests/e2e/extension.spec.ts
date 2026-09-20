@@ -24,6 +24,22 @@ const sunoFixture = `<!doctype html><html lang="ja"><body>
     </div>
   </aside>
   <main>
+    <button id="workspace-breadcrumb" type="button">ワークスペース</button>
+    <section id="workspace-panel" style="display:none">
+      <input aria-label="ワークスペースを検索" placeholder="検索" />
+      <div role="button" tabindex="0"><span>新しいworkspaceを作成</span></div>
+      <div role="button" tabindex="0"><span>Workspace 1</span><span>1曲 · 1m ago</span></div>
+      <div role="button" tabindex="0"><span>Workspace 2</span><span>2曲 · 2m ago</span></div>
+      <div role="button" tabindex="0"><span>Workspace 3</span><span>3曲 · 3m ago</span></div>
+      <div role="button" tabindex="0"><span>Workspace 4</span><span>4曲 · 4m ago</span></div>
+      <div role="button" tabindex="0"><span>Workspace 5</span><span>5曲 · 5m ago</span></div>
+      <div role="button" tabindex="0"><span>Workspace 6</span><span>6曲 · 6m ago</span></div>
+      <div role="button" tabindex="0"><span>Workspace 7</span><span>7曲 · 7m ago</span></div>
+      <div role="button" tabindex="0"><span>Workspace 8</span><span>8曲 · 8m ago</span></div>
+      <div role="button" tabindex="0"><span>Workspace 9</span><span>9曲 · 9m ago</span></div>
+      <div role="button" tabindex="0"><span>Workspace 10</span><span>10曲 · 10m ago</span></div>
+      <div role="button" tabindex="0"><span>Workspace 11</span><span>11曲 · 11m ago</span></div>
+    </section>
     <button role="tab" aria-selected="true">アドバンスト</button>
     <button id="inspiration">＋ インスピレーション</button>
     <section id="lyrics"><div id="lyrics-header"><div role="button" tabindex="0" aria-expanded="true">歌詞</div></div><div id="lyrics-wrapper"><textarea placeholder="歌詞を入力"></textarea></div></section>
@@ -73,6 +89,16 @@ const sunoFixture = `<!doctype html><html lang="ja"><body>
         const dialog = document.querySelector('[role="dialog"]');
         dialog.open ? dialog.close() : dialog.showModal();
       });
+      document.querySelector('#workspace-breadcrumb').addEventListener('click', () => {
+        const panel = document.querySelector('#workspace-panel');
+        panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+      });
+      document.querySelectorAll('#workspace-panel [role="button"]').forEach((row) => row.addEventListener('click', () => {
+        const name = row.querySelector('span')?.textContent;
+        if (name === '新しいworkspaceを作成') return;
+        document.body.dataset.selectedWorkspace = name;
+        document.querySelector('#workspace-panel').style.display = 'none';
+      }));
       document.querySelectorAll('#lyrics-header [role="button"], #styles-header [role="button"], #options-header [role="button"]').forEach(btn => {
         btn.addEventListener('click', () => {
           const expanded = btn.getAttribute('aria-expanded') === 'true';
@@ -119,8 +145,8 @@ test('mounts the Suno controls beside their anchors, survives host removal, and 
     await cdp.send('Runtime.enable');
     await page.goto('https://suno.com/create');
     await page.locator('suno-create-assistant').first().waitFor();
-    // lyrics, styles, presets, title, sidebar, and the always-mounted settings dialog host.
-    expect(await page.locator('suno-create-assistant').count(), extensionErrors.join('\n')).toBe(6);
+    // lyrics, styles, presets, title, sidebar, settings dialog, and workspace switcher.
+    expect(await page.locator('suno-create-assistant').count(), extensionErrors.join('\n')).toBe(7);
 
     // Verify sidebar settings button is mounted after hooks link, in light DOM
     const sidebarHost = page.locator('suno-create-assistant[data-suno-create-assistant="sidebar"]');
@@ -436,6 +462,26 @@ test('mounts the Suno controls beside their anchors, survives host removal, and 
     await gotoTab('テイク履歴');
     await expect(dialog.getByRole('heading', { name: 'テイク履歴' })).toBeVisible();
     await expect(dialog.getByText('まだ記録がありません。')).toBeVisible();
+
+    // The switcher stays fixed immediately left of the workspace breadcrumb
+    // and uses the same orange border treatment as the other extension controls.
+    const workspaceHost = page.locator('suno-create-assistant[data-suno-create-assistant="workspaces"]');
+    const workspaceTrigger = workspaceHost.getByRole('button', { name: /^最近のワークスペース:/ });
+    await expect(workspaceTrigger).toBeVisible();
+    await expect(workspaceHost.locator('.suno-assistant--workspace-switcher')).toHaveCSS('border-top-color', 'rgba(234, 122, 59, 0.45)');
+    await expect(page.locator('suno-create-assistant[data-suno-create-assistant="workspaces"] + #workspace-breadcrumb')).toHaveCount(1);
+    await expect(workspaceHost.locator('.suno-assistant--workspace-switcher')).toHaveCSS('position', 'static');
+    const [workspaceHostBox, workspaceBreadcrumbBox] = await Promise.all([
+      workspaceHost.boundingBox(),
+      page.locator('#workspace-breadcrumb').boundingBox(),
+    ]);
+    expect(workspaceHostBox).not.toBeNull();
+    expect(workspaceBreadcrumbBox).not.toBeNull();
+    expect(workspaceHostBox!.x + workspaceHostBox!.width).toBeLessThanOrEqual(workspaceBreadcrumbBox!.x);
+    expect(Math.abs(
+      workspaceHostBox!.y + workspaceHostBox!.height / 2
+      - (workspaceBreadcrumbBox!.y + workspaceBreadcrumbBox!.height / 2),
+    )).toBeLessThan(8);
 
     // Suno is an SPA: the extension must start when the URL becomes /create
     // through client-side navigation (no reload), and stop when it leaves.

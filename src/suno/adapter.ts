@@ -6,6 +6,8 @@ import {
   getAllClipRowLikeLabels,
   getAllClipRowShareLabels,
   getAllDestinationKeywords,
+  getAllWorkspaceBreadcrumbLabels,
+  getAllWorkspaceSearchAriaLabels,
   getAllExcludedStylesPlaceholders,
   getAllHostLocales,
   getAllOptionResetLabels,
@@ -41,6 +43,61 @@ function nativeSetValue(element: HTMLInputElement | HTMLTextAreaElement, value: 
   setter?.call(element, value);
   element.dispatchEvent(new Event('input', { bubbles: true }));
   element.dispatchEvent(new Event('change', { bubbles: true }));
+}
+
+const WORKSPACE_LIST_LIMIT = 10;
+
+function nextWorkspacePanelTask(): Promise<void> {
+  // A background Chrome tab can throttle requestAnimationFrame to roughly
+  // one frame per second. A short task yield lets Suno commit its click
+  // update without making the switcher feel stalled in that situation.
+  return new Promise((resolve) => setTimeout(resolve, 0));
+}
+
+function workspaceListTrigger(): HTMLButtonElement | undefined {
+  const labels = getAllWorkspaceBreadcrumbLabels();
+  return visible([...document.querySelectorAll<HTMLButtonElement>('button')].filter((button) =>
+    !button.closest('suno-create-assistant')
+    && labels.includes(text(button)),
+  ));
+}
+
+function workspaceListPanel(): HTMLElement | undefined {
+  const labels = getAllWorkspaceSearchAriaLabels();
+  const input = visible([...document.querySelectorAll<HTMLInputElement>('input')].filter((candidate) =>
+    labels.includes(candidate.getAttribute('aria-label') ?? ''),
+  ));
+  if (!input) return undefined;
+
+  // Suno's workspace side panel has no stable class or ARIA dialog role.
+  // The search field is stable, so find the nearest ancestor that owns the
+  // selectable workspace rows rather than relying on generated classes.
+  for (let node: HTMLElement | null = input.parentElement; node; node = node.parentElement) {
+    if (node.querySelectorAll('[role="button"][tabindex]').length >= 2) return node;
+  }
+}
+
+function workspaceName(row: HTMLElement): string | undefined {
+  // A workspace row renders its name as the first leaf text and its clip
+  // count / last-used time as the next one. Taking the first leaf preserves
+  // names containing digits without trying to parse localized metadata.
+  const leaves = [...row.querySelectorAll<HTMLElement>('*')]
+    .filter((element) => element.children.length === 0)
+    .map((element) => text(element))
+    .filter(Boolean);
+  return leaves.at(0);
+}
+
+function workspaceRows(panel: HTMLElement): Array<{ name: string; row: HTMLElement }> {
+  const createLabels = /^(?:新しい\s*workspaceを作成|create\s+new\s+workspace)$/i;
+  const rows: Array<{ name: string; row: HTMLElement }> = [];
+  for (const row of panel.querySelectorAll<HTMLElement>('[role="button"][tabindex]')) {
+    if (!visible([row])) continue;
+    const name = workspaceName(row);
+    if (!name || createLabels.test(name)) continue;
+    rows.push({ name, row });
+  }
+  return rows;
 }
 
 function isDisabled(element: HTMLElement): boolean {
@@ -1241,6 +1298,49 @@ export class SunoAdapter {
     return '';
   }
 
+  workspaceListTrigger(): HTMLButtonElement | undefined {
+    return workspaceListTrigger();
+  }
+
+  async recentWorkspaceNames(): Promise<string[]> {
+    let panel = workspaceListPanel();
+    const openedByAssistant = !panel;
+    if (!panel) {
+      const trigger = workspaceListTrigger();
+      if (!trigger) return [];
+      trigger.click();
+      // The native list is rendered asynchronously by Suno. A small bounded
+      // task wait keeps this read limited to the visible UI without relying
+      // on requestAnimationFrame, which Chrome can heavily throttle in an
+      // unfocused tab.
+      for (let attempt = 0; attempt < 10 && !panel; attempt += 1) {
+        await nextWorkspacePanelTask();
+        panel = workspaceListPanel();
+      }
+    }
+
+    const names = panel ? workspaceRows(panel).slice(0, WORKSPACE_LIST_LIMIT).map(({ name }) => name) : [];
+    if (openedByAssistant) workspaceListTrigger()?.click();
+    return names;
+  }
+
+  async selectWorkspace(name: string): Promise<boolean> {
+    let panel = workspaceListPanel();
+    if (!panel) {
+      const trigger = workspaceListTrigger();
+      if (!trigger) return false;
+      trigger.click();
+      for (let attempt = 0; attempt < 10 && !panel; attempt += 1) {
+        await nextWorkspacePanelTask();
+        panel = workspaceListPanel();
+      }
+    }
+    const row = panel && workspaceRows(panel).find((item) => item.name === name)?.row;
+    if (!row) return false;
+    row.click();
+    return true;
+  }
+
   getAudioTitle(): string {
     return audioTitle();
   }
@@ -1557,4 +1657,3 @@ export function describeSkipped(keys: OtherOptionsKey[], lang?: SupportedLanguag
   const ui = getUiMessages(lang);
   return keys.map((key) => ui.optionLabels[key]).join(ui.separator);
 }
-

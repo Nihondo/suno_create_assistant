@@ -52,6 +52,22 @@ export function getAllDestinationKeywords(): string[] {
   return [...set];
 }
 
+export function getAllWorkspaceBreadcrumbLabels(): string[] {
+  const set = new Set<string>();
+  for (const loc of getAllHostLocales()) {
+    for (const label of loc.workspaceBreadcrumbLabels) set.add(label);
+  }
+  return [...set];
+}
+
+export function getAllWorkspaceSearchAriaLabels(): string[] {
+  const set = new Set<string>();
+  for (const loc of getAllHostLocales()) {
+    for (const label of loc.workspaceSearchAriaLabels) set.add(label);
+  }
+  return [...set];
+}
+
 export function getAllExcludedStylesPlaceholders(): string[] {
   const set = new Set<string>();
   for (const loc of getAllHostLocales()) {
@@ -148,4 +164,3 @@ export function getRowLabels(key: 'vocalGender' | 'duration' | 'maxMode' | 'pers
   }
   return [...set];
 }
-

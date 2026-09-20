@@ -60,6 +60,8 @@ export interface SunoHostLocale {
   lang: SupportedLanguage;
   titlePlaceholders: string[];
   destinationKeywords: string[];
+  workspaceBreadcrumbLabels: string[];
+  workspaceSearchAriaLabels: string[];
   optionResetLabels: string[];
   excludedStylesPlaceholders: string[];
   // Label for Suno's own "Clear all form inputs" action. When clicked, the
@@ -84,6 +86,7 @@ export interface UiMessages {
   clear: string;
   savePreset: string;
   autoTitle: string;
+  recentWorkspaces: string;
   extensionSettings: string;
   style: string;
   mastering: string;
@@ -98,6 +101,7 @@ export interface UiMessages {
     editPresets: string;
     editTitleFormat: string;
     reuseParameters: string;
+    recentWorkspaces: string;
     settingsSections: string;
   };
   dialog: {

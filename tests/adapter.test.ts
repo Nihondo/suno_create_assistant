@@ -27,6 +27,36 @@ describe('SunoAdapter title mount anchor', () => {
   });
 });
 
+describe('SunoAdapter workspace switcher', () => {
+  it('reads the first ten visible native workspace rows and delegates selection to the matching row', async () => {
+    const rows = Array.from({ length: 11 }, (_, index) => `
+      <div role="button" tabindex="0"><span>Workspace ${index + 1}</span><span>${index + 1} songs</span></div>
+    `).join('');
+    document.body.innerHTML = `
+      <button id="workspace-trigger">ワークスペース</button>
+      <section id="workspace-panel" style="display:none">
+        <input aria-label="ワークスペースを検索" />
+        <div role="button" tabindex="0"><span>新しいworkspaceを作成</span></div>
+        ${rows}
+      </section>
+    `;
+    const trigger = document.querySelector<HTMLButtonElement>('#workspace-trigger')!;
+    const panel = document.querySelector<HTMLElement>('#workspace-panel')!;
+    trigger.addEventListener('click', () => { panel.style.display = panel.style.display === 'none' ? 'block' : 'none'; });
+    const selected = vi.fn();
+    document.querySelectorAll<HTMLElement>('#workspace-panel [role="button"]').forEach((row) => {
+      row.addEventListener('click', () => selected(row.querySelector('span')?.textContent));
+    });
+
+    const adapter = new SunoAdapter();
+    await expect(adapter.recentWorkspaceNames()).resolves.toEqual(Array.from({ length: 10 }, (_, index) => `Workspace ${index + 1}`));
+    expect(panel.style.display).toBe('none');
+    await expect(adapter.selectWorkspace('Workspace 2')).resolves.toBe(true);
+    expect(selected).toHaveBeenCalledWith('Workspace 2');
+  });
+
+});
+
 describe('SunoAdapter style mount anchor', () => {
   it('uses the style header row when present, so controls stay mounted when closed', () => {
     document.body.innerHTML = `
@@ -1397,6 +1427,3 @@ describe('SunoAdapter English DOM localization (docs/alldom_en.txt)', () => {
     expect(styles[0]?.prompt).toBe('Heavy electronic bass with soprano sax and vocoder');
   });
 });
-
-
-

@@ -1,5 +1,5 @@
 import styleCss from '../src/content/suno-ui.css?inline';
-import { AutoTitleControl, LyricsTagPalette, PresetControls, ReuseParamsButton, SidebarSettingsButton, StyleControls } from '../src/content/components';
+import { AutoTitleControl, LyricsTagPalette, PresetControls, ReuseParamsButton, SidebarSettingsButton, StyleControls, WorkspaceSwitcher } from '../src/content/components';
 import { SettingsDialog } from '../src/content/SettingsDialog';
 import { createMounter } from '../src/content/mount';
 import { detectSunoTheme } from '../src/content/theme';
@@ -107,6 +107,8 @@ function startAssistant(): () => void {
     // regardless of which tab is selected so it never disappears while
     // the user is interacting with it.
     mounter.mount('settings', { anchor: document.body, position: 'beforeend' }, () => <SettingsDialog controller={controller} />, theme);
+    const workspaceBreadcrumb = controller.adapter.workspaceListTrigger();
+    mounter.mount('workspaces', { anchor: workspaceBreadcrumb, position: 'beforebegin' }, () => <WorkspaceSwitcher controller={controller} />, theme);
 
     const sidebarPlacement = controller.adapter.sidebarPlacement();
     if (sidebarPlacement) {

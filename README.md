@@ -41,6 +41,13 @@ The Preset dropdown appears directly under the **More Options** heading, so it s
 - Use **Manage presets…** inside the dropdown to edit or delete existing presets.
 - Applying a preset changes only the settings it includes; everything else is left as-is.
 
+### Recent workspace switcher
+
+The extension adds a **Recent Workspaces** dropdown in the upper-right corner of Suno Create, outlined in orange like the other extension controls.
+
+- Open it to choose from the ten most recently used workspaces shown by Suno.
+- Selecting an item delegates the switch to Suno's own visible workspace row, so the list stays in sync with renamed or archived workspaces without calling a private API or storing workspace data.
+
 ### Automatic titles and take numbers
 
 Enable **Auto title** inside the title section to generate a title automatically from a template. The default is:

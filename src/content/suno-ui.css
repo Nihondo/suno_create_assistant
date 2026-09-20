@@ -116,6 +116,7 @@
 .suno-assistant--styles,
 .suno-assistant--presets,
 .suno-assistant--title,
+.suno-assistant--workspace-switcher,
 :host([data-suno-create-assistant="styles"]) .suno-assistant,
 :host([data-suno-create-assistant="presets"]) .suno-assistant,
 :host([data-suno-create-assistant="lyrics"]) .suno-assistant {
@@ -127,6 +128,7 @@
 .suno-assistant--styles:hover,
 .suno-assistant--presets:hover,
 .suno-assistant--title:hover,
+.suno-assistant--workspace-switcher:hover,
 :host([data-suno-create-assistant="styles"]) .suno-assistant:hover,
 :host([data-suno-create-assistant="presets"]) .suno-assistant:hover,
 :host([data-suno-create-assistant="lyrics"]) .suno-assistant:hover {
@@ -138,6 +140,7 @@
 :host([data-theme="light"]) .suno-assistant--styles:hover,
 :host([data-theme="light"]) .suno-assistant--presets:hover,
 :host([data-theme="light"]) .suno-assistant--title:hover,
+:host([data-theme="light"]) .suno-assistant--workspace-switcher:hover,
 :host([data-theme="light"][data-suno-create-assistant="styles"]) .suno-assistant:hover,
 :host([data-theme="light"][data-suno-create-assistant="presets"]) .suno-assistant:hover,
 :host([data-theme="light"][data-suno-create-assistant="lyrics"]) .suno-assistant:hover {
@@ -148,6 +151,26 @@
    this host's own full line inside that card. */
 :host([data-suno-create-assistant="title"]) {
   flex: 0 0 100%;
+}
+
+/* The host is inserted immediately before Suno's workspace breadcrumb. It is
+   a normal flex item so the breadcrumb moves right instead of being covered. */
+:host([data-suno-create-assistant="workspaces"]) {
+  display: inline-block;
+  flex: 0 0 auto;
+  align-self: center;
+  margin-inline-end: 12px;
+}
+
+.suno-assistant--workspace-switcher {
+  position: static;
+  margin: 0;
+}
+
+.suno-assistant--workspace-switcher .suno-assistant__select {
+  max-width: min(320px, calc(100vw - 48px));
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .suno-assistant__select,
@@ -768,4 +791,3 @@
 .suno-assistant__take-links a:hover {
   filter: brightness(1.15);
 }
-

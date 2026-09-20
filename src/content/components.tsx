@@ -239,6 +239,29 @@ export function AutoTitleControl({ controller }: { controller: SunoController })
   </div>;
 }
 
+export function WorkspaceSwitcher({ controller }: { controller: SunoController }) {
+  const ui = getUiMessages();
+  const [workspaces, setWorkspaces] = useState<string[]>([]);
+  const [currentWorkspace, setCurrentWorkspace] = useState(() => controller.adapter.getDestinationName());
+
+  if (!controller.adapter.workspaceListTrigger()) return null;
+
+  const items: MenuItem<string>[] = workspaces.map((name) => ({ id: name, label: name, value: name }));
+  const refresh = async () => {
+    const names = await controller.adapter.recentWorkspaceNames();
+    setWorkspaces(names);
+    setCurrentWorkspace(controller.adapter.getDestinationName());
+  };
+  const select = async (name: string | undefined) => {
+    if (!name) return;
+    if (await controller.adapter.selectWorkspace(name)) setCurrentWorkspace(name);
+  };
+
+  return <div className="suno-assistant suno-assistant--workspace-switcher" aria-label={ui.aria.recentWorkspaces}>
+    <Dropdown label={ui.recentWorkspaces} valueLabel={currentWorkspace || ui.recentWorkspaces} items={items} onOpen={refresh} onSelect={(name) => void select(name)} />
+  </div>;
+}
+
 export function SidebarSettingsButton({ controller }: { controller: SunoController }) {
   const state = useController(controller);
   const isOpen = !!state.settings;
@@ -406,5 +429,3 @@ export function LyricsTagPalette({ controller }: { controller: SunoController })
     </div>
   );
 }
-
-
