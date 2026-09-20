@@ -11,7 +11,7 @@ export default defineConfig({
     name: 'Suno Create Assistant',
     description: 'Saved styles, mastering prompts, option presets, and auto titles for Suno Create.',
     permissions: ['storage'],
-    host_permissions: ['https://suno.com/create*'],
+    host_permissions: ['https://suno.com/*'],
     icons: {
       16: 'icon-16.png',
       32: 'icon-32.png',

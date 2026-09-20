@@ -436,6 +436,20 @@ test('mounts the Suno controls beside their anchors, survives host removal, and 
     await gotoTab('テイク履歴');
     await expect(dialog.getByRole('heading', { name: 'テイク履歴' })).toBeVisible();
     await expect(dialog.getByText('まだ記録がありません。')).toBeVisible();
+
+    // Suno is an SPA: the extension must start when the URL becomes /create
+    // through client-side navigation (no reload), and stop when it leaves.
+    // (The backup export above also fires a Navigation API event for its
+    // blob: download, which must not have stopped it.)
+    await page.goto('https://suno.com/');
+    await expect(page.locator('suno-create-assistant')).toHaveCount(0);
+    await page.evaluate(() => history.pushState({}, '', '/create'));
+    await expect(page.locator('suno-create-assistant[data-suno-create-assistant="styles"]')).toHaveCount(1);
+    await expect(page.locator('suno-create-assistant[data-suno-create-assistant="sidebar"]')).toHaveCount(1);
+    await page.evaluate(() => history.pushState({}, '', '/discover'));
+    await expect(page.locator('suno-create-assistant')).toHaveCount(0);
+    await page.evaluate(() => history.pushState({}, '', '/create?wid=1'));
+    await expect(page.locator('suno-create-assistant[data-suno-create-assistant="styles"]')).toHaveCount(1);
   } finally {
     await context?.close();
     await new Promise<void>((resolveClose, rejectClose) => server.close((error) => error ? rejectClose(error) : resolveClose()));

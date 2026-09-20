@@ -4,7 +4,8 @@ import {
   DEFAULT_TITLE_FORMAT,
   extractTakeKey,
   hasTakePlaceholder,
-  nextBaseAfterManualEdit,
+  deriveStyleSelection,
+  optionFieldsMatch,
   readableOptionFields,
   replaceTakePlaceholder,
 } from '../domain/logic';
@@ -13,6 +14,7 @@ import {
   DEFAULT_LYRICS_TAGS,
   type MasteringPrompt,
   type OtherOptionsCapture,
+  type OtherOptionsKey,
   type OtherOptionsPreset,
   type SavedStyle,
   type TakeRecord,
@@ -52,6 +54,8 @@ export interface ControllerState {
   isCustomStyle: boolean;
   mastering?: MasteringPrompt;
   preset?: OtherOptionsPreset;
+  /** A preset was applied but the options no longer match it (edited by hand). */
+  isCustomPreset: boolean;
   autoTitleEnabled: boolean;
   titleFormat: string;
   closeDisclosuresOnAdvanced: boolean;
@@ -71,6 +75,7 @@ export class SunoController {
     stylesLoading: false,
     stylesDirty: true,
     isCustomStyle: false,
+    isCustomPreset: false,
     autoTitleEnabled: false,
     titleFormat: DEFAULT_TITLE_FORMAT,
     closeDisclosuresOnAdvanced: true,
@@ -78,8 +83,22 @@ export class SunoController {
   };
   private listeners = new Set<Listener>();
   private baseStyle = '';
+  // Style text as of the last time the extension wrote or reconciled it; a
+  // difference means the text changed behind our back. undefined = no baseline.
+  private lastStyleText?: string;
+  private pendingStyleSync?: ReturnType<typeof setTimeout>;
+  // Last mastering the user applied; survives the text being edited so it can
+  // be re-selected when the text matches again (see deriveStyleSelection).
+  private rememberedMastering?: MasteringPrompt;
+  // Same idea for presets: the last preset applied, re-selected when the
+  // option values match it again after a manual change.
+  private rememberedPreset?: OtherOptionsPreset;
+  // Fields the last applyPreset() could not apply; never held against it.
+  private presetIgnoredKeys = new Set<OtherOptionsKey>();
+  private isApplyingOptions = false;
   private programmaticStyleWrite = false;
   private refreshingStyles = false;
+  private stylesRefresh?: Promise<void>;
   private isExecutingCreate = false;
   private unsubscribeStorage?: () => void;
 
@@ -107,8 +126,13 @@ export class SunoController {
       // SettingsDialog.tsx) - re-validate both against the fresh data.
       const staleMastering = this.state.mastering && !updated.masteringPrompts.some((item) => item.id === this.state.mastering?.id);
       if (staleMastering) this.state.mastering = undefined;
+      if (this.rememberedMastering && !updated.masteringPrompts.some((item) => item.id === this.rememberedMastering?.id)) this.rememberedMastering = undefined;
       const stalePreset = this.state.preset && !updated.optionPresets.some((item) => item.id === this.state.preset?.id);
       if (stalePreset) this.state.preset = undefined;
+      // Pick up edits made to a preset in the settings dialog, too.
+      const freshPreset = (preset?: OtherOptionsPreset) => preset && updated.optionPresets.find((item) => item.id === preset.id);
+      if (this.state.preset) this.state.preset = freshPreset(this.state.preset);
+      this.rememberedPreset = freshPreset(this.rememberedPreset);
       if (updated.autoTitleEnabled !== this.state.autoTitleEnabled) {
         this.state.autoTitleEnabled = updated.autoTitleEnabled;
         this.adapter.setTitleReadOnly(updated.autoTitleEnabled);
@@ -130,6 +154,7 @@ export class SunoController {
   }
 
   dispose(): void {
+    if (this.pendingStyleSync !== undefined) clearTimeout(this.pendingStyleSync);
     this.unsubscribeStorage?.();
     document.removeEventListener('click', this.handleDocumentClick, true);
     document.removeEventListener('input', this.handleStyleInput, true);
@@ -141,7 +166,17 @@ export class SunoController {
     return () => this.listeners.delete(listener);
   }
 
-  async refreshStyles(): Promise<void> {
+  refreshStyles(): Promise<void> {
+    // Opening/closing Suno's native dialog is not re-entrant: a second call
+    // while one is running would toggle the dialog shut mid-read.
+    if (this.stylesRefresh) return this.stylesRefresh;
+    this.stylesRefresh = this.loadStyles().finally(() => {
+      this.stylesRefresh = undefined;
+    });
+    return this.stylesRefresh;
+  }
+
+  private async loadStyles(): Promise<void> {
     if (!this.state.stylesDirty && this.state.styles.length) return;
     this.state.stylesLoading = true;
     this.state.styleFeedback = undefined;
@@ -182,6 +217,7 @@ export class SunoController {
     const next = composePrompt(base, mastering?.prompt);
     if (next === undefined) return this.failOverflow();
     this.state.mastering = mastering;
+    this.rememberedMastering = mastering;
     this.state.styleFeedback = undefined;
     this.baseStyle = base;
     this.writeStyle(next ?? '');
@@ -192,6 +228,7 @@ export class SunoController {
   clearStyleAndMastering(): void {
     this.state.style = undefined;
     this.state.mastering = undefined;
+    this.rememberedMastering = undefined;
     this.state.isCustomStyle = false;
     this.state.styleFeedback = undefined;
     this.baseStyle = '';
@@ -203,6 +240,9 @@ export class SunoController {
   async applyPreset(preset?: OtherOptionsPreset): Promise<ApplyResult | undefined> {
     if (!preset) {
       this.state.preset = undefined;
+      this.state.isCustomPreset = false;
+      this.rememberedPreset = undefined;
+      this.presetIgnoredKeys = new Set();
       this.state.presetFeedback = undefined;
       this.updateAutoTitle();
       this.emit();
@@ -212,11 +252,16 @@ export class SunoController {
     // adapter.ts's applyOtherOptions), so it can take a moment - show
     // immediate feedback rather than leaving the UI looking unresponsive.
     this.state.preset = preset;
+    this.state.isCustomPreset = false;
+    this.rememberedPreset = preset;
+    this.presetIgnoredKeys = new Set();
     this.state.presetFeedback = undefined;
     this.updateAutoTitle();
     this.emit();
+    this.isApplyingOptions = true;
     try {
       const result = await this.adapter.applyOtherOptions(preset.fields);
+      this.presetIgnoredKeys = new Set(result.skipped);
       const ui = getUiMessages();
       this.state.presetFeedback = result.skipped.length
         ? {
@@ -231,6 +276,8 @@ export class SunoController {
       this.state.presetFeedback = { kind: 'error', message: error instanceof Error ? error.message : ui.feedback.failedApplyPreset };
       this.emit();
       return undefined;
+    } finally {
+      this.isApplyingOptions = false;
     }
   }
 
@@ -305,15 +352,22 @@ export class SunoController {
   reconcile(): void {
     if (this.isExecutingCreate) return;
     this.adapter.setTitleReadOnly(this.state.autoTitleEnabled);
+    this.syncSelectionFromStyleText();
+    this.syncPresetFromOptions();
     this.updateAutoTitle();
   }
 
   resetExtensionSelections(): void {
     this.state.style = undefined;
     this.state.mastering = undefined;
+    this.rememberedMastering = undefined;
     this.state.preset = undefined;
+    this.state.isCustomPreset = false;
+    this.rememberedPreset = undefined;
+    this.presetIgnoredKeys = new Set();
     this.state.isCustomStyle = false;
     this.baseStyle = '';
+    this.lastStyleText = undefined;
     this.updateAutoTitle();
     this.emit();
   }
@@ -395,10 +449,13 @@ export class SunoController {
     // deliberately left untouched. Suno's own "プロンプトを再利用" /
     // "Reuse prompt" already covers reusing the style text, and rewriting
     // the Style field here as well would fight it rather than complement it.
+    this.isApplyingOptions = true;
     try {
       return await this.adapter.applyOtherOptions(record.options);
     } catch {
       return undefined;
+    } finally {
+      this.isApplyingOptions = false;
     }
   }
 
@@ -432,6 +489,7 @@ export class SunoController {
   private writeStyle(value: string): void {
     this.programmaticStyleWrite = true;
     this.adapter.setStylePrompt(value);
+    this.lastStyleText = value;
     queueMicrotask(() => { this.programmaticStyleWrite = false; });
   }
 
@@ -443,7 +501,7 @@ export class SunoController {
     const audioTitle = this.adapter.getAudioTitle();
     const model = this.adapter.getModelName() || undefined;
     const mastering = this.state.mastering?.name;
-    const preset = this.state.preset?.name;
+    const preset = this.state.isCustomPreset ? ui.custom : this.state.preset?.name;
     this.adapter.setTitle(autoTitle(this.adapter.getDestinationName(), styleName, this.state.titleFormat, {
       audioTitle,
       model,
@@ -459,15 +517,67 @@ export class SunoController {
     this.emit();
   }
 
-  private handleStyleInput = (event: Event): void => {
-    if (this.programmaticStyleWrite || event.target !== this.adapter.styleTextarea()) return;
-    const value = this.adapter.getStylePrompt();
-    this.baseStyle = nextBaseAfterManualEdit(value, this.state.mastering);
-    this.state.style = undefined;
-    this.state.isCustomStyle = true;
+  // Keeps the preset dropdown honest about the live option values: a preset
+  // stays selected only while every field it stores still matches, turns into
+  // カスタム when one is changed by hand, and comes back if they match again.
+  // Uses a passive read (no disclosure toggling) and stays out of the way
+  // while this extension is itself applying options.
+  private syncPresetFromOptions(): void {
+    if (this.isApplyingOptions) return;
+    const candidate = this.state.preset ?? this.rememberedPreset;
+    if (!candidate) return;
+    const capture = this.adapter.peekOtherOptions();
+    if (!capture) return;
+    const isMatch = optionFieldsMatch(candidate.fields, capture, this.presetIgnoredKeys);
+    const nextPreset = isMatch ? candidate : undefined;
+    const isCustomPreset = !isMatch;
+    if (nextPreset === this.state.preset && isCustomPreset === this.state.isCustomPreset) return;
+    this.state.preset = nextPreset;
+    this.state.isCustomPreset = isCustomPreset;
     this.updateAutoTitle();
     this.emit();
+  }
+
+  private handleStyleInput = (event: Event): void => {
+    if (this.programmaticStyleWrite || event.target !== this.adapter.styleTextarea()) return;
+    // This listener runs in the capture phase, i.e. *before* Suno's React has
+    // handled the same keystroke. Writing the auto title from here makes Suno
+    // re-render with the textarea's pre-keystroke state, which reverts the
+    // typed character and throws the caret to the end (confirmed live). So
+    // defer everything, including the title write, until the event is done.
+    if (this.pendingStyleSync !== undefined) return;
+    this.pendingStyleSync = setTimeout(() => {
+      this.pendingStyleSync = undefined;
+      this.syncSelectionFromStyleText(true);
+    }, 0);
   };
+
+  // Re-derives the Style/Mastering dropdown state from the Style field's real
+  // text, so the dropdowns never claim something the text no longer says.
+  // `force` is for input events; reconcile() only acts on a text change.
+  private syncSelectionFromStyleText(force = false): void {
+    // With the Style disclosure closed the textarea may be unmounted; an
+    // empty read there would wrongly look like the user cleared the field.
+    if (!this.adapter.styleTextarea(true)) return;
+    const text = this.adapter.getStylePrompt();
+    if (!force && (this.lastStyleText === undefined || text === this.lastStyleText)) {
+      this.lastStyleText = text;
+      return;
+    }
+    this.lastStyleText = text;
+    const next = deriveStyleSelection(text, this.state.styles, { ...this.state, rememberedMastering: this.rememberedMastering });
+    const isChanged = next.style !== this.state.style
+      || next.mastering !== this.state.mastering
+      || next.isCustomStyle !== this.state.isCustomStyle;
+    if (next.mastering) this.rememberedMastering = next.mastering;
+    this.baseStyle = next.base;
+    this.state.style = next.style;
+    this.state.mastering = next.mastering;
+    this.state.isCustomStyle = next.isCustomStyle;
+    if (!isChanged && !force) return;
+    this.updateAutoTitle();
+    this.emit();
+  }
 
   private handleDocumentClick = (event: Event): void => {
     if (this.refreshingStyles) return;

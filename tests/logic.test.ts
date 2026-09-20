@@ -3,6 +3,7 @@ import {
   autoTitle,
   calculateTagInsertion,
   composePrompt,
+  deriveStyleSelection,
   displayTagName,
   extractTakeKey,
   formatDate,
@@ -11,14 +12,14 @@ import {
   formatTakeNumber,
   formatTime,
   hasTakePlaceholder,
-  nextBaseAfterManualEdit,
   normalizedInsertTag,
+  optionFieldsMatch,
   optionFieldSummaryLines,
   parseLyricsTags,
   replaceTakePlaceholder,
   validateUniqueName,
 } from '../src/domain/logic';
-import type { MasteringPrompt } from '../src/domain/models';
+import { emptyOtherOptions, type MasteringPrompt, type OtherOptionsKey, type OtherOptionsSnapshot } from '../src/domain/models';
 import { getUiMessages } from '../src/locales';
 
 describe('prompt composition', () => {
@@ -31,11 +32,87 @@ describe('prompt composition', () => {
   it('does not truncate an overflow prompt', () => {
     expect(composePrompt('a'.repeat(1000), 'b')).toBeUndefined();
   });
+});
 
-  it('keeps the editable base when the known mastering suffix remains', () => {
-    const mastering: MasteringPrompt = { id: '1', name: 'Master', prompt: 'master', createdAt: '', updatedAt: '' };
-    expect(nextBaseAfterManualEdit('custom style\nmaster', mastering)).toBe('custom style');
-    expect(nextBaseAfterManualEdit('custom style\nchanged', mastering)).toBe('custom style\nchanged');
+describe('deriveStyleSelection', () => {
+  const mastering: MasteringPrompt = { id: 'm', name: 'Master', prompt: 'master', createdAt: '', updatedAt: '' };
+  const cityPop = { id: 's1', name: 'City Pop', prompt: '80s city pop' };
+  const jazz = { id: 's2', name: 'Jazz', prompt: 'smooth jazz' };
+
+  it('keeps both selections while the text still matches them', () => {
+    expect(deriveStyleSelection('80s city pop\nmaster', [cityPop, jazz], { style: cityPop, mastering })).toEqual({
+      base: '80s city pop', style: cityPop, mastering, isCustomStyle: false,
+    });
+  });
+
+  it('marks edited text as custom but keeps the mastering while its suffix remains', () => {
+    expect(deriveStyleSelection('my own style\nmaster', [cityPop], { style: cityPop, mastering })).toEqual({
+      base: 'my own style', style: undefined, mastering, isCustomStyle: true,
+    });
+  });
+
+  it('keeps the style but unselects the mastering while only the mastering text is edited', () => {
+    const edited = deriveStyleSelection('80s city pop\nwarm master X', [cityPop], { style: cityPop, mastering });
+    expect(edited).toEqual({ base: '80s city pop', style: cityPop, mastering: undefined, isCustomStyle: false });
+    const deleted = deriveStyleSelection('80s city pop', [cityPop], { style: cityPop, mastering });
+    expect(deleted.mastering).toBeUndefined();
+    expect(deleted.style).toBe(cityPop);
+  });
+
+  it('re-selects the remembered mastering once its text matches again', () => {
+    const restored = deriveStyleSelection('80s city pop\nmaster', [cityPop], { style: cityPop, rememberedMastering: mastering });
+    expect(restored).toEqual({ base: '80s city pop', style: cityPop, mastering, isCustomStyle: false });
+  });
+
+  it('goes custom when both the style and mastering parts no longer match', () => {
+    const result = deriveStyleSelection('other\nedited', [cityPop], { style: cityPop, rememberedMastering: mastering });
+    expect(result).toEqual({ base: 'other\nedited', style: undefined, mastering: undefined, isCustomStyle: true });
+  });
+
+  it('adopts the saved style whose prompt now matches exactly (e.g. after reusing a prompt)', () => {
+    expect(deriveStyleSelection('smooth jazz', [cityPop, jazz], { style: cityPop })).toMatchObject({
+      style: jazz, isCustomStyle: false,
+    });
+  });
+
+  it('falls back to unselected, not custom, for empty text', () => {
+    expect(deriveStyleSelection('', [cityPop], { style: cityPop })).toEqual({
+      base: '', style: undefined, mastering: undefined, isCustomStyle: false,
+    });
+    expect(deriveStyleSelection('master', [cityPop], { style: cityPop, mastering })).toEqual({
+      base: '', style: undefined, mastering, isCustomStyle: false,
+    });
+  });
+});
+
+describe('optionFieldsMatch', () => {
+  const capture = (overrides: Partial<OtherOptionsSnapshot> = {}, unreadable: OtherOptionsKey[] = []) => ({
+    snapshot: { ...emptyOtherOptions(), weirdness: 70, vocalGender: 'female' as const, ...overrides },
+    unreadable,
+  });
+
+  it('matches when every stored field equals the live value, ignoring fields the preset does not store', () => {
+    expect(optionFieldsMatch({ weirdness: 70, vocalGender: 'female' }, capture())).toBe(true);
+    expect(optionFieldsMatch({}, capture())).toBe(true);
+  });
+
+  it('does not match once a stored field was changed by hand', () => {
+    expect(optionFieldsMatch({ weirdness: 70 }, capture({ weirdness: 71 }))).toBe(false);
+    expect(optionFieldsMatch({ vocalGender: 'female' }, capture({ vocalGender: 'male' }))).toBe(false);
+    expect(optionFieldsMatch({ maxMode: true }, capture({ maxMode: false }))).toBe(false);
+    expect(optionFieldsMatch({ excludedStyles: 'rock ' }, capture({ excludedStyles: 'pop' }))).toBe(false);
+    expect(optionFieldsMatch({ personalization: { enabled: true } }, capture())).toBe(false);
+  });
+
+  it('compares duration seconds only for a custom duration', () => {
+    expect(optionFieldsMatch({ duration: { mode: 'auto' } }, capture({ duration: { mode: 'auto', seconds: 90 } }))).toBe(true);
+    expect(optionFieldsMatch({ duration: { mode: 'custom', seconds: 120 } }, capture({ duration: { mode: 'custom', seconds: 90 } }))).toBe(false);
+    expect(optionFieldsMatch({ duration: { mode: 'custom', seconds: 120 } }, capture({ duration: { mode: 'custom', seconds: 120 } }))).toBe(true);
+  });
+
+  it('never holds unreadable or ignored fields against the preset', () => {
+    expect(optionFieldsMatch({ weirdness: 10 }, capture(), new Set(['weirdness']))).toBe(true);
+    expect(optionFieldsMatch({ audioInfluence: 10 }, capture({}, ['audioInfluence']))).toBe(true);
   });
 });
 

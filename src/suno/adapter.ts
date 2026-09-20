@@ -114,6 +114,76 @@ function optionControlsVisible(panel: HTMLElement | undefined): boolean {
   });
 }
 
+// Reads every option control from an already-open panel. Pure DOM reads, so
+// it is also safe to run passively (see SunoAdapter.peekOtherOptions).
+function readOptionControls(panel: HTMLElement): OtherOptionsCapture {
+  const snapshot = emptyOtherOptions();
+  const unreadable: OtherOptionsKey[] = [];
+  const readField = (key: OtherOptionsKey, found: boolean, apply: () => void) => {
+    if (found) apply();
+    else unreadable.push(key);
+  };
+
+  const excludedInput = excludedStylesInput(panel);
+  readField('excludedStyles', !!excludedInput, () => { snapshot.excludedStyles = excludedInput!.value; });
+
+  const vocalRow = rowFor(panel, 'vocalGender');
+  readField('vocalGender', !!vocalRow, () => {
+    const maleButtons = getAllHostLocales().map((l) => l.rows.vocalGender.male);
+    const femaleButtons = getAllHostLocales().map((l) => l.rows.vocalGender.female);
+    const isMale = maleButtons.some((bText) => selected(rowButton(panel, 'vocalGender', bText)));
+    const isFemale = femaleButtons.some((bText) => selected(rowButton(panel, 'vocalGender', bText)));
+    if (isMale) snapshot.vocalGender = 'male';
+    if (isFemale) snapshot.vocalGender = 'female';
+  });
+
+  const durationRow = rowFor(panel, 'duration');
+  readField('duration', !!durationRow, () => {
+    const customButtons = getAllHostLocales().map((l) => l.rows.duration.custom);
+    const isCustom = customButtons.some((bText) => selected(rowButton(panel, 'duration', bText)));
+    snapshot.duration.mode = isCustom ? 'custom' : 'auto';
+    const seconds = durationRow!.querySelector<HTMLInputElement>('input[type="number"]')?.value;
+    if (seconds && Number.isFinite(Number(seconds))) snapshot.duration.seconds = Number(seconds);
+  });
+
+  const maxModeRow = rowFor(panel, 'maxMode');
+  readField('maxMode', !!maxModeRow, () => {
+    const onButtons = getAllHostLocales().map((l) => l.rows.maxMode.on);
+    snapshot.maxMode = onButtons.some((bText) => selected(rowButton(panel, 'maxMode', bText)));
+  });
+
+  const weirdnessSlider = slider(panel, 'weirdness');
+  readField('weirdness', !!weirdnessSlider, () => { snapshot.weirdness = Number(weirdnessSlider!.getAttribute('aria-valuenow') ?? snapshot.weirdness); });
+
+  const styleInfluenceSlider = slider(panel, 'styleInfluence');
+  readField('styleInfluence', !!styleInfluenceSlider, () => { snapshot.styleInfluence = Number(styleInfluenceSlider!.getAttribute('aria-valuenow') ?? snapshot.styleInfluence); });
+
+  const variationSlider = slider(panel, 'variation');
+  readField('variation', !!variationSlider, () => { snapshot.variation = Number(variationSlider!.getAttribute('aria-valuenow') ?? snapshot.variation); });
+
+  // Only present once an audio reference (upload/remix) is attached, so
+  // this legitimately falls into `unreadable` the rest of the time.
+  const audioInfluenceSlider = slider(panel, 'audioInfluence');
+  readField('audioInfluence', !!audioInfluenceSlider, () => { snapshot.audioInfluence = Number(audioInfluenceSlider!.getAttribute('aria-valuenow') ?? snapshot.audioInfluence); });
+
+  const personalizationRow = rowFor(panel, 'personalization');
+  readField('personalization', !!personalizationRow, () => {
+    const onButtons = getAllHostLocales().map((l) => l.rows.personalization.on);
+    const myTasteButtons = getAllHostLocales().map((l) => l.rows.personalization.myTaste);
+    snapshot.personalization.enabled = onButtons.some((bText) => selected(rowButton(panel, 'personalization', bText)));
+    let tasteName: string | undefined;
+    for (const bText of myTasteButtons) {
+      const btn = rowButton(panel, 'personalization', bText);
+      if (btn && text(btn)) {
+        tasteName = text(btn);
+        break;
+      }
+    }
+    snapshot.personalization.tasteName = tasteName;
+  });
+  return { snapshot, unreadable };
+}
+
 function excludedStylesInput(panel: HTMLElement): HTMLInputElement | undefined {
   for (const ph of getAllExcludedStylesPlaceholders()) {
     const named = visible(panel.querySelectorAll<HTMLInputElement>(`input[placeholder="${ph}"]`));
@@ -124,12 +194,110 @@ function excludedStylesInput(panel: HTMLElement): HTMLInputElement | undefined {
 
 function savedStylesDialog(includeHidden = false): HTMLElement | undefined {
   const dialogLabels = getAllSavedStyleDialogLabels();
+  const matchesLabel = (value: string) => dialogLabels.some((label) => value.includes(label) || new RegExp(label, 'i').test(value));
   const dialogs = [...document.querySelectorAll<HTMLElement>('[role="dialog"]')]
     .filter((dialog) => {
-      const aria = dialog.getAttribute('aria-label') ?? '';
-      return dialogLabels.some((label) => aria.includes(label) || new RegExp(label, 'i').test(aria));
+      // Suno's second saved-styles dialog is named via aria-labelledby.
+      const labelledBy = dialog.getAttribute('aria-labelledby');
+      const labelText = labelledBy ? text(document.getElementById(labelledBy) ?? undefined) : '';
+      return matchesLabel(dialog.getAttribute('aria-label') ?? '') || (labelText !== '' && matchesLabel(labelText));
     });
   return includeHidden ? dialogs[0] : visible(dialogs);
+}
+
+const SAVED_STYLES_ATTEMPTS = 3;
+const SAVED_STYLES_RETRY_DELAY_MS = 250;
+const SAVED_STYLES_POLL_MS = 50;
+const SAVED_STYLES_OPEN_TIMEOUT_MS = 1000;
+const SAVED_STYLES_TIMEOUT_MS = 3000;
+const SAVED_STYLES_STABLE_POLLS = 3;
+// Row buttons only: "削除: <name>" (per-row delete) and the dialog's own
+// close button are actions, not saved styles.
+const SAVED_STYLE_ACTION_LABEL = /^(?:削除|名前を変更|グリッド表示|閉じる|delete|rename|grid\s*view|close)(?:\s*[:：].*)?$/i;
+
+function savedStylesTrigger(): HTMLButtonElement | undefined {
+  // Suno renders two buttons with this same aria-label: the real Base UI
+  // dialog trigger (aria-haspopup="dialog", data-base-ui-click-trigger) and a
+  // look-alike chip inside the scrolling style-tag strip. The chip opens a
+  // *different* dialog that has no aria-label at all, so which one got picked
+  // (DOM order / visibility) made the failure intermittent. Prefer the real
+  // trigger and only fall back to the look-alike when it is absent.
+  const triggerLabels = getAllSavedStyleTriggerLabels();
+  const candidates = [...document.querySelectorAll<HTMLButtonElement>('button')].filter((button) => {
+    const aria = button.getAttribute('aria-label') ?? '';
+    return triggerLabels.some((label) => aria.includes(label));
+  });
+  const isRealTrigger = (button: HTMLButtonElement) => button.getAttribute('aria-haspopup') === 'dialog'
+    || button.hasAttribute('data-base-ui-click-trigger');
+  return visible(candidates.filter(isRealTrigger)) ?? visible(candidates);
+}
+
+function newDialogSince(before: Set<HTMLElement>): HTMLElement | undefined {
+  return [...document.querySelectorAll<HTMLElement>('[role="dialog"]')]
+    .filter((dialog) => !before.has(dialog))
+    .at(-1);
+}
+
+function savedStyleRowButtons(dialog: HTMLElement): HTMLButtonElement[] {
+  return [...dialog.querySelectorAll<HTMLButtonElement>('button[aria-label]')].filter((button) => {
+    const label = (button.getAttribute('aria-label') ?? '').trim();
+    return label && !SAVED_STYLE_ACTION_LABEL.test(label);
+  });
+}
+
+function readSavedStyles(dialog: HTMLElement): SavedStyle[] {
+  return savedStyleRowButtons(dialog).map((button, index) => {
+    const row = button.parentElement;
+    const name = button.getAttribute('aria-label') ?? '';
+    const prompt = row ? savedStylePrompt(row, name) : '';
+    return { id: savedStyleId(name, prompt, index), name, prompt };
+  }).filter((style) => style.prompt.length > 0);
+}
+
+// The dialog element can exist before Suno has rendered (or finished loading)
+// its list, so "dialog found" is not "rows ready". Wait until the readable
+// rows are non-empty and their count has stopped changing. If the deadline
+// passes, return what is there so a genuinely empty list still resolves.
+async function waitForSavedStyleRows(
+  findDialog: () => HTMLElement | undefined,
+): Promise<{ dialog: HTMLElement | undefined }> {
+  const startedAt = Date.now();
+  const deadline = startedAt + SAVED_STYLES_TIMEOUT_MS;
+  let lastCount = -1;
+  let stablePolls = 0;
+  let dialog: HTMLElement | undefined;
+  while (Date.now() < deadline) {
+    dialog = findDialog();
+    // No dialog at all means the trigger click was likely swallowed; give up
+    // early so the caller can retry rather than burning the full row timeout.
+    if (!dialog && Date.now() - startedAt >= SAVED_STYLES_OPEN_TIMEOUT_MS) return { dialog };
+    const count = dialog ? readSavedStyles(dialog).length : 0;
+    stablePolls = count > 0 && count === lastCount ? stablePolls + 1 : 0;
+    lastCount = count;
+    if (stablePolls >= SAVED_STYLES_STABLE_POLLS - 1) return { dialog };
+    await new Promise((resolve) => setTimeout(resolve, SAVED_STYLES_POLL_MS));
+  }
+  return { dialog: findDialog() ?? dialog };
+}
+
+// Close via the trigger looked up fresh (the original may have been detached
+// by a Suno re-render), and fall back to Escape if the dialog is still open.
+async function closeSavedStylesDialog(
+  originalTrigger: HTMLButtonElement,
+  findDialog: () => HTMLElement | undefined,
+): Promise<void> {
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    if (!findDialog()) return;
+    if (attempt === 0) {
+      (originalTrigger.isConnected ? originalTrigger : savedStylesTrigger())?.click();
+    } else {
+      const target = findDialog() ?? document.body;
+      for (const type of ['keydown', 'keyup'] as const) {
+        target.dispatchEvent(new KeyboardEvent(type, { key: 'Escape', code: 'Escape', bubbles: true, cancelable: true }));
+      }
+    }
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
 }
 
 function savedStylePrompt(row: HTMLElement, name: string): string {
@@ -1114,73 +1282,21 @@ export class SunoAdapter {
     }
     if (!panel || !optionControlsVisible(panel)) return undefined;
 
-    const snapshot = emptyOtherOptions();
-    const unreadable: OtherOptionsKey[] = [];
-    const readField = (key: OtherOptionsKey, found: boolean, apply: () => void) => {
-      if (found) apply();
-      else unreadable.push(key);
-    };
-
-    const excludedInput = excludedStylesInput(panel);
-    readField('excludedStyles', !!excludedInput, () => { snapshot.excludedStyles = excludedInput!.value; });
-
-    const vocalRow = rowFor(panel, 'vocalGender');
-    readField('vocalGender', !!vocalRow, () => {
-      const maleButtons = getAllHostLocales().map((l) => l.rows.vocalGender.male);
-      const femaleButtons = getAllHostLocales().map((l) => l.rows.vocalGender.female);
-      const isMale = maleButtons.some((bText) => selected(rowButton(panel, 'vocalGender', bText)));
-      const isFemale = femaleButtons.some((bText) => selected(rowButton(panel, 'vocalGender', bText)));
-      if (isMale) snapshot.vocalGender = 'male';
-      if (isFemale) snapshot.vocalGender = 'female';
-    });
-
-    const durationRow = rowFor(panel, 'duration');
-    readField('duration', !!durationRow, () => {
-      const customButtons = getAllHostLocales().map((l) => l.rows.duration.custom);
-      const isCustom = customButtons.some((bText) => selected(rowButton(panel, 'duration', bText)));
-      snapshot.duration.mode = isCustom ? 'custom' : 'auto';
-      const seconds = durationRow!.querySelector<HTMLInputElement>('input[type="number"]')?.value;
-      if (seconds && Number.isFinite(Number(seconds))) snapshot.duration.seconds = Number(seconds);
-    });
-
-    const maxModeRow = rowFor(panel, 'maxMode');
-    readField('maxMode', !!maxModeRow, () => {
-      const onButtons = getAllHostLocales().map((l) => l.rows.maxMode.on);
-      snapshot.maxMode = onButtons.some((bText) => selected(rowButton(panel, 'maxMode', bText)));
-    });
-
-    const weirdnessSlider = slider(panel, 'weirdness');
-    readField('weirdness', !!weirdnessSlider, () => { snapshot.weirdness = Number(weirdnessSlider!.getAttribute('aria-valuenow') ?? snapshot.weirdness); });
-
-    const styleInfluenceSlider = slider(panel, 'styleInfluence');
-    readField('styleInfluence', !!styleInfluenceSlider, () => { snapshot.styleInfluence = Number(styleInfluenceSlider!.getAttribute('aria-valuenow') ?? snapshot.styleInfluence); });
-
-    const variationSlider = slider(panel, 'variation');
-    readField('variation', !!variationSlider, () => { snapshot.variation = Number(variationSlider!.getAttribute('aria-valuenow') ?? snapshot.variation); });
-
-    // Only present once an audio reference (upload/remix) is attached, so
-    // this legitimately falls into `unreadable` the rest of the time.
-    const audioInfluenceSlider = slider(panel, 'audioInfluence');
-    readField('audioInfluence', !!audioInfluenceSlider, () => { snapshot.audioInfluence = Number(audioInfluenceSlider!.getAttribute('aria-valuenow') ?? snapshot.audioInfluence); });
-
-    const personalizationRow = rowFor(panel, 'personalization');
-    readField('personalization', !!personalizationRow, () => {
-      const onButtons = getAllHostLocales().map((l) => l.rows.personalization.on);
-      const myTasteButtons = getAllHostLocales().map((l) => l.rows.personalization.myTaste);
-      snapshot.personalization.enabled = onButtons.some((bText) => selected(rowButton(panel, 'personalization', bText)));
-      let tasteName: string | undefined;
-      for (const bText of myTasteButtons) {
-        const btn = rowButton(panel, 'personalization', bText);
-        if (btn && text(btn)) {
-          tasteName = text(btn);
-          break;
-        }
-      }
-      snapshot.personalization.tasteName = tasteName;
-    });
-
+    const capture = readOptionControls(panel);
     if (shouldOpen) heading?.click();
-    return { snapshot, unreadable };
+    return capture;
+  }
+
+  /**
+   * Reads the current option values without touching the page: unlike
+   * readOtherOptions() it never opens a collapsed "More Options" disclosure,
+   * so it can run on every reconcile pass. Returns undefined while the
+   * controls are not visible.
+   */
+  peekOtherOptions(): OtherOptionsCapture | undefined {
+    const panel = optionPanel();
+    if (!panel || !optionControlsVisible(panel)) return undefined;
+    return readOptionControls(panel);
   }
 
   async applyOtherOptions(partial: Partial<OtherOptionsSnapshot>): Promise<ApplyResult> {
@@ -1330,50 +1446,59 @@ export class SunoAdapter {
   }
 
   async extractSavedStyles(): Promise<SavedStyle[]> {
+    const ui = getUiMessages();
     const existing = savedStylesDialog();
-    const triggerLabels = getAllSavedStyleTriggerLabels();
-    const trigger = visible([...document.querySelectorAll<HTMLButtonElement>('button')].filter((button) => {
-      const aria = button.getAttribute('aria-label') ?? '';
-      return triggerLabels.some((label) => aria.includes(label));
-    }));
-    let dialog = existing;
-    let openedHere = false;
-    let suppressor: HTMLStyleElement | undefined;
-    if (!dialog && trigger) {
-      suppressor = document.createElement('style');
-      suppressor.dataset.sunoCreateAssistant = 'style-dialog-suppressor';
-      const dialogSelectors = getAllSavedStyleDialogLabels()
-        .map((label) => `[role="dialog"][aria-label*="${label}"]`)
-        .join(', ');
-      suppressor.textContent = `${dialogSelectors} { visibility: hidden !important; }`;
-      document.head.append(suppressor);
-      trigger.click();
-      openedHere = true;
-      for (let attempt = 0; attempt < 20 && !dialog; attempt += 1) {
-        await new Promise((resolve) => setTimeout(resolve, 50));
-        // The extension deliberately hides this native dialog while reading
-        // it, so this lookup must not require visual visibility.
-        dialog = savedStylesDialog(true);
-      }
+    if (existing) {
+      const settled = await waitForSavedStyleRows(() => existing);
+      return readSavedStyles(settled.dialog ?? existing);
     }
+    // Opening Suno's native dialog is racy in two ways: the dialog element can
+    // appear before its (asynchronously loaded) list is rendered, and the
+    // trigger click can be swallowed while Suno is re-rendering. Retry the
+    // whole open -> read -> close cycle instead of failing on the first miss.
+    let lastError: Error | undefined;
+    for (let attempt = 0; attempt < SAVED_STYLES_ATTEMPTS; attempt += 1) {
+      try {
+        const styles = await this.openAndReadSavedStyles();
+        if (styles.length > 0 || attempt === SAVED_STYLES_ATTEMPTS - 1) return styles;
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error(ui.feedback.cannotOpenSavedStyles);
+      }
+      await new Promise((resolve) => setTimeout(resolve, SAVED_STYLES_RETRY_DELAY_MS));
+    }
+    throw lastError ?? new Error(ui.feedback.cannotOpenSavedStyles);
+  }
+
+  private async openAndReadSavedStyles(): Promise<SavedStyle[]> {
+    const ui = getUiMessages();
+    const trigger = savedStylesTrigger();
+    if (!trigger) throw new Error(ui.feedback.cannotOpenSavedStyles);
+    // Identify the dialog by "appeared after our click" rather than relying
+    // only on its aria-label: a label mismatch used to leave the dialog both
+    // visible and unread, with nothing closing it.
+    const dialogsBefore = new Set(document.querySelectorAll<HTMLElement>('[role="dialog"]'));
+    const findDialog = () => savedStylesDialog(true) ?? newDialogSince(dialogsBefore);
+    const suppressor = document.createElement('style');
+    suppressor.dataset.sunoCreateAssistant = 'style-dialog-suppressor';
+    const dialogSelectors = getAllSavedStyleDialogLabels()
+      .map((label) => `[role="dialog"][aria-label*="${label}"]`)
+      .concat('[role="dialog"]:not([data-suno-create-assistant-keep])')
+      .join(', ');
+    suppressor.textContent = `${dialogSelectors} { visibility: hidden !important; }`;
+    document.head.append(suppressor);
+    // Dialogs that were already open are not ours to hide.
+    dialogsBefore.forEach((dialog) => dialog.setAttribute('data-suno-create-assistant-keep', ''));
+    trigger.click();
     try {
-      const ui = getUiMessages();
+      // The extension deliberately hides this native dialog while reading
+      // it, so the lookup must not require visual visibility.
+      const { dialog } = await waitForSavedStyleRows(findDialog);
       if (!dialog) throw new Error(ui.feedback.cannotOpenSavedStyles);
-      const excludedRegex = /^(?:削除|名前を変更|グリッド表示|delete|rename|grid\s*view)$/i;
-      const rows = [...dialog.querySelectorAll<HTMLButtonElement>('button[aria-label]')]
-        .filter((button) => {
-          const label = (button.getAttribute('aria-label') ?? '').trim();
-          return label && !excludedRegex.test(label);
-        });
-      return rows.map((button, index) => {
-        const row = button.parentElement;
-        const name = button.getAttribute('aria-label') ?? '';
-        const prompt = row ? savedStylePrompt(row, name) : '';
-        return { id: savedStyleId(name, prompt, index), name, prompt };
-      }).filter((style) => style.prompt.length > 0);
+      return readSavedStyles(dialog);
     } finally {
-      suppressor?.remove();
-      if (openedHere) trigger?.click();
+      await closeSavedStylesDialog(trigger, findDialog);
+      dialogsBefore.forEach((dialog) => dialog.removeAttribute('data-suno-create-assistant-keep'));
+      suppressor.remove();
     }
   }
 
@@ -1393,8 +1518,10 @@ export class SunoAdapter {
       characterData: true,
       // Suno can expand/collapse this accordion by changing only attributes;
       // watching them makes the preset control appear after that transition.
+      // aria-valuenow / data-selected are the sliders' and toggles' live values,
+      // watched so the preset dropdown can notice a manual change.
       attributes: true,
-      attributeFilter: ['aria-expanded', 'aria-hidden', 'data-state', 'hidden'],
+      attributeFilter: ['aria-expanded', 'aria-hidden', 'data-state', 'hidden', 'aria-valuenow', 'data-selected'],
     });
     const inputHandler = () => listener();
     document.addEventListener('input', inputHandler, true);
@@ -1407,15 +1534,20 @@ export class SunoAdapter {
   }
 
   sidebarPlacement(): Placement | undefined {
+    // Every candidate must be *visible*, not merely present: on the live site
+    // a[href="/hooks"] exists only inside the mobile bottom nav (display: none
+    // on desktop), so accepting the first match put the button in an element
+    // that never renders.
+    const isShown = (element: HTMLElement | null | undefined): element is HTMLElement => !!element && !!visible([element]);
     const hooks = document.querySelector<HTMLElement>('a[href="/hooks"]');
-    if (hooks) return { anchor: hooks, position: 'afterend' };
+    if (isShown(hooks)) return { anchor: hooks, position: 'afterend' };
 
     const profile = document.querySelector<HTMLElement>('.group\\/profile-row, [data-testid="profile-menu-button"]')?.closest<HTMLElement>('.hxc-btn-split-root')
       ?? document.querySelector<HTMLElement>('a[href^="/@"]')?.closest<HTMLElement>('.hxc-btn-split-root');
-    if (profile) return { anchor: profile, position: 'beforebegin' };
+    if (isShown(profile)) return { anchor: profile, position: 'beforebegin' };
 
     const navContainer = document.querySelector<HTMLElement>('a[href="/create"], a[href="/discover"], [data-testid="navbar-library-tab"]')?.parentElement;
-    if (navContainer) return { anchor: navContainer, position: 'beforeend' };
+    if (isShown(navContainer)) return { anchor: navContainer, position: 'beforeend' };
 
     return undefined;
   }

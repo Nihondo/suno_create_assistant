@@ -7,7 +7,7 @@ import { getUiMessages } from '../locales';
 
 export function useController(controller: SunoController): ControllerState {
   const [state, setState] = useState<ControllerState>({
-    styles: [], stylesLoading: false, stylesDirty: true, isCustomStyle: false, autoTitleEnabled: false, titleFormat: DEFAULT_TITLE_FORMAT, closeDisclosuresOnAdvanced: true, lyricsTags: [],
+    styles: [], stylesLoading: false, stylesDirty: true, isCustomStyle: false, isCustomPreset: false, autoTitleEnabled: false, titleFormat: DEFAULT_TITLE_FORMAT, closeDisclosuresOnAdvanced: true, lyricsTags: [],
   });
   useEffect(() => controller.subscribe(setState), [controller]);
   return state;
@@ -211,7 +211,7 @@ export function PresetControls({ controller }: { controller: SunoController }) {
     ...presets.map((preset) => ({ id: preset.id, label: preset.name, value: preset })),
   ];
   return <div className="suno-assistant suno-assistant--presets" aria-label={ui.aria.presetSettings}>
-    <Dropdown label={ui.preset} valueLabel={state.preset?.name ?? ui.unselected} items={items} onSelect={(preset) => void controller.applyPreset(preset)} />
+    <Dropdown label={ui.preset} valueLabel={state.isCustomPreset ? ui.custom : state.preset?.name ?? ui.unselected} items={items} onSelect={(preset) => void controller.applyPreset(preset)} />
     <div className="suno-assistant__icon-group">
       <button type="button" className="suno-assistant__tag-button suno-assistant__tag-button--settings" aria-label={ui.savePreset} title={ui.savePreset} onClick={() => controller.openPresetCreation()}>
         <BookmarkIcon />

@@ -205,6 +205,28 @@ describe('SunoAdapter.readOtherOptions', () => {
   });
 });
 
+describe('SunoAdapter.peekOtherOptions', () => {
+  it('reads the live values and never clicks the disclosure heading', () => {
+    document.body.innerHTML = optionsPanelFixture();
+    const heading = document.querySelector<HTMLElement>('[role="button"]')!;
+    const click = vi.fn();
+    heading.addEventListener('click', click);
+    const adapter = new SunoAdapter();
+
+    const capture = adapter.peekOtherOptions();
+    document.querySelector('[role="slider"]')!.setAttribute('aria-valuenow', '73');
+
+    expect(capture?.snapshot.weirdness).toBe(50);
+    expect(adapter.peekOtherOptions()?.snapshot.weirdness).toBe(73);
+    expect(click).not.toHaveBeenCalled();
+  });
+
+  it('returns undefined without opening anything when the controls are not visible', () => {
+    document.body.innerHTML = '<div>no options here</div>';
+    expect(new SunoAdapter().peekOtherOptions()).toBeUndefined();
+  });
+});
+
 describe('SunoAdapter.extractSavedStyles', () => {
   it('extracts only the prompt, excluding the saved style name and date', async () => {
     document.body.innerHTML = `
@@ -223,6 +245,152 @@ describe('SunoAdapter.extractSavedStyles', () => {
     await expect(adapter.extractSavedStyles()).resolves.toEqual([
       expect.objectContaining({ name: 'Night Train', prompt: 'minimal synthwave, nocturnal pulse' }),
     ]);
+  });
+});
+
+describe('SunoAdapter.extractSavedStyles races', () => {
+  const rowHtml = (name: string, prompt: string) => `
+    <div>
+      <button aria-label="${name}"><span>${name}</span></button>
+      <span><span>${prompt}</span><span>saved: 3 days ago</span></span>
+    </div>`;
+
+  function stubLayout(): () => void {
+    const rect = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect')
+      .mockReturnValue({ width: 10, height: 10, top: 0, left: 0, right: 10, bottom: 10, x: 0, y: 0, toJSON: () => ({}) });
+    return () => rect.mockRestore();
+  }
+
+  it('waits for rows that render after the dialog element appears', async () => {
+    const restore = stubLayout();
+    try {
+      document.documentElement.lang = 'en';
+      document.body.innerHTML = '<button aria-label="View saved style prompts">Open</button>';
+      const trigger = document.querySelector<HTMLButtonElement>('button')!;
+      trigger.addEventListener('click', () => {
+        if (document.querySelector('[role="dialog"]')) {
+          document.querySelector('[role="dialog"]')?.remove();
+          return;
+        }
+        document.body.insertAdjacentHTML('beforeend', '<div role="dialog" aria-label="Saved Styles"></div>');
+        // The list is loaded asynchronously, well after the dialog exists.
+        setTimeout(() => {
+          document.querySelector('[role="dialog"]')
+            ?.insertAdjacentHTML('beforeend', rowHtml('Night Train', 'minimal synthwave'));
+        }, 300);
+      });
+
+      const styles = await new SunoAdapter().extractSavedStyles();
+      expect(styles.map((style) => style.name)).toEqual(['Night Train']);
+      expect(document.querySelector('[role="dialog"]')).toBeNull();
+    } finally {
+      restore();
+    }
+  });
+
+  it('clicks the real dialog trigger, not the look-alike chip that opens an unlabeled dialog', async () => {
+    // Confirmed on suno.com/create: two buttons share this aria-label. The
+    // chip (no aria-haspopup) opens a dialog named only via aria-labelledby.
+    const restore = stubLayout();
+    try {
+      document.documentElement.lang = 'ja';
+      document.body.innerHTML = `
+        <div class="tag-strip">
+          <button aria-label="保存したスタイルプロンプトを見る" data-testid="chip">chip</button>
+        </div>
+        <button aria-label="保存したスタイルプロンプトを見る" aria-haspopup="dialog" data-base-ui-click-trigger="" data-testid="real">real</button>
+      `;
+      const chip = document.querySelector<HTMLButtonElement>('[data-testid="chip"]')!;
+      const real = document.querySelector<HTMLButtonElement>('[data-testid="real"]')!;
+      const chipClicked = vi.fn();
+      chip.addEventListener('click', chipClicked);
+      real.addEventListener('click', () => {
+        const open = document.querySelector('[role="dialog"]');
+        if (open) {
+          open.remove();
+          return;
+        }
+        document.body.insertAdjacentHTML(
+          'beforeend',
+          `<div role="dialog" aria-label="保存したスタイル">
+            <button aria-label="閉じる">x</button>
+            <button aria-label="グリッド表示">grid</button>
+            <div>
+              <button aria-label="Night Train"></button>
+              <span><span>Night Train</span><span>minimal synthwave</span><span>7d</span></span>
+              <button aria-label="名前を変更">r</button>
+              <button aria-label="削除: Night Train">d</button>
+            </div>
+          </div>`,
+        );
+      });
+
+      const styles = await new SunoAdapter().extractSavedStyles();
+      expect(chipClicked).not.toHaveBeenCalled();
+      expect(styles.map((style) => [style.name, style.prompt])).toEqual([['Night Train', 'minimal synthwave']]);
+      expect(document.querySelector('[role="dialog"]')).toBeNull();
+    } finally {
+      restore();
+    }
+  });
+
+  it('finds a saved-styles dialog named only by aria-labelledby and closes it', async () => {
+    const restore = stubLayout();
+    try {
+      document.documentElement.lang = 'ja';
+      document.body.innerHTML = '<button aria-label="保存したスタイルプロンプトを見る">Open</button>';
+      document.querySelector('button')!.addEventListener('click', () => {
+        const open = document.querySelector('[role="dialog"]');
+        if (open) {
+          open.remove();
+          return;
+        }
+        document.body.insertAdjacentHTML(
+          'beforeend',
+          `<div role="dialog" aria-labelledby="ttl">
+            <h2 id="ttl">保存したスタイル</h2>
+            <div>
+              <button aria-label="Night Train"></button>
+              <span><span>Night Train</span><span>minimal synthwave</span></span>
+            </div>
+          </div>`,
+        );
+      });
+
+      const styles = await new SunoAdapter().extractSavedStyles();
+      expect(styles.map((style) => style.name)).toEqual(['Night Train']);
+      expect(document.querySelector('[role="dialog"]')).toBeNull();
+    } finally {
+      restore();
+    }
+  });
+
+  it('retries when the first trigger click is swallowed', async () => {
+    const restore = stubLayout();
+    try {
+      document.documentElement.lang = 'en';
+      document.body.innerHTML = '<button aria-label="View saved style prompts">Open</button>';
+      const trigger = document.querySelector<HTMLButtonElement>('button')!;
+      let clicks = 0;
+      trigger.addEventListener('click', () => {
+        clicks += 1;
+        if (clicks === 1) return;
+        const open = document.querySelector('[role="dialog"]');
+        if (open) {
+          open.remove();
+          return;
+        }
+        document.body.insertAdjacentHTML(
+          'beforeend',
+          `<div role="dialog" aria-label="Saved Styles">${rowHtml('Night Train', 'minimal synthwave')}</div>`,
+        );
+      });
+
+      const styles = await new SunoAdapter().extractSavedStyles();
+      expect(styles.map((style) => style.name)).toEqual(['Night Train']);
+    } finally {
+      restore();
+    }
   });
 });
 
@@ -470,6 +638,26 @@ describe('SunoAdapter sidebarPlacement', () => {
     expect(placement).toBeDefined();
     expect(placement!.anchor).toBe(document.querySelector('a[href="/hooks"]'));
     expect(placement!.position).toBe('afterend');
+  });
+
+  it('skips a hooks link that exists but is not rendered (mobile bottom nav) and uses the profile row', () => {
+    // Confirmed on suno.com/create: a[href="/hooks"] lives only in the mobile
+    // bottom bar, which is display:none on desktop (zero-size rect).
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+      return (this.closest('[data-mobile-nav]') ? { width: 0, height: 0 } : { width: 100, height: 40 }) as DOMRect;
+    });
+    document.body.innerHTML = `
+      <div class="flex flex-col gap-px px-3">
+        <a href="/discover">ホーム</a>
+        <a href="/create">作成</a>
+        <div class="group/profile-row hxc-btn-split-root">nihondo</div>
+      </div>
+      <div data-mobile-nav><a href="/hooks">Hooks</a></div>
+    `;
+
+    const placement = new SunoAdapter().sidebarPlacement();
+    expect(placement!.anchor).toBe(document.querySelector('.group\\/profile-row'));
+    expect(placement!.position).toBe('beforebegin');
   });
 
   it('falls back to before profile row when hooks link is absent', () => {

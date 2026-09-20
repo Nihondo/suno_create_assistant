@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { emptyOtherOptions, type OtherOptionsPreset, type TakeRecord } from '../src/domain/models';
+import { emptyOtherOptions, type OtherOptionsKey, type OtherOptionsPreset, type TakeRecord } from '../src/domain/models';
 import { type ControllerState, SunoController } from '../src/suno/controller';
 import { readStorage } from '../src/storage/repository';
 
@@ -193,6 +193,194 @@ describe('SunoController executeCreateWithTake and title format', () => {
 
     await controller.saveTitleFormat('{{WORKSPACE}} - {{STYLE}} [{{MASTERING}}] ({{PRESET}}) {{MODEL}} {{TAKE:3}}');
     expect(setTitleSpy).toHaveBeenLastCalledWith('My Workspace - City Pop [Warm Analog] (Female Vocal) v6 {{TAKE:3}}');
+  });
+});
+
+describe('SunoController style/mastering selection follows the Style text', () => {
+  const cityPop = { id: 's1', name: 'City Pop', prompt: '80s city pop' };
+  const jazz = { id: 's2', name: 'Jazz', prompt: 'smooth jazz' };
+  const mastering = { id: 'm1', name: 'Warm', prompt: 'warm master', createdAt: '', updatedAt: '' };
+
+  async function setup() {
+    document.body.innerHTML = '<textarea id="style"></textarea>';
+    const textarea = document.querySelector<HTMLTextAreaElement>('#style')!;
+    const controller = new SunoController();
+    vi.spyOn(controller.adapter, 'styleTextarea').mockReturnValue(textarea);
+    vi.spyOn(controller.adapter, 'setStylePrompt').mockImplementation((value) => { textarea.value = value; return true; });
+    vi.spyOn(controller.adapter, 'getStylePrompt').mockImplementation(() => textarea.value);
+    const current = watch(controller);
+    (controller as unknown as { state: ControllerState }).state.styles = [cityPop, jazz];
+    await controller.initialize();
+    await controller.selectStyle(cityPop);
+    await controller.selectMastering(mastering);
+    return { controller, textarea, current };
+  }
+
+  // The controller defers its reaction to a keystroke by one tick (see
+  // handleStyleInput), so wait for that before asserting.
+  const type = async (textarea: HTMLTextAreaElement, value: string) => {
+    textarea.value = value;
+    textarea.dispatchEvent(new Event('input', { bubbles: true }));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  };
+
+  it('drops the mastering and goes custom when the user edits the text away from both', async () => {
+    const { textarea, current } = await setup();
+    await type(textarea, 'my own style');
+    expect(current().style).toBeUndefined();
+    expect(current().isCustomStyle).toBe(true);
+    expect(current().mastering).toBeUndefined();
+  });
+
+  it('does not write the auto title synchronously inside the input event (it would revert the keystroke in Suno)', async () => {
+    const { controller, textarea } = await setup();
+    await controller.setAutoTitle(true);
+    const setTitle = vi.spyOn(controller.adapter, 'setTitle');
+    setTitle.mockClear();
+    textarea.value = 'my own style\nwarm master';
+    textarea.dispatchEvent(new Event('input', { bubbles: true }));
+    expect(setTitle).not.toHaveBeenCalled();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(setTitle).toHaveBeenCalled();
+  });
+
+  it('keeps the mastering while only the style part is edited', async () => {
+    const { textarea, current } = await setup();
+    await type(textarea, 'my own style\nwarm master');
+    expect(current().isCustomStyle).toBe(true);
+    expect(current().mastering?.id).toBe('m1');
+  });
+
+  it('walks through style edit -> undo and mastering edit -> undo', async () => {
+    const { textarea, current } = await setup();
+    const original = textarea.value; // "80s city pop\nwarm master"
+
+    await type(textarea, '80s city pop X\nwarm master');
+    expect(current().isCustomStyle).toBe(true);
+    expect(current().mastering?.id).toBe('m1');
+    await type(textarea, original);
+    expect(current().style?.id).toBe('s1');
+    expect(current().isCustomStyle).toBe(false);
+
+    await type(textarea, '80s city pop\nwarm masterX');
+    expect(current().style?.id).toBe('s1');
+    expect(current().isCustomStyle).toBe(false);
+    expect(current().mastering).toBeUndefined();
+    await type(textarea, original);
+    expect(current().style?.id).toBe('s1');
+    expect(current().mastering?.id).toBe('m1');
+  });
+
+  it('returns to unselected, not custom, when the field is emptied', async () => {
+    const { textarea, current } = await setup();
+    await type(textarea, '');
+    expect(current().isCustomStyle).toBe(false);
+    expect(current().style).toBeUndefined();
+    expect(current().mastering).toBeUndefined();
+  });
+
+  it('notices a text change that fires no input event (reuse prompt) on reconcile and adopts the matching style', async () => {
+    const { controller, textarea, current } = await setup();
+    controller.reconcile(); // baseline
+    textarea.value = 'smooth jazz';
+    controller.reconcile();
+    expect(current().style?.id).toBe('s2');
+    expect(current().isCustomStyle).toBe(false);
+    expect(current().mastering).toBeUndefined();
+  });
+
+  it('does not touch the selection on reconcile when the text is unchanged or has no textarea', async () => {
+    const { controller, current } = await setup();
+    controller.reconcile();
+    controller.reconcile();
+    expect(current().style?.id).toBe('s1');
+    expect(current().mastering?.id).toBe('m1');
+    vi.spyOn(controller.adapter, 'styleTextarea').mockReturnValue(undefined);
+    controller.reconcile();
+    expect(current().style?.id).toBe('s1');
+  });
+});
+
+describe('SunoController preset selection follows the live option values', () => {
+  const female: OtherOptionsPreset = { id: 'p1', name: 'Female', fields: { vocalGender: 'female', weirdness: 70 }, createdAt: '', updatedAt: '' };
+  const capture = (overrides: Partial<ReturnType<typeof emptyOtherOptions>> = {}, unreadable: OtherOptionsKey[] = []) => ({
+    snapshot: { ...emptyOtherOptions(), vocalGender: 'female' as const, weirdness: 70, ...overrides },
+    unreadable,
+  });
+
+  async function setup(skipped: OtherOptionsKey[] = []) {
+    const controller = new SunoController();
+    vi.spyOn(controller.adapter, 'applyOtherOptions').mockResolvedValue({ applied: [], skipped });
+    const peek = vi.spyOn(controller.adapter, 'peekOtherOptions').mockReturnValue(capture());
+    const current = watch(controller);
+    await controller.applyPreset(female);
+    return { controller, peek, current };
+  }
+
+  it('keeps the preset while the values still match', async () => {
+    const { controller, current } = await setup();
+    controller.reconcile();
+    expect(current().preset?.id).toBe('p1');
+    expect(current().isCustomPreset).toBe(false);
+  });
+
+  it('turns into カスタム when a value is changed by hand, and comes back when restored', async () => {
+    const { controller, peek, current } = await setup();
+    peek.mockReturnValue(capture({ weirdness: 55 }));
+    controller.reconcile();
+    expect(current().preset).toBeUndefined();
+    expect(current().isCustomPreset).toBe(true);
+
+    peek.mockReturnValue(capture());
+    controller.reconcile();
+    expect(current().preset?.id).toBe('p1');
+    expect(current().isCustomPreset).toBe(false);
+  });
+
+  it('ignores fields the preset could not apply, and does nothing while the controls are hidden', async () => {
+    const { controller, peek, current } = await setup(['weirdness']);
+    peek.mockReturnValue(capture({ weirdness: 12 }));
+    controller.reconcile();
+    expect(current().preset?.id).toBe('p1');
+
+    peek.mockReturnValue(undefined);
+    controller.reconcile();
+    expect(current().preset?.id).toBe('p1');
+  });
+
+  it('does not react while options are being applied, and leaves a never-selected preset alone', async () => {
+    const controller = new SunoController();
+    let release!: () => void;
+    vi.spyOn(controller.adapter, 'applyOtherOptions').mockReturnValue(new Promise((resolve) => {
+      release = () => resolve({ applied: [], skipped: [] });
+    }));
+    const peek = vi.spyOn(controller.adapter, 'peekOtherOptions').mockReturnValue(capture({ weirdness: 1 }));
+    const current = watch(controller);
+
+    controller.reconcile();
+    expect(current().isCustomPreset).toBe(false); // nothing selected yet
+
+    const applying = controller.applyPreset(female);
+    controller.reconcile(); // mid-apply values do not match yet
+    expect(current().preset?.id).toBe('p1');
+    expect(current().isCustomPreset).toBe(false);
+    peek.mockReturnValue(capture());
+    release();
+    await applying;
+    controller.reconcile();
+    expect(current().preset?.id).toBe('p1');
+  });
+
+  it('records no preset in the title while custom', async () => {
+    const { controller, peek } = await setup();
+    vi.spyOn(controller.adapter, 'getDestinationName').mockReturnValue('WS');
+    const setTitle = vi.spyOn(controller.adapter, 'setTitle');
+    await controller.setAutoTitle(true);
+    await controller.saveTitleFormat('{{WORKSPACE}} [{{PRESET}}]');
+    expect(setTitle).toHaveBeenLastCalledWith('WS [Female]');
+    peek.mockReturnValue(capture({ weirdness: 3 }));
+    controller.reconcile();
+    expect(setTitle).toHaveBeenLastCalledWith('WS [カスタム]');
   });
 });
 
