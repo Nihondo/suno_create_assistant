@@ -1,9 +1,96 @@
-import { optionKeys, type MasteringPrompt, type OtherOptionsCapture, type OtherOptionsKey, type OtherOptionsPreset, type OtherOptionsSnapshot, type SavedStyle } from './models';
+import { optionKeys, type MasteringPrompt, type MusicalSettings, type MusicalSettingsDetection, type OtherOptionsCapture, type OtherOptionsKey, type OtherOptionsPreset, type OtherOptionsSnapshot, type SavedStyle } from './models';
 import { getUiMessages, type SupportedLanguage, type UiMessages } from '../locales';
 
 export function composePrompt(style?: string, mastering?: string): string | undefined {
   const value = [style?.trim(), mastering?.trim()].filter(Boolean).join('\n');
   return value.length <= 1000 ? value : undefined;
+}
+
+const MUSIC_SETTINGS_LINE = /^\s*Musical settings:\s*.*$/gim;
+const KEY_NAME = /(?:key\s*(?:of|is|:)?\s*|キー\s*(?:は|:|：)?\s*)([A-G](?:#|♯|b|♭)?\s*(?:major|minor|メジャー|マイナー|長調|短調))/gi;
+const BARE_KEY_NAME = /\b([A-G](?:#|♯|b|♭)?\s*(?:major|minor))\b/gi;
+const TEMPO = /(?:tempo\s*(?:of|is|:)?\s*|テンポ\s*(?:は|:|：)?\s*)(\d{2,3})\s*(?:bpm)?\b/gi;
+const BARE_TEMPO = /\b(\d{2,3})\s*bpm\b/gi;
+const TIME_SIGNATURE = /\b([1-9]|1[0-2])\s*\/\s*(2|4|8|16)\s*(?:time)?\b|([1-9]|1[0-2])\s*\/\s*(2|4|8|16)\s*拍子/gi;
+
+function normalizedKey(value: string): string | undefined {
+  const match = value.trim().match(/^([A-G])([#♯b♭]?)\s*(major|minor|メジャー|マイナー|長調|短調)$/i);
+  if (!match) return undefined;
+  const accidental = match[2]!.replace('♯', '#').replace('♭', 'b');
+  const quality = /^(?:major|メジャー|長調)$/i.test(match[3]!) ? 'Major' : 'Minor';
+  return `${match[1]!.toUpperCase()}${accidental} ${quality}`;
+}
+
+function oneValue<T>(values: T[]): { value?: T; conflict: boolean } {
+  const unique = [...new Set(values)];
+  return unique.length === 1 ? { value: unique[0], conflict: false } : { conflict: unique.length > 1 };
+}
+
+function matchingValues(pattern: RegExp, input: string, parse: (match: RegExpExecArray) => string | number | undefined): (string | number)[] {
+  const values: (string | number)[] = [];
+  pattern.lastIndex = 0;
+  for (let match = pattern.exec(input); match; match = pattern.exec(input)) {
+    const value = parse(match);
+    if (value !== undefined) values.push(value);
+  }
+  return values;
+}
+
+/**
+ * Extracts explicit musical metadata from the visible Style prompt. A field
+ * with conflicting values is intentionally left unset so the UI never
+ * silently chooses one interpretation over another.
+ */
+export function detectMusicalSettings(prompt: string): MusicalSettingsDetection {
+  // Once the user has applied the extension-managed line, it is the explicit
+  // current choice. Ignore descriptive key/tempo phrases elsewhere in the
+  // style (for example inside a newly selected saved style) so they cannot
+  // turn a deliberate setting into an apparent conflict.
+  const managedLines = prompt.match(MUSIC_SETTINGS_LINE);
+  const source = managedLines?.at(-1) ?? prompt;
+  const keys = [
+    ...matchingValues(KEY_NAME, source, (match) => normalizedKey(match[1]!)),
+    ...matchingValues(BARE_KEY_NAME, source, (match) => normalizedKey(match[1]!)),
+  ].filter((value): value is string => typeof value === 'string');
+  const tempos = [
+    ...matchingValues(TEMPO, source, (match) => Number(match[1])),
+    ...matchingValues(BARE_TEMPO, source, (match) => Number(match[1])),
+  ].filter((value): value is number => typeof value === 'number' && value >= 30 && value <= 300);
+  const signatures = matchingValues(TIME_SIGNATURE, source, (match) => {
+    const numerator = match[1] ?? match[3];
+    const denominator = match[2] ?? match[4];
+    return numerator && denominator ? `${numerator}/${denominator}` : undefined;
+  }).filter((value): value is string => typeof value === 'string');
+
+  const key = oneValue(keys);
+  const tempo = oneValue(tempos);
+  const timeSignature = oneValue(signatures);
+  const conflicts: MusicalSettingsDetection['conflicts'] = [];
+  if (key.conflict) conflicts.push('key');
+  if (tempo.conflict) conflicts.push('tempo');
+  if (timeSignature.conflict) conflicts.push('timeSignature');
+  return { key: key.value, tempo: tempo.value, timeSignature: timeSignature.value, conflicts };
+}
+
+function musicSettingsLine(settings: MusicalSettings): string {
+  const fields = [
+    settings.key && `Key: ${settings.key}`,
+    settings.tempo && `Tempo: ${settings.tempo} BPM`,
+    settings.timeSignature && `Time signature: ${settings.timeSignature}`,
+  ].filter(Boolean);
+  return fields.length ? `Musical settings: ${fields.join('; ')}.` : '';
+}
+
+/**
+ * Adds a single extension-managed line to the Style text. Existing managed
+ * lines are replaced, while every other part of the user's prompt remains
+ * untouched. The line is deliberately ordinary prompt text, so Suno receives
+ * the requested musical constraints without any private API integration.
+ */
+export function applyMusicalSettings(prompt: string, settings: MusicalSettings): string {
+  const line = musicSettingsLine(settings);
+  const base = prompt.replace(MUSIC_SETTINGS_LINE, '').replace(/\n{3,}/g, '\n\n').trim();
+  return [base, line].filter(Boolean).join('\n');
 }
 
 export const DEFAULT_TITLE_FORMAT = '{{WORKSPACE}} ({{STYLE}}) {{TAKE}}';
@@ -205,8 +292,12 @@ export function deriveStyleSelection(
   }
 
   const normalized = base.trim();
-  if (!normalized) return { base, mastering, isCustomStyle: false };
-  const matches = (saved: SavedStyle) => saved.prompt.trim() === normalized;
+  // Musical settings are an extension-managed decoration of the base style,
+  // not a manual style edit. Ignore the line only for saved-style matching;
+  // return the original base so subsequent mastering changes preserve it.
+  const comparable = normalized.replace(MUSIC_SETTINGS_LINE, '').replace(/\n{3,}/g, '\n\n').trim();
+  if (!comparable) return { base, mastering, isCustomStyle: false };
+  const matches = (saved: SavedStyle) => saved.prompt.trim() === comparable;
   const style = current.style && matches(current.style) ? current.style : savedStyles.find(matches);
   if (style) return { base, style, mastering, isCustomStyle: false };
 
@@ -215,8 +306,17 @@ export function deriveStyleSelection(
   // changed: keep the style rather than calling the whole text custom.
   if (candidate && !mastering && current.style) {
     const stylePrompt = current.style.prompt.trim();
-    if (stylePrompt && normalized.startsWith(`${stylePrompt}\n`)) {
-      return { base: stylePrompt, style: current.style, mastering: undefined, isCustomStyle: false };
+    if (stylePrompt && comparable.startsWith(`${stylePrompt}\n`)) {
+      // Preserve our own musical-settings line but discard the edited
+      // mastering tail, exactly as the pre-musical-settings behavior kept
+      // only the selected style prompt in this recovery path.
+      const musicalLines = base.match(MUSIC_SETTINGS_LINE) ?? [];
+      return {
+        base: [stylePrompt, ...musicalLines].join('\n'),
+        style: current.style,
+        mastering: undefined,
+        isCustomStyle: false,
+      };
     }
   }
   return { base, mastering, isCustomStyle: true };
@@ -319,4 +419,3 @@ export function calculateTagInsertion(
 
   return { newText, newCursor, insertion };
 }
-

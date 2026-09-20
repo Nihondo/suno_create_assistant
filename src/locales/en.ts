@@ -63,6 +63,13 @@ export const enUiMessages: UiMessages = {
   style: 'Style',
   mastering: 'Mastering',
   preset: 'Preset',
+  musicalSettings: 'Key & Tempo',
+  key: 'Key',
+  tempo: 'Tempo',
+  timeSignature: 'Time signature',
+  applyToStyle: 'Apply to Style',
+  noMusicalSettingsDetected: 'No key, tempo, or time signature was detected in the Style prompt.',
+  musicalSettingsConflict: 'Multiple values were found. Review the values before applying them.',
   aria: {
     styleSettings: 'Suno Create Assistant: Style Settings',
     presetSettings: 'Suno Create Assistant: More Options Presets',
@@ -75,6 +82,7 @@ export const enUiMessages: UiMessages = {
     reuseParameters: 'Reuse parameters',
     recentWorkspaces: 'Switch recent workspaces',
     settingsSections: 'Settings categories',
+    musicalSettings: 'Suno Create Assistant: Key and Tempo',
   },
   dialog: {
     title: 'Suno Create Assistant Settings',

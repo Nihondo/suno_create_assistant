@@ -328,9 +328,20 @@ export function SettingsDialog({ controller }: { controller: SunoController }) {
   };
 
   const ui = getUiMessages();
-  const manifest = typeof chrome !== 'undefined' ? chrome.runtime?.getManifest?.() : undefined;
-  const appVersion = manifest?.version ?? 'unknown';
-  const appIconUrl = typeof chrome !== 'undefined' ? chrome.runtime?.getURL?.('icon-128.png') : undefined;
+  let appVersion = 'unknown';
+  let appIconUrl: string | undefined;
+  // An already-open dialog may render once more while Chrome is invalidating
+  // this content script after an extension update. Runtime access itself can
+  // throw then, so leave the informational metadata empty and let WXT's
+  // invalidation handler dispose the old UI.
+  try {
+    if (typeof chrome !== 'undefined') {
+      appVersion = chrome.runtime?.getManifest?.().version ?? 'unknown';
+      appIconUrl = chrome.runtime?.getURL?.('icon-128.png');
+    }
+  } catch {
+    // The old extension context is no longer usable.
+  }
 
   return <dialog ref={dialogRef} className="suno-assistant__dialog" closedby="any" onClose={close} onCancel={close}>
     <div className="suno-assistant__dialog-body">

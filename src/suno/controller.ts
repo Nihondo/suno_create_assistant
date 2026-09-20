@@ -1,7 +1,9 @@
 import {
   autoTitle,
+  applyMusicalSettings,
   composePrompt,
   DEFAULT_TITLE_FORMAT,
+  detectMusicalSettings,
   extractTakeKey,
   hasTakePlaceholder,
   deriveStyleSelection,
@@ -13,6 +15,8 @@ import {
   type ApplyResult,
   DEFAULT_LYRICS_TAGS,
   type MasteringPrompt,
+  type MusicalSettings,
+  type MusicalSettingsDetection,
   type OtherOptionsCapture,
   type OtherOptionsKey,
   type OtherOptionsPreset,
@@ -60,6 +64,7 @@ export interface ControllerState {
   titleFormat: string;
   closeDisclosuresOnAdvanced: boolean;
   lyricsTags: string[];
+  musicalSettings: MusicalSettingsDetection;
   settings?: { section: SettingsSection; action?: SettingsAction };
   styleFeedback?: Feedback;
   presetFeedback?: Feedback;
@@ -80,6 +85,7 @@ export class SunoController {
     titleFormat: DEFAULT_TITLE_FORMAT,
     closeDisclosuresOnAdvanced: true,
     lyricsTags: [...DEFAULT_LYRICS_TAGS],
+    musicalSettings: { conflicts: [] },
   };
   private listeners = new Set<Listener>();
   private baseStyle = '';
@@ -201,13 +207,19 @@ export class SunoController {
   }
 
   async selectStyle(style?: SavedStyle): Promise<void> {
-    const next = composePrompt(style?.prompt, this.state.mastering?.prompt);
+    const musicalSettings = this.musicalSettingsForStyle(style);
+    // A saved style's explicit musical metadata wins field by field. When it
+    // does not specify a field, retain the current setting instead of making
+    // a style switch unexpectedly clear the user's key or tempo.
+    const base = musicalSettings ? applyMusicalSettings(style?.prompt ?? '', musicalSettings) : style?.prompt ?? '';
+    const next = composePrompt(base, this.state.mastering?.prompt);
     if (next === undefined) return this.failOverflow();
     this.state.style = style;
     this.state.isCustomStyle = false;
     this.state.styleFeedback = undefined;
-    this.baseStyle = style?.prompt ?? '';
+    this.baseStyle = base;
     this.writeStyle(next ?? '');
+    this.syncMusicalSettingsFromText(next ?? '');
     this.updateAutoTitle();
     this.emit();
   }
@@ -347,6 +359,34 @@ export class SunoController {
 
   async insertLyricsTag(tag: string): Promise<boolean> {
     return this.adapter.insertLyricsTag(tag);
+  }
+
+  /**
+   * Writes only the extension-managed musical-settings line into the base
+   * style. Keeping it before a selected mastering prompt preserves the
+   * controller's existing "mastering is a suffix" invariant.
+   */
+  applyMusicalSettings(settings: MusicalSettings): void {
+    const current = this.adapter.getStylePrompt();
+    const base = this.baseStyle || (this.state.mastering ? current.replace(new RegExp(`\\n${this.state.mastering.prompt.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`), '') : current);
+    const nextBase = applyMusicalSettings(base, settings);
+    const next = composePrompt(nextBase, this.state.mastering?.prompt);
+    if (next === undefined) return this.failOverflow();
+    if (next === current) {
+      this.syncMusicalSettingsFromText(current);
+      this.emit();
+      return;
+    }
+    const selection = deriveStyleSelection(next, this.state.styles, { ...this.state, rememberedMastering: this.rememberedMastering });
+    this.baseStyle = selection.base;
+    this.state.style = selection.style;
+    this.state.mastering = selection.mastering;
+    this.state.isCustomStyle = selection.isCustomStyle;
+    this.state.styleFeedback = undefined;
+    this.writeStyle(next);
+    this.syncMusicalSettingsFromText(next);
+    this.updateAutoTitle();
+    this.emit();
   }
 
   reconcile(): void {
@@ -560,8 +600,10 @@ export class SunoController {
     // empty read there would wrongly look like the user cleared the field.
     if (!this.adapter.styleTextarea(true)) return;
     const text = this.adapter.getStylePrompt();
+    const musicChanged = this.syncMusicalSettingsFromText(text);
     if (!force && (this.lastStyleText === undefined || text === this.lastStyleText)) {
       this.lastStyleText = text;
+      if (musicChanged) this.emit();
       return;
     }
     this.lastStyleText = text;
@@ -574,9 +616,40 @@ export class SunoController {
     this.state.style = next.style;
     this.state.mastering = next.mastering;
     this.state.isCustomStyle = next.isCustomStyle;
-    if (!isChanged && !force) return;
+    if (!isChanged && !force && !musicChanged) return;
     this.updateAutoTitle();
     this.emit();
+  }
+
+  private syncMusicalSettingsFromText(text: string): boolean {
+    const next = detectMusicalSettings(text);
+    const current = this.state.musicalSettings;
+    if (
+      next.key === current.key
+      && next.tempo === current.tempo
+      && next.timeSignature === current.timeSignature
+      && next.conflicts.join(',') === current.conflicts.join(',')
+    ) return false;
+    this.state.musicalSettings = next;
+    return true;
+  }
+
+  private currentMusicalSettings(): MusicalSettings | undefined {
+    const { key, tempo, timeSignature, conflicts } = this.state.musicalSettings;
+    if (conflicts.length || (!key && tempo === undefined && !timeSignature)) return undefined;
+    return { key, tempo, timeSignature };
+  }
+
+  private musicalSettingsForStyle(style?: SavedStyle): MusicalSettings | undefined {
+    const current = this.currentMusicalSettings();
+    if (!style) return current;
+    const detected = detectMusicalSettings(style.prompt);
+    const next: MusicalSettings = {
+      key: detected.key ?? current?.key,
+      tempo: detected.tempo ?? current?.tempo,
+      timeSignature: detected.timeSignature ?? current?.timeSignature,
+    };
+    return next.key || next.tempo !== undefined || next.timeSignature ? next : undefined;
   }
 
   private handleDocumentClick = (event: Event): void => {

@@ -12,6 +12,24 @@ import {
 
 const STORAGE_KEY = 'sunoCreateAssistant';
 
+function isContextInvalidated(error: unknown): boolean {
+  return error instanceof Error && /extension context invalidated/i.test(error.message);
+}
+
+/**
+ * Chrome invalidates content scripts that belong to an extension version
+ * which has just been reloaded or updated. Accessing `chrome.storage` from
+ * one of those stale scripts throws synchronously, so treat its absence as a
+ * read-only shutdown state rather than letting a pending UI task crash.
+ */
+function extensionStorage(): typeof chrome.storage | undefined {
+  try {
+    return typeof chrome === 'undefined' ? undefined : chrome.storage;
+  } catch {
+    return undefined;
+  }
+}
+
 const defaults = (): StorageSchema => ({
   schemaVersion: CURRENT_SCHEMA_VERSION,
   masteringPrompts: [],
@@ -68,7 +86,15 @@ function migrate(value: unknown): StorageSchema | undefined {
 }
 
 export async function readStorage(): Promise<StorageSchema> {
-  const value = (await chrome.storage.local.get(STORAGE_KEY))[STORAGE_KEY];
+  const storage = extensionStorage();
+  if (!storage) return defaults();
+  let value: unknown;
+  try {
+    value = (await storage.local.get(STORAGE_KEY))[STORAGE_KEY];
+  } catch (error) {
+    if (isContextInvalidated(error)) return defaults();
+    throw error;
+  }
   const migrated = migrate(value);
   if (!migrated) return defaults();
   return {
@@ -84,7 +110,14 @@ export async function readStorage(): Promise<StorageSchema> {
 }
 
 export async function writeStorage(next: StorageSchema): Promise<void> {
-  await chrome.storage.local.set({ [STORAGE_KEY]: next });
+  const storage = extensionStorage();
+  if (!storage) return;
+  try {
+    await storage.local.set({ [STORAGE_KEY]: next });
+  } catch (error) {
+    if (isContextInvalidated(error)) return;
+    throw error;
+  }
 }
 
 // Every storage mutation (updateStorage and replaceStorage below) is chained
@@ -295,9 +328,22 @@ export async function setTakeHistoryLimit(limit: number): Promise<void> {
 }
 
 export function subscribeStorage(listener: () => void): () => void {
+  const storage = extensionStorage();
+  if (!storage) return () => {};
   const handler = (changes: { [key: string]: chrome.storage.StorageChange }, area: string) => {
     if (area === 'local' && changes[STORAGE_KEY]) listener();
   };
-  chrome.storage.onChanged.addListener(handler);
-  return () => chrome.storage.onChanged.removeListener(handler);
+  try {
+    storage.onChanged.addListener(handler);
+  } catch (error) {
+    if (isContextInvalidated(error)) return () => {};
+    throw error;
+  }
+  return () => {
+    try {
+      storage.onChanged.removeListener(handler);
+    } catch (error) {
+      if (!isContextInvalidated(error)) throw error;
+    }
+  };
 }

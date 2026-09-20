@@ -44,7 +44,7 @@ const sunoFixture = `<!doctype html><html lang="ja"><body>
     <button id="inspiration">＋ インスピレーション</button>
     <section id="lyrics"><div id="lyrics-header"><div role="button" tabindex="0" aria-expanded="true">歌詞</div></div><div id="lyrics-wrapper"><textarea placeholder="歌詞を入力"></textarea></div></section>
     <section id="styles"><div id="styles-header"><div role="button" tabindex="0" aria-expanded="true">スタイル</div></div><div data-testid="create-form-styles-wrapper"><textarea></textarea></div><button id="saved-styles" aria-label="保存したスタイルプロンプトを見る">保存したスタイル</button></section>
-    <dialog role="dialog" aria-label="保存したスタイル"><div><button aria-label="ARIA">ARIA</button><span>gentle acoustic ensemble</span></div></dialog>
+    <dialog role="dialog" aria-label="保存したスタイル"><div><button aria-label="ARIA">ARIA</button><span>gentle acoustic ensemble</span></div><div><button aria-label="Keyed">Keyed</button><span>orchestral rock, key of D Minor, tempo of 92 BPM in 3/4 time</span></div></dialog>
     <section id="options"><div id="options-header"><div role="button" tabindex="0" aria-expanded="true">その他のオプション</div><button aria-label="すべてリセット">すべてリセット</button></div><div id="options-body"><input aria-label="スタイルを除外" />
       <div>ボーカル性別<button data-selected="false">男性</button><button data-selected="false">女性</button></div>
       <div>長さ<button data-selected="false">カスタム</button><button data-selected="true">Auto</button></div>
@@ -145,7 +145,7 @@ test('mounts the Suno controls beside their anchors, survives host removal, and 
     await cdp.send('Runtime.enable');
     await page.goto('https://suno.com/create');
     await page.locator('suno-create-assistant').first().waitFor();
-    // lyrics, styles, presets, title, sidebar, settings dialog, and workspace switcher.
+    // lyrics, styles (including musical settings), presets, title, sidebar, settings dialog, and workspace switcher.
     expect(await page.locator('suno-create-assistant').count(), extensionErrors.join('\n')).toBe(7);
 
     // Verify sidebar settings button is mounted after hooks link, in light DOM
@@ -202,6 +202,9 @@ test('mounts the Suno controls beside their anchors, survives host removal, and 
     const stylesHost = page.locator('suno-create-assistant[data-suno-create-assistant="styles"]');
     await expect(page.locator('#styles-header + suno-create-assistant[data-suno-create-assistant="styles"]')).toHaveCount(1);
     await expect(stylesHost).toBeVisible();
+    await expect(page.locator('suno-create-assistant[data-suno-create-assistant="musical-settings"]')).toHaveCount(0);
+    await expect(stylesHost.getByRole('button', { name: '曲から取得' })).toHaveCount(0);
+    await expect(stylesHost.getByText('スタイルからキー・テンポ・拍子を検出できませんでした。')).toHaveCount(0);
 
     const lyricsHost = page.locator('suno-create-assistant[data-suno-create-assistant="lyrics"]');
     await expect(page.locator('#lyrics-header + suno-create-assistant[data-suno-create-assistant="lyrics"]')).toHaveCount(1);
@@ -210,6 +213,8 @@ test('mounts the Suno controls beside their anchors, survives host removal, and 
     // Verify section borders have subtle orange styling
     await expect(lyricsHost.locator('.suno-assistant--lyrics')).toHaveCSS('border-top-color', 'rgba(234, 122, 59, 0.45)');
     await expect(stylesHost.locator('.suno-assistant--styles')).toHaveCSS('border-top-color', 'rgba(234, 122, 59, 0.45)');
+    await expect(stylesHost.locator('.suno-assistant--styles')).toHaveCSS('border-bottom-color', 'rgba(234, 122, 59, 0.45)');
+    await expect(stylesHost.getByText('キー・テンポ', { exact: true })).toHaveCount(0);
     await expect(presetsHost.locator('.suno-assistant--presets')).toHaveCSS('border-top-color', 'rgba(234, 122, 59, 0.45)');
 
     // Verify tag buttons display without brackets
@@ -243,6 +248,36 @@ test('mounts the Suno controls beside their anchors, survives host removal, and 
     await expect(page.locator('[data-testid="create-form-styles-wrapper"] textarea')).toHaveValue('gentle acoustic ensemble');
     await titleHost.getByRole('checkbox', { name: '自動設定' }).check();
     await expect(page.locator('input[placeholder="曲名(任意)"]')).toHaveValue('Demo Workspace (ARIA) {{TAKE}}');
+    const musicalKeySelect = stylesHost.locator('select').first();
+    const musicalTempoInput = stylesHost.locator('input[type="number"]');
+    const musicalTimeSignatureSelect = stylesHost.locator('select').nth(1);
+    await musicalKeySelect.selectOption('C Major');
+    await musicalTempoInput.fill('160');
+    await musicalTimeSignatureSelect.selectOption('4/4');
+    await expect(musicalKeySelect).toHaveCSS('field-sizing', 'content');
+    const [keyBox, timeSignatureBox] = await Promise.all([
+      musicalKeySelect.boundingBox(),
+      musicalTimeSignatureSelect.boundingBox(),
+    ]);
+    expect(keyBox).not.toBeNull();
+    expect(timeSignatureBox).not.toBeNull();
+    expect(keyBox!.width).toBeGreaterThan(95);
+    expect(timeSignatureBox!.width).toBeGreaterThan(75);
+    expect(keyBox!.width).toBeLessThan(180);
+    expect(timeSignatureBox!.width).toBeLessThan(140);
+    await musicalKeySelect.hover();
+    await expect(stylesHost.locator('.suno-assistant--styles')).toHaveCSS('border-bottom-color', 'rgba(234, 122, 59, 0.75)');
+    await stylesHost.getByRole('button', { name: 'スタイルに反映' }).click();
+    await expect(page.locator('[data-testid="create-form-styles-wrapper"] textarea')).toHaveValue('gentle acoustic ensemble\nMusical settings: Key: C Major; Tempo: 160 BPM; Time signature: 4/4.');
+    await stylesHost.getByRole('button', { name: /^スタイル:/ }).click();
+    await stylesHost.locator('.suno-assistant__menu').getByRole('option', { name: '未選択' }).click();
+    await expect(page.locator('[data-testid="create-form-styles-wrapper"] textarea')).toHaveValue('Musical settings: Key: C Major; Tempo: 160 BPM; Time signature: 4/4.');
+    await stylesHost.getByRole('button', { name: /^スタイル:/ }).click();
+    await page.getByRole('option', { name: 'ARIA' }).click();
+    await expect(page.locator('[data-testid="create-form-styles-wrapper"] textarea')).toHaveValue('gentle acoustic ensemble\nMusical settings: Key: C Major; Tempo: 160 BPM; Time signature: 4/4.');
+    await stylesHost.getByRole('button', { name: /^スタイル:/ }).click();
+    await page.getByRole('option', { name: 'Keyed' }).click();
+    await expect(page.locator('[data-testid="create-form-styles-wrapper"] textarea')).toHaveValue('orchestral rock, key of D Minor, tempo of 92 BPM in 3/4 time\nMusical settings: Key: D Minor; Tempo: 92 BPM; Time signature: 3/4.');
     await page.reload();
     await expect(page.locator('suno-create-assistant[data-suno-create-assistant="title"]')).toHaveCount(1);
     await expect(page.locator('suno-create-assistant[data-suno-create-assistant="title"]').getByRole('checkbox', { name: '自動設定' })).toBeChecked();

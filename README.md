@@ -13,6 +13,8 @@ A pre-built release is available, so you can install and use it right away witho
 3. Click **Load unpacked** and select the extracted `suno-create-assistant` directory.
 4. Open [Suno Create](https://suno.com/create) and select the **Advanced** tab.
 
+After updating or reloading the extension, reload any open Suno tabs so they start a fresh content script.
+
 ## Features
 
 ![Create/Advanced tab](./images/suno_create.png)
@@ -32,6 +34,15 @@ Directly under the **Style** heading, the extension adds a Style dropdown and a 
 - Use **Manage…** to add, edit, or delete your mastering prompts.
 - If you add, rename, or delete a saved style inside Suno, reopen the extension's dropdown to see the updated list.
 - If the combined style and mastering text would exceed Suno's 1,000-character limit, nothing is changed and an error is shown instead.
+
+### Key and tempo
+
+The orange-outlined **Key & Tempo** card sits directly below the Style controls. It reads explicit musical information from the visible Style prompt, including descriptions that Suno adds for an uploaded audio reference.
+
+- Key, BPM, and time signature are detected automatically whenever the visible Style prompt changes. They are filled only when they can be identified unambiguously; conflicting values are never chosen automatically.
+- Select a key and time signature, enter a tempo from 30 to 300 BPM, then use the check-mark button to apply them. The extension adds or replaces its own `Musical settings:` line without changing the rest of your prompt. Available time signatures are 2/4, 3/4, 4/4, 5/4, 6/8, 7/8, 9/8, and 12/8.
+- When you choose another saved style, its explicit key, tempo, or time signature takes precedence. Any field the style does not specify stays in place, so you can audition styles without losing other musical constraints.
+- This feature reads text already visible in Suno; it does not analyze uploaded audio or send it anywhere.
 
 ### Advanced-option presets
 

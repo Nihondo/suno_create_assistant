@@ -91,6 +91,13 @@ export interface UiMessages {
   style: string;
   mastering: string;
   preset: string;
+  musicalSettings: string;
+  key: string;
+  tempo: string;
+  timeSignature: string;
+  applyToStyle: string;
+  noMusicalSettingsDetected: string;
+  musicalSettingsConflict: string;
   aria: {
     styleSettings: string;
     presetSettings: string;
@@ -103,6 +110,7 @@ export interface UiMessages {
     reuseParameters: string;
     recentWorkspaces: string;
     settingsSections: string;
+    musicalSettings: string;
   };
   dialog: {
     title: string;

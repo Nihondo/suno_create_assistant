@@ -254,11 +254,86 @@
 .suno-assistant__status { flex-basis: 100%; color: var(--sca-fg-secondary); font-size: 12px; }
 .suno-assistant__status--error { color: var(--sca-error); }
 
+.suno-assistant__musical-form {
+  display: flex;
+  flex: 1 1 100%;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 8px;
+}
+
+.suno-assistant__musical-fieldset {
+  display: flex;
+  flex: 1 1 100%;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 8px;
+  min-inline-size: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.suno-assistant__musical-fields,
+.suno-assistant__musical-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 8px;
+}
+
+.suno-assistant__field-label {
+  display: grid;
+  gap: 3px;
+  color: var(--sca-fg-secondary);
+  font-size: 11px;
+}
+
+.suno-assistant__field-select,
+.suno-assistant__field-input {
+  min-height: 32px;
+  border: 1px solid var(--sca-border-solid);
+  border-radius: 8px;
+  padding: 5px 8px;
+  color: var(--sca-fg);
+  background: var(--sca-bg-input);
+  font: inherit;
+}
+
+.suno-assistant__field-select {
+  field-sizing: content;
+  width: auto;
+  max-inline-size: 15ch;
+  justify-self: start;
+}
+.suno-assistant__field-select--key { min-inline-size: 14ch; }
+.suno-assistant__field-select--time-signature { min-inline-size: 11ch; max-inline-size: 13ch; }
+.suno-assistant__field-input { width: 64px; }
+
+.suno-assistant__tempo-input-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--sca-fg);
+  font-size: 13px;
+}
+
+.suno-assistant__musical-actions { margin-left: auto; }
+.suno-assistant__musical-detection { flex: 1 1 100%; color: var(--sca-fg-secondary); font-size: 12px; }
+.suno-assistant__field-error { flex-basis: 100%; color: var(--sca-error); font-size: 12px; }
+
+.suno-assistant__field-select:focus-visible,
+.suno-assistant__field-input:focus-visible {
+  outline: 2px solid var(--sca-accent);
+  outline-offset: 2px;
+}
+
 .suno-assistant__check { accent-color: var(--sca-accent); }
 .suno-assistant__check-label { display: inline-flex; align-items: center; gap: 5px; cursor: pointer; }
 
 @media (max-width: 420px) {
   .suno-assistant__select { min-width: 0; flex: 1 1 135px; }
+  .suno-assistant__musical-actions { margin-left: 0; }
 }
 
 .suno-assistant__dialog {

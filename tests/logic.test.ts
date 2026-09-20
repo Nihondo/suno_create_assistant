@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
   autoTitle,
+  applyMusicalSettings,
   calculateTagInsertion,
   composePrompt,
   deriveStyleSelection,
+  detectMusicalSettings,
   displayTagName,
   extractTakeKey,
   formatDate,
@@ -34,6 +36,35 @@ describe('prompt composition', () => {
   });
 });
 
+describe('musical settings', () => {
+  it('extracts English and Japanese key, tempo, and time-signature phrases', () => {
+    expect(detectMusicalSettings('The piece is in the key of C Major with a tempo of 160 BPM in 4/4 time.')).toEqual({
+      key: 'C Major', tempo: 160, timeSignature: '4/4', conflicts: [],
+    });
+    expect(detectMusicalSettings('キーはEbマイナー、テンポは92 BPM、3/4拍子です。')).toEqual({
+      key: 'Eb Minor', tempo: 92, timeSignature: '3/4', conflicts: [],
+    });
+  });
+
+  it('does not silently choose between conflicting values or invalid tempos', () => {
+    expect(detectMusicalSettings('key of C Major, then key of D Minor, 160 BPM, 999 BPM')).toEqual({
+      key: undefined, tempo: 160, timeSignature: undefined, conflicts: ['key'],
+    });
+  });
+
+  it('uses an extension-managed musical-settings line over incidental style prose', () => {
+    expect(detectMusicalSettings('key of D Minor, tempo of 90 BPM\nMusical settings: Key: C Major; Tempo: 160 BPM; Time signature: 4/4.')).toEqual({
+      key: 'C Major', tempo: 160, timeSignature: '4/4', conflicts: [],
+    });
+  });
+
+  it('adds one managed musical-settings line without changing the rest of the prompt', () => {
+    expect(applyMusicalSettings('warm synth pop\nMusical settings: Key: D Minor; Tempo: 120 BPM.', {
+      key: 'C Major', tempo: 160, timeSignature: '4/4',
+    })).toBe('warm synth pop\nMusical settings: Key: C Major; Tempo: 160 BPM; Time signature: 4/4.');
+  });
+});
+
 describe('deriveStyleSelection', () => {
   const mastering: MasteringPrompt = { id: 'm', name: 'Master', prompt: 'master', createdAt: '', updatedAt: '' };
   const cityPop = { id: 's1', name: 'City Pop', prompt: '80s city pop' };
@@ -42,6 +73,12 @@ describe('deriveStyleSelection', () => {
   it('keeps both selections while the text still matches them', () => {
     expect(deriveStyleSelection('80s city pop\nmaster', [cityPop, jazz], { style: cityPop, mastering })).toEqual({
       base: '80s city pop', style: cityPop, mastering, isCustomStyle: false,
+    });
+  });
+
+  it('keeps a saved-style selection when it has an extension-managed musical-settings line', () => {
+    expect(deriveStyleSelection('80s city pop\nMusical settings: Key: C Major; Tempo: 160 BPM.', [cityPop, jazz], { style: cityPop })).toMatchObject({
+      base: '80s city pop\nMusical settings: Key: C Major; Tempo: 160 BPM.', style: cityPop, isCustomStyle: false,
     });
   });
 
@@ -272,4 +309,3 @@ describe('option field summaries', () => {
     expect(formatPreset({ weirdness: 70, maxMode: true }, ui)).toBe('Maxモード: オン / 奇抜さ: 70%');
   });
 });
-

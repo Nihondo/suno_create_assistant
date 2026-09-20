@@ -1,13 +1,13 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { DEFAULT_TITLE_FORMAT, displayTagName, optionFieldSummaryLines } from '../domain/logic';
-import { DEFAULT_TAKE_HISTORY_LIMIT, type MasteringPrompt, type OtherOptionsPreset, type SavedStyle, type TakeRecord } from '../domain/models';
+import { DEFAULT_TAKE_HISTORY_LIMIT, type MasteringPrompt, type MusicalSettings, type OtherOptionsPreset, type SavedStyle, type TakeRecord } from '../domain/models';
 import { readStorage, subscribeStorage } from '../storage/repository';
 import type { ControllerState, SunoController } from '../suno/controller';
 import { getUiMessages } from '../locales';
 
 export function useController(controller: SunoController): ControllerState {
   const [state, setState] = useState<ControllerState>({
-    styles: [], stylesLoading: false, stylesDirty: true, isCustomStyle: false, isCustomPreset: false, autoTitleEnabled: false, titleFormat: DEFAULT_TITLE_FORMAT, closeDisclosuresOnAdvanced: true, lyricsTags: [],
+    styles: [], stylesLoading: false, stylesDirty: true, isCustomStyle: false, isCustomPreset: false, autoTitleEnabled: false, titleFormat: DEFAULT_TITLE_FORMAT, closeDisclosuresOnAdvanced: true, lyricsTags: [], musicalSettings: { conflicts: [] },
   });
   useEffect(() => controller.subscribe(setState), [controller]);
   return state;
@@ -73,6 +73,16 @@ function BookmarkIcon({ className, style }: { className?: string; style?: React.
   return (
     <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="currentColor" className={className} style={style}>
       <path d="M17 3H7c-1.1 0-2 .9-2 2v16l7-3 7 3V5c0-1.1-.9-2-2-2z" />
+    </svg>
+  );
+}
+
+// This uses the same Material Icons Filled family as the other extension-only
+// actions. Its accessible name and title retain the precise action wording.
+function CheckIcon({ className, style }: { className?: string; style?: React.CSSProperties }) {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="currentColor" className={className} style={style}>
+      <path d="M9 16.17 4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
     </svg>
   );
 }
@@ -199,7 +209,92 @@ export function StyleControls({ controller }: { controller: SunoController }) {
       </button>
     </div>
     {state.styleFeedback && <output className={`suno-assistant__status ${state.styleFeedback.kind === 'error' ? 'suno-assistant__status--error' : ''}`}>{state.styleFeedback.message}</output>}
+    <MusicalSettingsControls controller={controller} />
   </div>;
+}
+
+const MUSIC_KEY_ROOTS = ['C', 'C#', 'Db', 'D', 'D#', 'Eb', 'E', 'F', 'F#', 'Gb', 'G', 'G#', 'Ab', 'A', 'A#', 'Bb', 'B'];
+const MUSIC_KEYS = MUSIC_KEY_ROOTS.flatMap((root) => [`${root} Major`, `${root} Minor`]);
+const TIME_SIGNATURES = ['2/4', '3/4', '4/4', '5/4', '6/8', '7/8', '9/8', '12/8'];
+
+/**
+ * A compact, explicit editor for musical metadata visible in the Style
+ * prompt. Draft values stay local until the user submits the form, so
+ * detecting a phrase never rewrites Suno's controlled textarea by itself.
+ */
+export function MusicalSettingsControls({ controller }: { controller: SunoController }) {
+  const state = useController(controller);
+  const ui = getUiMessages();
+  const [key, setKey] = useState('');
+  const [tempo, setTempo] = useState('');
+  const [timeSignature, setTimeSignature] = useState('');
+
+  useEffect(() => {
+    setKey(state.musicalSettings.key ?? '');
+    setTempo(state.musicalSettings.tempo === undefined ? '' : String(state.musicalSettings.tempo));
+    setTimeSignature(state.musicalSettings.timeSignature ?? '');
+  }, [
+    state.musicalSettings.key,
+    state.musicalSettings.tempo,
+    state.musicalSettings.timeSignature,
+  ]);
+
+  const detectedValues = [
+    state.musicalSettings.key,
+    state.musicalSettings.tempo !== undefined ? `${state.musicalSettings.tempo} BPM` : undefined,
+    state.musicalSettings.timeSignature,
+  ].filter(Boolean);
+  const detectionMessage = state.musicalSettings.conflicts.length
+    ? ui.musicalSettingsConflict
+    : detectedValues.length ? detectedValues.join(' · ') : undefined;
+  const numericTempo = tempo === '' ? undefined : Number(tempo);
+  const isTempoValid = numericTempo === undefined || (Number.isInteger(numericTempo) && numericTempo >= 30 && numericTempo <= 300);
+  const canApply = Boolean(key || numericTempo !== undefined || timeSignature);
+  const submit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!isTempoValid || !canApply) return;
+    const settings: MusicalSettings = {
+      key: key || undefined,
+      tempo: numericTempo,
+      timeSignature: timeSignature || undefined,
+    };
+    controller.applyMusicalSettings(settings);
+  };
+
+  return <form className="suno-assistant__musical-form" onSubmit={submit}>
+    <fieldset className="suno-assistant__musical-fieldset" aria-label={ui.musicalSettings}>
+      <div className="suno-assistant__musical-fields">
+        <label className="suno-assistant__field-label">
+          <span>{ui.key}</span>
+          <select className="suno-assistant__field-select suno-assistant__field-select--key" value={key} onChange={(event) => setKey(event.target.value)}>
+            <option value="">{ui.unselected}</option>
+            {MUSIC_KEYS.map((value) => <option key={value} value={value}>{value}</option>)}
+          </select>
+        </label>
+        <label className="suno-assistant__field-label">
+          <span>{ui.tempo}</span>
+          <span className="suno-assistant__tempo-input-wrap">
+            <input className="suno-assistant__field-input" type="number" min="30" max="300" step="1" inputMode="numeric" value={tempo} onChange={(event) => setTempo(event.target.value)} aria-describedby={!isTempoValid ? 'suno-assistant-tempo-help' : undefined} />
+            <span aria-hidden="true">BPM</span>
+          </span>
+        </label>
+        <label className="suno-assistant__field-label">
+          <span>{ui.timeSignature}</span>
+          <select className="suno-assistant__field-select suno-assistant__field-select--time-signature" value={timeSignature} onChange={(event) => setTimeSignature(event.target.value)}>
+            <option value="">{ui.unselected}</option>
+            {TIME_SIGNATURES.map((value) => <option key={value} value={value}>{value}</option>)}
+          </select>
+        </label>
+      </div>
+      {!isTempoValid && <span id="suno-assistant-tempo-help" className="suno-assistant__field-error">30–300 BPM</span>}
+      <div className="suno-assistant__musical-actions">
+        <button type="submit" className="suno-assistant__tag-button suno-assistant__tag-button--settings suno-assistant__button--primary" aria-label={ui.applyToStyle} title={ui.applyToStyle} disabled={!canApply || !isTempoValid}>
+          <CheckIcon />
+        </button>
+      </div>
+      {detectionMessage && <output className="suno-assistant__musical-detection" role="status">{detectionMessage}</output>}
+    </fieldset>
+  </form>;
 }
 
 export function PresetControls({ controller }: { controller: SunoController }) {

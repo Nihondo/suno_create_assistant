@@ -14,6 +14,8 @@ import {
   readStorage,
   replaceStorage,
   setTakeHistoryLimit,
+  subscribeStorage,
+  writeStorage,
 } from '../src/storage/repository';
 
 const STORAGE_KEY = 'sunoCreateAssistant';
@@ -102,6 +104,31 @@ describe('storage schema migration', () => {
     const result = await readStorage();
     expect(result.schemaVersion).toBe(2);
     expect(result.masteringPrompts).toEqual([]);
+  });
+});
+
+describe('extension-context invalidation', () => {
+  it('uses defaults and does not reject when a stale content script loses storage access', async () => {
+    globalThis.chrome = {
+      storage: {
+        local: {
+          get: async () => { throw new Error('Extension context invalidated.'); },
+          set: async () => { throw new Error('Extension context invalidated.'); },
+        },
+        onChanged: {
+          addListener: () => { throw new Error('Extension context invalidated.'); },
+          removeListener: () => { throw new Error('Extension context invalidated.'); },
+        },
+      },
+    } as unknown as typeof chrome;
+
+    await expect(readStorage()).resolves.toMatchObject({ schemaVersion: 2, takeHistory: [] });
+    await expect(writeStorage({
+      schemaVersion: 2, masteringPrompts: [], optionPresets: [], autoTitleEnabled: false,
+      titleFormat: '{{WORKSPACE}}', takeNumbers: {}, closeDisclosuresOnAdvanced: true,
+      lyricsTags: [], takeHistory: [], takeHistoryLimit: 500,
+    })).resolves.toBeUndefined();
+    expect(() => subscribeStorage(() => {})).not.toThrow();
   });
 });
 

@@ -251,6 +251,34 @@ describe('SunoController style/mastering selection follows the Style text', () =
     expect(current().mastering?.id).toBe('m1');
   });
 
+  it('inserts musical settings before the mastering suffix', async () => {
+    const { controller, textarea, current } = await setup();
+    controller.applyMusicalSettings({ key: 'C Major', tempo: 160, timeSignature: '4/4' });
+    expect(textarea.value).toBe('80s city pop\nMusical settings: Key: C Major; Tempo: 160 BPM; Time signature: 4/4.\nwarm master');
+    expect(current().mastering?.id).toBe('m1');
+    expect(current().isCustomStyle).toBe(false);
+  });
+
+  it('carries detected musical settings into a newly selected saved style', async () => {
+    const { controller, textarea, current } = await setup();
+    await type(textarea, 'The piece is in the key of C Major with a tempo of 160 BPM in 4/4 time.\nwarm master');
+    await controller.selectStyle(jazz);
+    expect(textarea.value).toBe('smooth jazz\nMusical settings: Key: C Major; Tempo: 160 BPM; Time signature: 4/4.\nwarm master');
+    expect(current().style?.id).toBe('s2');
+    expect(current().isCustomStyle).toBe(false);
+    expect(current().musicalSettings).toMatchObject({ key: 'C Major', tempo: 160, timeSignature: '4/4', conflicts: [] });
+  });
+
+  it('adopts explicit musical settings from the newly selected saved style', async () => {
+    const { controller, textarea, current } = await setup();
+    await type(textarea, 'The piece is in the key of C Major with a tempo of 160 BPM in 4/4 time.\nwarm master');
+    const sourceStyle = { id: 's3', name: 'Source style', prompt: 'orchestral rock, key of D Minor, tempo of 92 BPM in 3/4 time' };
+    (controller as unknown as { state: ControllerState }).state.styles.push(sourceStyle);
+    await controller.selectStyle(sourceStyle);
+    expect(textarea.value).toBe('orchestral rock, key of D Minor, tempo of 92 BPM in 3/4 time\nMusical settings: Key: D Minor; Tempo: 92 BPM; Time signature: 3/4.\nwarm master');
+    expect(current().musicalSettings).toMatchObject({ key: 'D Minor', tempo: 92, timeSignature: '3/4', conflicts: [] });
+  });
+
   it('walks through style edit -> undo and mastering edit -> undo', async () => {
     const { textarea, current } = await setup();
     const original = textarea.value; // "80s city pop\nwarm master"
@@ -585,4 +613,3 @@ describe('SunoController lyricsTags', () => {
     expect(insertSpy).toHaveBeenCalledWith('[Chorus]');
   });
 });
-

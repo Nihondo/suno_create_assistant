@@ -63,6 +63,13 @@ export const jaUiMessages: UiMessages = {
   style: 'スタイル',
   mastering: 'マスタリング',
   preset: 'プリセット',
+  musicalSettings: 'キー・テンポ',
+  key: 'キー',
+  tempo: 'テンポ',
+  timeSignature: '拍子',
+  applyToStyle: 'スタイルに反映',
+  noMusicalSettingsDetected: 'スタイルからキー・テンポ・拍子を検出できませんでした。',
+  musicalSettingsConflict: '複数の候補が見つかりました。内容を確認してから反映してください。',
   aria: {
     styleSettings: 'Suno Create Assistant: スタイル設定',
     presetSettings: 'Suno Create Assistant: その他のオプションプリセット',
@@ -75,6 +82,7 @@ export const jaUiMessages: UiMessages = {
     reuseParameters: 'パラメータを再利用',
     recentWorkspaces: '最近のワークスペースを切り替え',
     settingsSections: '設定カテゴリ',
+    musicalSettings: 'Suno Create Assistant: キー・テンポ',
   },
   dialog: {
     title: 'Suno Create Assistant の設定',

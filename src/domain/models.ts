@@ -116,6 +116,21 @@ export interface SavedStyle {
   prompt: string;
 }
 
+// These values are intentionally kept in the live controller state rather
+// than persisted as extension preferences. They describe the current Style
+// prompt, which can change independently when Suno or the user edits it.
+export interface MusicalSettings {
+  key?: string;
+  tempo?: number;
+  timeSignature?: string;
+}
+
+export type MusicalSettingsField = keyof MusicalSettings;
+
+export interface MusicalSettingsDetection extends MusicalSettings {
+  conflicts: MusicalSettingsField[];
+}
+
 export interface ApplyResult {
   applied: OtherOptionsKey[];
   skipped: OtherOptionsKey[];
