@@ -1,4 +1,4 @@
-import { optionKeys, type MasteringPrompt, type MusicalSettings, type MusicalSettingsDetection, type OtherOptionsCapture, type OtherOptionsKey, type OtherOptionsPreset, type OtherOptionsSnapshot, type SavedStyle } from './models';
+import { optionKeys, type MasteringPrompt, type MusicalSettings, type MusicalSettingsDetection, type MusicalSettingsField, type OtherOptionsCapture, type OtherOptionsKey, type OtherOptionsPreset, type OtherOptionsSnapshot, type SavedStyle } from './models';
 import { getUiMessages, type SupportedLanguage, type UiMessages } from '../locales';
 
 export function composePrompt(style?: string, mastering?: string): string | undefined {
@@ -7,11 +7,14 @@ export function composePrompt(style?: string, mastering?: string): string | unde
 }
 
 const MUSIC_SETTINGS_LINE = /^\s*Musical settings:\s*.*$/gim;
-const KEY_NAME = /(?:key\s*(?:of|is|:)?\s*|キー\s*(?:は|:|：)?\s*)([A-G](?:#|♯|b|♭)?\s*(?:major|minor|メジャー|マイナー|長調|短調))/gi;
-const BARE_KEY_NAME = /\b([A-G](?:#|♯|b|♭)?\s*(?:major|minor))\b/gi;
-const TEMPO = /(?:tempo\s*(?:of|is|:)?\s*|テンポ\s*(?:は|:|：)?\s*)(\d{2,3})\s*(?:bpm)?\b/gi;
-const BARE_TEMPO = /\b(\d{2,3})\s*bpm\b/gi;
-const TIME_SIGNATURE = /\b([1-9]|1[0-2])\s*\/\s*(2|4|8|16)\s*(?:time)?\b|([1-9]|1[0-2])\s*\/\s*(2|4|8|16)\s*拍子/gi;
+// The `d` flag makes every match carry `indices`, which detectMusicalSpans()
+// uses to locate the value itself (not the "key of " prefix) inside the prompt.
+const KEY_NAME = /(?:key\s*(?:of|is|:)?\s*|キー\s*(?:は|:|：)?\s*)([A-G](?:#|♯|b|♭)?\s*(?:major|minor|メジャー|マイナー|長調|短調))/gid;
+const BARE_KEY_NAME = /\b([A-G](?:#|♯|b|♭)?\s*(?:major|minor))\b/gid;
+const TEMPO = /(?:tempo\s*(?:of|is|:)?\s*|テンポ\s*(?:は|:|：)?\s*)(\d{2,3})\s*(?:bpm)?\b/gid;
+const BARE_TEMPO = /\b(\d{2,3})\s*bpm\b/gid;
+const TIME_SIGNATURE = /\b([1-9]|1[0-2])\s*\/\s*(2|4|8|16)\s*(?:time)?\b|([1-9]|1[0-2])\s*\/\s*(2|4|8|16)\s*拍子/gid;
+const MUSICAL_FIELDS: MusicalSettingsField[] = ['key', 'tempo', 'timeSignature'];
 
 function normalizedKey(value: string): string | undefined {
   const match = value.trim().match(/^([A-G])([#♯b♭]?)\s*(major|minor|メジャー|マイナー|長調|短調)$/i);
@@ -26,14 +29,62 @@ function oneValue<T>(values: T[]): { value?: T; conflict: boolean } {
   return unique.length === 1 ? { value: unique[0], conflict: false } : { conflict: unique.length > 1 };
 }
 
-function matchingValues(pattern: RegExp, input: string, parse: (match: RegExpExecArray) => string | number | undefined): (string | number)[] {
-  const values: (string | number)[] = [];
-  pattern.lastIndex = 0;
-  for (let match = pattern.exec(input); match; match = pattern.exec(input)) {
-    const value = parse(match);
-    if (value !== undefined) values.push(value);
+/** One key / tempo / time-signature phrase found in a prompt, with its position. */
+export interface MusicalSpan {
+  field: MusicalSettingsField;
+  /** Offsets of the value only; a "key of " prefix or " time" suffix is excluded. */
+  start: number;
+  end: number;
+  /** The value exactly as written (e.g. 'E♭マイナー', '92', '3 / 4'). */
+  text: string;
+  /** The normalized value ('Eb Minor' | 92 | '3/4'). */
+  value: string | number;
+  /** Inside a line written by this extension (`Musical settings: ...`). */
+  managed: boolean;
+}
+
+/**
+ * Locates every explicit key, tempo, and time-signature phrase. The key and
+ * tempo patterns each have a prefixed and a bare form that match the very same
+ * characters ("key of D Minor" hits both), so spans are de-duplicated by
+ * position; without that a replacement would be applied twice.
+ */
+export function detectMusicalSpans(prompt: string): MusicalSpan[] {
+  const managedRanges = [...prompt.matchAll(MUSIC_SETTINGS_LINE)].map((line) => {
+    const from = line.index ?? 0;
+    return [from, from + line[0].length] as const;
+  });
+  const spans = new Map<string, MusicalSpan>();
+  const add = (field: MusicalSettingsField, start: number, end: number, value: string | number | undefined) => {
+    const id = `${field}:${start}:${end}`;
+    if (value === undefined || spans.has(id)) return;
+    const managed = managedRanges.some(([from, to]) => start >= from && end <= to);
+    spans.set(id, { field, start, end, text: prompt.slice(start, end), value, managed });
+  };
+
+  for (const pattern of [KEY_NAME, BARE_KEY_NAME]) {
+    for (const match of prompt.matchAll(pattern)) {
+      const [start, end] = match.indices![1]!;
+      add('key', start, end, normalizedKey(match[1]!));
+    }
   }
-  return values;
+  for (const pattern of [TEMPO, BARE_TEMPO]) {
+    for (const match of prompt.matchAll(pattern)) {
+      const tempo = Number(match[1]);
+      if (tempo < 30 || tempo > 300) continue;
+      const [start, end] = match.indices![1]!;
+      add('tempo', start, end, tempo);
+    }
+  }
+  for (const match of prompt.matchAll(TIME_SIGNATURE)) {
+    // Group 1/2 is the "4/4 (time)" form, 3/4 the "4/4拍子" form.
+    const [numeratorGroup, denominatorGroup] = match[1] !== undefined ? [1, 2] : [3, 4];
+    const numerator = match[numeratorGroup!];
+    const denominator = match[denominatorGroup!];
+    if (!numerator || !denominator) continue;
+    add('timeSignature', match.indices![numeratorGroup!]![0], match.indices![denominatorGroup!]![1], `${numerator}/${denominator}`);
+  }
+  return [...spans.values()].sort((a, b) => a.start - b.start);
 }
 
 /**
@@ -42,34 +93,75 @@ function matchingValues(pattern: RegExp, input: string, parse: (match: RegExpExe
  * silently chooses one interpretation over another.
  */
 export function detectMusicalSettings(prompt: string): MusicalSettingsDetection {
+  const spans = detectMusicalSpans(prompt);
   // Once the user has applied the extension-managed line, it is the explicit
-  // current choice. Ignore descriptive key/tempo phrases elsewhere in the
-  // style (for example inside a newly selected saved style) so they cannot
-  // turn a deliberate setting into an apparent conflict.
-  const managedLines = prompt.match(MUSIC_SETTINGS_LINE);
-  const source = managedLines?.at(-1) ?? prompt;
-  const keys = [
-    ...matchingValues(KEY_NAME, source, (match) => normalizedKey(match[1]!)),
-    ...matchingValues(BARE_KEY_NAME, source, (match) => normalizedKey(match[1]!)),
-  ].filter((value): value is string => typeof value === 'string');
-  const tempos = [
-    ...matchingValues(TEMPO, source, (match) => Number(match[1])),
-    ...matchingValues(BARE_TEMPO, source, (match) => Number(match[1])),
-  ].filter((value): value is number => typeof value === 'number' && value >= 30 && value <= 300);
-  const signatures = matchingValues(TIME_SIGNATURE, source, (match) => {
-    const numerator = match[1] ?? match[3];
-    const denominator = match[2] ?? match[4];
-    return numerator && denominator ? `${numerator}/${denominator}` : undefined;
-  }).filter((value): value is string => typeof value === 'string');
+  // current choice for that field. Ignore descriptive phrases elsewhere in
+  // the style (for example inside a newly selected saved style) so they cannot
+  // turn a deliberate setting into an apparent conflict. This is decided per
+  // field: a managed line that only states the key must not hide a tempo the
+  // prose states, because applyMusicalSettingsToPrompt() edits the prose.
+  const detect = (field: MusicalSettingsField) => {
+    const candidates = spans.filter((span) => span.field === field);
+    const managed = candidates.filter((span) => span.managed);
+    return oneValue((managed.length ? managed : candidates).map((span) => span.value));
+  };
 
-  const key = oneValue(keys);
-  const tempo = oneValue(tempos);
-  const timeSignature = oneValue(signatures);
+  const key = detect('key');
+  const tempo = detect('tempo');
+  const timeSignature = detect('timeSignature');
   const conflicts: MusicalSettingsDetection['conflicts'] = [];
   if (key.conflict) conflicts.push('key');
   if (tempo.conflict) conflicts.push('tempo');
   if (timeSignature.conflict) conflicts.push('timeSignature');
-  return { key: key.value, tempo: tempo.value, timeSignature: timeSignature.value, conflicts };
+  return {
+    key: key.value as string | undefined,
+    tempo: tempo.value as number | undefined,
+    timeSignature: timeSignature.value as string | undefined,
+    conflicts,
+  };
+}
+
+// Writes a normalized key ('F# Major') in the notation of the phrase it
+// replaces: note-name case, ♯/♭ vs #/b, spacing, and the English / katakana /
+// kanji quality word with its capitalization.
+function renderKey(source: string, value: string): string {
+  const from = source.match(/^([A-G])([#♯b♭]?)(\s*)(major|minor|メジャー|マイナー|長調|短調)$/i);
+  const to = value.match(/^([A-G])([#b]?) (Major|Minor)$/);
+  if (!from || !to) return value;
+  const fromLetter = from[1]!;
+  const fromAccidental = from[2]!;
+  const separator = from[3]!;
+  const fromQuality = from[4]!;
+  const toLetter = to[1]!;
+  const toAccidental = to[2]!;
+  const isMajor = to[3] === 'Major';
+  const isEnglish = /^(?:major|minor)$/i.test(fromQuality);
+  const isKatakana = /^(?:メジャー|マイナー)$/.test(fromQuality);
+  const isUnicodeAccidental = /[♯♭]/.test(fromAccidental) || (!fromAccidental && !isEnglish);
+  const letter = fromLetter === fromLetter.toLowerCase() ? toLetter.toLowerCase() : toLetter;
+  const accidental = isUnicodeAccidental ? toAccidental.replace('#', '♯').replace('b', '♭') : toAccidental;
+  let quality: string;
+  if (isEnglish) {
+    const word = isMajor ? 'major' : 'minor';
+    if (fromQuality === fromQuality.toUpperCase()) quality = word.toUpperCase();
+    else quality = fromQuality[0] === fromQuality[0]!.toUpperCase() ? `${word[0]!.toUpperCase()}${word.slice(1)}` : word;
+  } else if (isKatakana) {
+    quality = isMajor ? 'メジャー' : 'マイナー';
+  } else {
+    quality = isMajor ? '長調' : '短調';
+  }
+  return `${letter}${accidental}${separator}${quality}`;
+}
+
+function renderMusicalPhrase(span: MusicalSpan, value: string | number): string {
+  if (span.field === 'key') return renderKey(span.text, String(value));
+  if (span.field === 'timeSignature') {
+    // Keep the original spacing around the slash ("3/4" vs "3 / 4").
+    const from = span.text.match(/^\d+(\s*\/\s*)\d+$/);
+    const to = String(value).match(/^(\d+)\/(\d+)$/);
+    return from && to ? `${to[1]}${from[1]}${to[2]}` : String(value);
+  }
+  return String(value);
 }
 
 function musicSettingsLine(settings: MusicalSettings): string {
@@ -91,6 +183,63 @@ export function applyMusicalSettings(prompt: string, settings: MusicalSettings):
   const line = musicSettingsLine(settings);
   const base = prompt.replace(MUSIC_SETTINGS_LINE, '').replace(/\n{3,}/g, '\n\n').trim();
   return [base, line].filter(Boolean).join('\n');
+}
+
+/**
+ * Rewrites the musical phrases the prompt already states, in place and in
+ * their original wording, and keeps every field the prompt does not state in
+ * the single extension-managed `Musical settings:` line. A field this function
+ * writes lands in exactly one of the two, so it never creates a prompt that
+ * contradicts itself - but a prompt an older build already wrote can state the
+ * same field in both, and there the managed line stays authoritative and the
+ * prose is left alone rather than cleaned up.
+ *
+ * An unset field never deletes prose (that would break the sentence around
+ * it); it only drops the field from the managed line.
+ */
+export function applyMusicalSettingsToPrompt(prompt: string, settings: MusicalSettings): string {
+  const spans = detectMusicalSpans(prompt);
+  const nextManaged: Partial<Record<MusicalSettingsField, string | number>> = {};
+  const replacements: { span: MusicalSpan; text: string }[] = [];
+  let isManagedChanged = false;
+
+  for (const field of MUSICAL_FIELDS) {
+    const wanted = settings[field];
+    const managedSpans = spans.filter((span) => span.field === field && span.managed);
+    const bodySpans = spans.filter((span) => span.field === field && !span.managed);
+    if (managedSpans.length) {
+      if (wanted !== undefined) nextManaged[field] = wanted;
+      if (managedSpans.some((span) => span.value !== wanted)) isManagedChanged = true;
+    } else if (bodySpans.length) {
+      if (wanted === undefined) continue;
+      for (const span of bodySpans) {
+        if (span.value !== wanted) replacements.push({ span, text: renderMusicalPhrase(span, wanted) });
+      }
+    } else if (wanted !== undefined) {
+      nextManaged[field] = wanted;
+      isManagedChanged = true;
+    }
+  }
+
+  // Back to front, so earlier offsets stay valid while later text changes length.
+  let result = prompt;
+  for (const { span, text } of replacements.sort((a, b) => b.span.start - a.span.start)) {
+    result = result.slice(0, span.start) + text + result.slice(span.end);
+  }
+  // Rebuilding the line trims the prompt and moves the line to the end, so it
+  // only runs when the managed content really changes.
+  return isManagedChanged ? applyMusicalSettings(result, nextManaged as MusicalSettings) : result;
+}
+
+// The prompt with the managed line removed and every prose phrase replaced by a
+// per-field placeholder, so two texts that differ only in key, tempo, or time
+// signature compare equal. Used to keep a saved style selected after its
+// musical phrases are rewritten.
+function musicallyComparable(prompt: string): string {
+  let text = prompt;
+  const proseSpans = detectMusicalSpans(prompt).filter((span) => !span.managed).sort((a, b) => b.start - a.start);
+  for (const span of proseSpans) text = `${text.slice(0, span.start)}\u0000${span.field}\u0000${text.slice(span.end)}`;
+  return text.replace(MUSIC_SETTINGS_LINE, '').replace(/\n{3,}/g, '\n\n').trim();
 }
 
 export const DEFAULT_TITLE_FORMAT = '{{WORKSPACE}} ({{STYLE}}) {{TAKE}}';
@@ -297,7 +446,12 @@ export function deriveStyleSelection(
   // return the original base so subsequent mastering changes preserve it.
   const comparable = normalized.replace(MUSIC_SETTINGS_LINE, '').replace(/\n{3,}/g, '\n\n').trim();
   if (!comparable) return { base, mastering, isCustomStyle: false };
-  const matches = (saved: SavedStyle) => saved.prompt.trim() === comparable;
+  // Compared with musical phrases normalized away, so rewriting a saved
+  // style's key or tempo (see applyMusicalSettingsToPrompt) keeps it selected.
+  // The cost: saved styles that differ only in key/tempo/meter can match each
+  // other; the current selection is tried first, so it wins.
+  const target = musicallyComparable(comparable);
+  const matches = (saved: SavedStyle) => musicallyComparable(saved.prompt) === target;
   const style = current.style && matches(current.style) ? current.style : savedStyles.find(matches);
   if (style) return { base, style, mastering, isCustomStyle: false };
 
@@ -306,13 +460,19 @@ export function deriveStyleSelection(
   // changed: keep the style rather than calling the whole text custom.
   if (candidate && !mastering && current.style) {
     const stylePrompt = current.style.prompt.trim();
-    if (stylePrompt && comparable.startsWith(`${stylePrompt}\n`)) {
+    // Split by line count rather than by prefix so the leading block may
+    // differ from the saved prompt in key/tempo/meter phrases; it is kept as
+    // typed, so a rewritten phrase is not rolled back to the saved wording.
+    const lines = comparable.split('\n');
+    const styleLineCount = stylePrompt.split('\n').length;
+    const leading = lines.slice(0, styleLineCount).join('\n');
+    if (stylePrompt && lines.length > styleLineCount && musicallyComparable(leading) === musicallyComparable(stylePrompt)) {
       // Preserve our own musical-settings line but discard the edited
       // mastering tail, exactly as the pre-musical-settings behavior kept
       // only the selected style prompt in this recovery path.
       const musicalLines = base.match(MUSIC_SETTINGS_LINE) ?? [];
       return {
-        base: [stylePrompt, ...musicalLines].join('\n'),
+        base: [leading, ...musicalLines].join('\n'),
         style: current.style,
         mastering: undefined,
         isCustomStyle: false,

@@ -40,7 +40,9 @@ Directly under the **Style** heading, the extension adds a Style dropdown and a 
 The orange-outlined **Key & Tempo** card sits directly below the Style controls. It reads explicit musical information from the visible Style prompt, including descriptions that Suno adds for an uploaded audio reference.
 
 - Key, BPM, and time signature are detected automatically whenever the visible Style prompt changes. They are filled only when they can be identified unambiguously; conflicting values are never chosen automatically.
-- Select a key and time signature, enter a tempo from 30 to 300 BPM, then use the check-mark button to apply them. The extension adds or replaces its own `Musical settings:` line without changing the rest of your prompt. Available time signatures are 2/4, 3/4, 4/4, 5/4, 6/8, 7/8, 9/8, and 12/8.
+- When the Style already states a key, tempo, or time signature (for example `key of D Minor`), changing that dropdown rewrites the phrase in the Style text right away, in its original wording: `キーはE♭マイナー` becomes `キーはF♯メジャー`, and `key of D Minor` becomes `key of F Minor`. A tempo is applied when you leave the field or press Enter, so typing `160` never writes `16`. The saved style stays selected.
+- A field the Style does not state is not written by merely touching its dropdown. Select the key, enter a tempo from 30 to 300 BPM, and/or select a time signature, then use the check-mark button (enabled while a value differs from the Style text). The extension adds its own `Musical settings:` line and updates that line afterwards. Available time signatures are 2/4, 3/4, 4/4, 5/4, 6/8, 7/8, 9/8, and 12/8.
+- Setting a dropdown back to "Unselected" never deletes wording from your Style; it only removes the field from the extension's `Musical settings:` line (the line disappears once all three are unselected).
 - When you choose another saved style, its explicit key, tempo, or time signature takes precedence. Any field the style does not specify stays in place, so you can audition styles without losing other musical constraints.
 - This feature reads text already visible in Suno; it does not analyze uploaded audio or send it anywhere.
 

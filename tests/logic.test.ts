@@ -2,10 +2,12 @@ import { describe, expect, it } from 'vitest';
 import {
   autoTitle,
   applyMusicalSettings,
+  applyMusicalSettingsToPrompt,
   calculateTagInsertion,
   composePrompt,
   deriveStyleSelection,
   detectMusicalSettings,
+  detectMusicalSpans,
   displayTagName,
   extractTakeKey,
   formatDate,
@@ -63,6 +65,99 @@ describe('musical settings', () => {
       key: 'C Major', tempo: 160, timeSignature: '4/4',
     })).toBe('warm synth pop\nMusical settings: Key: C Major; Tempo: 160 BPM; Time signature: 4/4.');
   });
+
+  it('decides the managed-line priority per field, not per line', () => {
+    expect(detectMusicalSettings('tempo of 92 BPM\nMusical settings: Key: C Major.')).toEqual({
+      key: 'C Major', tempo: 92, timeSignature: undefined, conflicts: [],
+    });
+  });
+});
+
+describe('musical spans', () => {
+  it('locates the value only, without its "key of " prefix or " time" suffix', () => {
+    expect(detectMusicalSpans('key of D Minor, 92 BPM in 3/4 time')).toMatchObject([
+      { field: 'key', start: 7, end: 14, text: 'D Minor', value: 'D Minor', managed: false },
+      { field: 'tempo', start: 16, end: 18, text: '92', value: 92, managed: false },
+      { field: 'timeSignature', start: 26, end: 29, text: '3/4', value: '3/4', managed: false },
+    ]);
+  });
+
+  it('reports one span where the prefixed and bare patterns match the same characters', () => {
+    expect(detectMusicalSpans('key of D Minor, tempo of 92 BPM')).toHaveLength(2);
+  });
+
+  it('never makes a span out of an out-of-range tempo', () => {
+    expect(detectMusicalSpans('999 BPM')).toEqual([]);
+  });
+
+  it('marks the spans inside the extension-managed line', () => {
+    expect(detectMusicalSpans('rock, key of D Minor\nMusical settings: Key: C Major.').map((span) => span.managed)).toEqual([false, true]);
+  });
+});
+
+describe('applyMusicalSettingsToPrompt', () => {
+  it('rewrites the phrases the prompt states, leaving no managed line', () => {
+    expect(applyMusicalSettingsToPrompt('orchestral rock, key of D Minor, tempo of 92 BPM in 3/4 time', {
+      key: 'F Minor', tempo: 92, timeSignature: '3/4',
+    })).toBe('orchestral rock, key of F Minor, tempo of 92 BPM in 3/4 time');
+    expect(applyMusicalSettingsToPrompt('orchestral rock, key of D Minor, tempo of 92 BPM in 3/4 time', {
+      key: 'D Minor', tempo: 120, timeSignature: '6/8',
+    })).toBe('orchestral rock, key of D Minor, tempo of 120 BPM in 6/8 time');
+  });
+
+  it('rewrites every place the same phrase appears, each in its own notation', () => {
+    expect(applyMusicalSettingsToPrompt('key of D Minor. Later, in D Minor again (key: D minor)', { key: 'F Minor' }))
+      .toBe('key of F Minor. Later, in F Minor again (key: F minor)');
+  });
+
+  it('keeps the original notation: Japanese, ♯/♭, case, and spacing', () => {
+    expect(applyMusicalSettingsToPrompt('キーはE♭マイナー、テンポは92 BPM、3/4拍子です。', { key: 'F# Major', tempo: 160, timeSignature: '6/8' }))
+      .toBe('キーはF♯メジャー、テンポは160 BPM、6/8拍子です。');
+    expect(applyMusicalSettingsToPrompt('d minor', { key: 'F Major' })).toBe('f major');
+    expect(applyMusicalSettingsToPrompt('キーはC長調', { key: 'A Minor' })).toBe('キーはA短調');
+    expect(applyMusicalSettingsToPrompt('key of Bb MAJOR, 3 / 4 time', { key: 'E Minor', timeSignature: '6/8' }))
+      .toBe('key of E MINOR, 6 / 8 time');
+  });
+
+  it('reads back as the requested settings after a rewrite', () => {
+    const settings = { key: 'F# Major', tempo: 160, timeSignature: '6/8' };
+    for (const prompt of ['キーはE♭マイナー、テンポは92 BPM、3/4拍子です。', 'key of Bb minor, tempo of 92 BPM in 3 / 4 time']) {
+      expect(detectMusicalSettings(applyMusicalSettingsToPrompt(prompt, settings))).toEqual({ ...settings, conflicts: [] });
+    }
+  });
+
+  it('puts only the fields the prompt does not state into the managed line', () => {
+    const next = applyMusicalSettingsToPrompt('moody, key of D Minor', { key: 'F Minor', tempo: 160 });
+    expect(next).toBe('moody, key of F Minor\nMusical settings: Tempo: 160 BPM.');
+    expect(detectMusicalSettings(next)).toEqual({ key: 'F Minor', tempo: 160, timeSignature: undefined, conflicts: [] });
+  });
+
+  it('adds a managed line when the prompt states nothing', () => {
+    expect(applyMusicalSettingsToPrompt('gentle acoustic ensemble', { key: 'C Major', tempo: 160, timeSignature: '4/4' }))
+      .toBe('gentle acoustic ensemble\nMusical settings: Key: C Major; Tempo: 160 BPM; Time signature: 4/4.');
+  });
+
+  it('drops an unset field from the managed line but never deletes prose', () => {
+    expect(applyMusicalSettingsToPrompt('key of D Minor\nMusical settings: Tempo: 160 BPM.', {})).toBe('key of D Minor');
+    expect(applyMusicalSettingsToPrompt('rock\nMusical settings: Key: C Major; Tempo: 160 BPM.', { key: 'C Major' }))
+      .toBe('rock\nMusical settings: Key: C Major.');
+    expect(applyMusicalSettingsToPrompt('rock\nMusical settings: Key: C Major; Tempo: 160 BPM.', {})).toBe('rock');
+  });
+
+  it('returns the prompt untouched when nothing would change', () => {
+    expect(applyMusicalSettingsToPrompt('rock, key of D Minor  ', { key: 'D Minor' })).toBe('rock, key of D Minor  ');
+  });
+
+  it('updates only the managed line when an older build left the same field in both places', () => {
+    expect(applyMusicalSettingsToPrompt('key of D Minor, tempo of 90 BPM\nMusical settings: Key: C Major; Tempo: 160 BPM; Time signature: 4/4.', {
+      key: 'A Minor', tempo: 160, timeSignature: '4/4',
+    })).toBe('key of D Minor, tempo of 90 BPM\nMusical settings: Key: A Minor; Tempo: 160 BPM; Time signature: 4/4.');
+  });
+
+  it('resolves conflicting prose by rewriting every phrase to the chosen value', () => {
+    expect(applyMusicalSettingsToPrompt('key of C Major, then key of D Minor', { key: 'E Minor' }))
+      .toBe('key of E Minor, then key of E Minor');
+  });
 });
 
 describe('deriveStyleSelection', () => {
@@ -79,6 +174,33 @@ describe('deriveStyleSelection', () => {
   it('keeps a saved-style selection when it has an extension-managed musical-settings line', () => {
     expect(deriveStyleSelection('80s city pop\nMusical settings: Key: C Major; Tempo: 160 BPM.', [cityPop, jazz], { style: cityPop })).toMatchObject({
       base: '80s city pop\nMusical settings: Key: C Major; Tempo: 160 BPM.', style: cityPop, isCustomStyle: false,
+    });
+  });
+
+  describe('musical phrases in the style', () => {
+    const keyed = { id: 's3', name: 'Keyed', prompt: 'orchestral rock, key of D Minor, tempo of 92 BPM' };
+    const rewritten = 'orchestral rock, key of F Minor, tempo of 120 BPM';
+
+    it('keeps the saved style selected after its key and tempo were rewritten', () => {
+      expect(deriveStyleSelection(rewritten, [cityPop, keyed], { style: keyed })).toEqual({
+        base: rewritten, style: keyed, mastering: undefined, isCustomStyle: false,
+      });
+    });
+
+    it('adopts a saved style that matches apart from its musical phrases', () => {
+      expect(deriveStyleSelection(rewritten, [cityPop, keyed], {})).toMatchObject({ style: keyed, isCustomStyle: false });
+    });
+
+    it('still marks a real text edit as custom', () => {
+      const edited = deriveStyleSelection('orchestral pop, key of F Minor, tempo of 120 BPM', [keyed], { style: keyed });
+      expect(edited.isCustomStyle).toBe(true);
+      expect(edited.style).toBeUndefined();
+    });
+
+    it('keeps a rewritten phrase, not the saved wording, when only the mastering text was edited', () => {
+      expect(deriveStyleSelection('orchestral rock, key of F Minor, tempo of 92 BPM\nmaster X', [keyed], { style: keyed, mastering })).toEqual({
+        base: 'orchestral rock, key of F Minor, tempo of 92 BPM', style: keyed, mastering: undefined, isCustomStyle: false,
+      });
     });
   });
 

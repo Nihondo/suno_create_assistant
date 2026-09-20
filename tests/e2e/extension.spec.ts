@@ -277,7 +277,18 @@ test('mounts the Suno controls beside their anchors, survives host removal, and 
     await expect(page.locator('[data-testid="create-form-styles-wrapper"] textarea')).toHaveValue('gentle acoustic ensemble\nMusical settings: Key: C Major; Tempo: 160 BPM; Time signature: 4/4.');
     await stylesHost.getByRole('button', { name: /^スタイル:/ }).click();
     await page.getByRole('option', { name: 'Keyed' }).click();
-    await expect(page.locator('[data-testid="create-form-styles-wrapper"] textarea')).toHaveValue('orchestral rock, key of D Minor, tempo of 92 BPM in 3/4 time\nMusical settings: Key: D Minor; Tempo: 92 BPM; Time signature: 3/4.');
+    // The saved style already states all three, so it is written as-is (no managed line).
+    await expect(page.locator('[data-testid="create-form-styles-wrapper"] textarea')).toHaveValue('orchestral rock, key of D Minor, tempo of 92 BPM in 3/4 time');
+    // The dropdowns follow the phrases the newly selected style states.
+    await expect(musicalKeySelect).toHaveValue('D Minor');
+    await expect(musicalTempoInput).toHaveValue('92');
+    await expect(musicalTimeSignatureSelect).toHaveValue('3/4');
+    // A dropdown change rewrites the stated phrase in place, without pressing Apply,
+    // and the saved style stays selected.
+    await musicalKeySelect.selectOption('F Minor');
+    await expect(page.locator('[data-testid="create-form-styles-wrapper"] textarea')).toHaveValue('orchestral rock, key of F Minor, tempo of 92 BPM in 3/4 time');
+    await expect(stylesHost.getByRole('button', { name: /^スタイル:/ })).toContainText('Keyed');
+    await expect(stylesHost.getByRole('button', { name: 'スタイルに反映' })).toBeDisabled();
     await page.reload();
     await expect(page.locator('suno-create-assistant[data-suno-create-assistant="title"]')).toHaveCount(1);
     await expect(page.locator('suno-create-assistant[data-suno-create-assistant="title"]').getByRole('checkbox', { name: '自動設定' })).toBeChecked();

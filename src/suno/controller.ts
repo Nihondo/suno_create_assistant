@@ -1,6 +1,6 @@
 import {
   autoTitle,
-  applyMusicalSettings,
+  applyMusicalSettingsToPrompt,
   composePrompt,
   DEFAULT_TITLE_FORMAT,
   detectMusicalSettings,
@@ -17,6 +17,7 @@ import {
   type MasteringPrompt,
   type MusicalSettings,
   type MusicalSettingsDetection,
+  type MusicalSettingsField,
   type OtherOptionsCapture,
   type OtherOptionsKey,
   type OtherOptionsPreset,
@@ -210,8 +211,9 @@ export class SunoController {
     const musicalSettings = this.musicalSettingsForStyle(style);
     // A saved style's explicit musical metadata wins field by field. When it
     // does not specify a field, retain the current setting instead of making
-    // a style switch unexpectedly clear the user's key or tempo.
-    const base = musicalSettings ? applyMusicalSettings(style?.prompt ?? '', musicalSettings) : style?.prompt ?? '';
+    // a style switch unexpectedly clear the user's key or tempo. Phrases the
+    // style already states stay untouched; only the missing fields are added.
+    const base = musicalSettings ? applyMusicalSettingsToPrompt(style?.prompt ?? '', musicalSettings) : style?.prompt ?? '';
     const next = composePrompt(base, this.state.mastering?.prompt);
     if (next === undefined) return this.failOverflow();
     this.state.style = style;
@@ -362,14 +364,36 @@ export class SunoController {
   }
 
   /**
-   * Writes only the extension-managed musical-settings line into the base
-   * style. Keeping it before a selected mastering prompt preserves the
-   * controller's existing "mastering is a suffix" invariant.
+   * Applies a dropdown change immediately, but only to the fields the Style
+   * text already states. Introducing a field the prompt never mentioned stays
+   * an explicit action (the Apply button), so merely touching a dropdown never
+   * invents text.
+   */
+  applyMusicalSettingsLive(settings: MusicalSettings): void {
+    if (this.isExecutingCreate) return;
+    // setStylePrompt() opens the Style disclosure when no textarea exists at
+    // all; a dropdown change must never do that on the user's behalf.
+    if (!this.adapter.styleTextarea(true)) return;
+    const detected = this.state.musicalSettings;
+    // A conflicted field has no single value but does have phrases to rewrite.
+    const isTracked = (field: MusicalSettingsField) => detected[field] !== undefined || detected.conflicts.includes(field);
+    this.applyMusicalSettings({
+      key: isTracked('key') ? settings.key : undefined,
+      tempo: isTracked('tempo') ? settings.tempo : undefined,
+      timeSignature: isTracked('timeSignature') ? settings.timeSignature : undefined,
+    });
+  }
+
+  /**
+   * Rewrites the musical phrases the base style already states and keeps the
+   * rest in the extension-managed musical-settings line (see
+   * applyMusicalSettingsToPrompt). Only the base style is touched: mastering
+   * stays the final line, and its own wording is never rewritten.
    */
   applyMusicalSettings(settings: MusicalSettings): void {
     const current = this.adapter.getStylePrompt();
     const base = this.baseStyle || (this.state.mastering ? current.replace(new RegExp(`\\n${this.state.mastering.prompt.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`), '') : current);
-    const nextBase = applyMusicalSettings(base, settings);
+    const nextBase = applyMusicalSettingsToPrompt(base, settings);
     const next = composePrompt(nextBase, this.state.mastering?.prompt);
     if (next === undefined) return this.failOverflow();
     if (next === current) {
@@ -644,10 +668,14 @@ export class SunoController {
     const current = this.currentMusicalSettings();
     if (!style) return current;
     const detected = detectMusicalSettings(style.prompt);
+    // A field the style states ambiguously is left alone: carrying the current
+    // value in would now rewrite the style's own phrases rather than add a line.
+    const carry = <T>(field: MusicalSettingsField, value: T | undefined, fallback: T | undefined) =>
+      value ?? (detected.conflicts.includes(field) ? undefined : fallback);
     const next: MusicalSettings = {
-      key: detected.key ?? current?.key,
-      tempo: detected.tempo ?? current?.tempo,
-      timeSignature: detected.timeSignature ?? current?.timeSignature,
+      key: carry('key', detected.key, current?.key),
+      tempo: carry('tempo', detected.tempo, current?.tempo),
+      timeSignature: carry('timeSignature', detected.timeSignature, current?.timeSignature),
     };
     return next.key || next.tempo !== undefined || next.timeSignature ? next : undefined;
   }
