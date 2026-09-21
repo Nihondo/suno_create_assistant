@@ -68,7 +68,7 @@ export const enUiMessages: UiMessages = {
   tempo: 'Tempo',
   timeSignature: 'Time signature',
   noMusicalSettingsDetected: 'No key, tempo, or time signature was detected in the Style prompt.',
-  musicalSettingsConflict: 'Multiple values were found. Review the values before applying them.',
+  musicalSettingsConflict: 'The Style states more than one value. Choosing one here replaces all of them.',
   aria: {
     styleSettings: 'Suno Create Assistant: Style Settings',
     presetSettings: 'Suno Create Assistant: More Options Presets',

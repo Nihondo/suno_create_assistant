@@ -235,14 +235,9 @@ export function MusicalSettingsControls({ controller }: { controller: SunoContro
     setTempo(detected.tempo === undefined ? '' : String(detected.tempo));
   }, [detected.tempo]);
 
-  const detectedValues = [
-    detected.key,
-    detected.tempo !== undefined ? `${detected.tempo} BPM` : undefined,
-    detected.timeSignature,
-  ].filter(Boolean);
-  const detectionMessage = detected.conflicts.length
-    ? ui.musicalSettingsConflict
-    : detectedValues.length ? detectedValues.join(' · ') : undefined;
+  // The dropdowns already show every detected value; the only thing they cannot
+  // say is why a field looks unselected - its phrases in the Style disagree.
+  const conflictMessage = detected.conflicts.length ? ui.musicalSettingsConflict : undefined;
   const numericTempo = tempo === '' ? undefined : Number(tempo);
   const isTempoValid = numericTempo === undefined || (Number.isInteger(numericTempo) && numericTempo >= 30 && numericTempo <= 300);
 
@@ -289,7 +284,7 @@ export function MusicalSettingsControls({ controller }: { controller: SunoContro
         </label>
       </div>
       {!isTempoValid && <span id="suno-assistant-tempo-help" className="suno-assistant__field-error">30–300 BPM</span>}
-      {detectionMessage && <output className="suno-assistant__musical-detection" role="status">{detectionMessage}</output>}
+      {conflictMessage && <output className="suno-assistant__musical-detection" role="status">{conflictMessage}</output>}
     </fieldset>
   </div>;
 }

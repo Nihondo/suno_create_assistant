@@ -68,7 +68,7 @@ export const jaUiMessages: UiMessages = {
   tempo: 'テンポ',
   timeSignature: '拍子',
   noMusicalSettingsDetected: 'スタイルからキー・テンポ・拍子を検出できませんでした。',
-  musicalSettingsConflict: '複数の候補が見つかりました。内容を確認してから反映してください。',
+  musicalSettingsConflict: 'スタイル内に複数の候補があります。ここで選ぶと、すべてその値に置き換わります。',
   aria: {
     styleSettings: 'Suno Create Assistant: スタイル設定',
     presetSettings: 'Suno Create Assistant: その他のオプションプリセット',
