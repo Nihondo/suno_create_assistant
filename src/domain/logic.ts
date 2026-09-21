@@ -1,9 +1,26 @@
 import { optionKeys, type MasteringPrompt, type MusicalSettings, type MusicalSettingsDetection, type MusicalSettingsField, type OtherOptionsCapture, type OtherOptionsKey, type OtherOptionsPreset, type OtherOptionsSnapshot, type SavedStyle } from './models';
 import { getUiMessages, type SupportedLanguage, type UiMessages } from '../locales';
 
+// Only trailing whitespace is trimmed from the style: its leading and internal
+// whitespace is the user's own layout and is not ours to rewrite.
 export function composePrompt(style?: string, mastering?: string): string | undefined {
-  const value = [style?.trim(), mastering?.trim()].filter(Boolean).join('\n');
+  const value = [style?.trimEnd(), mastering?.trim()].filter(Boolean).join('\n');
   return value.length <= 1000 ? value : undefined;
+}
+
+/**
+ * Separates a mastering prompt from the end of the Style text: the text is
+ * either exactly the mastering (an empty base) or ends with it on its own
+ * line. The base of an empty Style is a valid `''`, not "unknown". Anything
+ * else recognizes no mastering and leaves the whole text as the base.
+ */
+export function splitMasteringPrompt(text: string, candidate?: MasteringPrompt): { base: string; mastering?: MasteringPrompt } {
+  const masteringPrompt = candidate?.prompt.trim();
+  if (!candidate || !masteringPrompt) return { base: text };
+  const trimmed = text.trimEnd();
+  if (trimmed === masteringPrompt) return { base: '', mastering: candidate };
+  if (trimmed.endsWith(`\n${masteringPrompt}`)) return { base: trimmed.slice(0, -(masteringPrompt.length + 1)), mastering: candidate };
+  return { base: text };
 }
 
 const MUSIC_SETTINGS_LINE = /^\s*Musical settings:\s*.*$/gim;
@@ -181,6 +198,10 @@ function musicSettingsLine(settings: MusicalSettings): string {
  */
 export function applyMusicalSettings(prompt: string, settings: MusicalSettings): string {
   const line = musicSettingsLine(settings);
+  // With no managed line yet, nothing has to be removed, so the prompt keeps
+  // its own leading and internal whitespace; the line is only appended.
+  // (`search` ignores the global regex's lastIndex, unlike `test`.)
+  if (prompt.search(MUSIC_SETTINGS_LINE) === -1) return line ? [prompt.trimEnd(), line].filter(Boolean).join('\n') : prompt;
   const base = prompt.replace(MUSIC_SETTINGS_LINE, '').replace(/\n{3,}/g, '\n\n').trim();
   return [base, line].filter(Boolean).join('\n');
 }
@@ -426,19 +447,7 @@ export function deriveStyleSelection(
   current: { style?: SavedStyle; mastering?: MasteringPrompt; rememberedMastering?: MasteringPrompt },
 ): StyleSelection {
   const candidate = current.mastering ?? current.rememberedMastering;
-  const masteringPrompt = candidate?.prompt.trim();
-  let mastering: MasteringPrompt | undefined;
-  let base = text;
-  if (masteringPrompt) {
-    const trimmed = text.trimEnd();
-    if (trimmed === masteringPrompt) {
-      base = '';
-      mastering = candidate;
-    } else if (trimmed.endsWith(`\n${masteringPrompt}`)) {
-      base = trimmed.slice(0, -(masteringPrompt.length + 1));
-      mastering = candidate;
-    }
-  }
+  const { base, mastering } = splitMasteringPrompt(text, candidate);
 
   const normalized = base.trim();
   // Musical settings are an extension-managed decoration of the base style,

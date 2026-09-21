@@ -10,6 +10,7 @@ import {
   optionFieldsMatch,
   readableOptionFields,
   replaceTakePlaceholder,
+  splitMasteringPrompt,
 } from '../domain/logic';
 import {
   type ApplyResult,
@@ -364,37 +365,26 @@ export class SunoController {
   }
 
   /**
-   * Applies a dropdown change immediately, but only to the fields the Style
-   * text already states. Introducing a field the prompt never mentioned stays
-   * an explicit action (the Apply button), so merely touching a dropdown never
-   * invents text.
-   */
-  applyMusicalSettingsLive(settings: MusicalSettings): void {
-    if (this.isExecutingCreate) return;
-    // setStylePrompt() opens the Style disclosure when no textarea exists at
-    // all; a dropdown change must never do that on the user's behalf.
-    if (!this.adapter.styleTextarea(true)) return;
-    const detected = this.state.musicalSettings;
-    // A conflicted field has no single value but does have phrases to rewrite.
-    const isTracked = (field: MusicalSettingsField) => detected[field] !== undefined || detected.conflicts.includes(field);
-    this.applyMusicalSettings({
-      key: isTracked('key') ? settings.key : undefined,
-      tempo: isTracked('tempo') ? settings.tempo : undefined,
-      timeSignature: isTracked('timeSignature') ? settings.timeSignature : undefined,
-    });
-  }
-
-  /**
-   * Rewrites the musical phrases the base style already states and keeps the
-   * rest in the extension-managed musical-settings line (see
-   * applyMusicalSettingsToPrompt). Only the base style is touched: mastering
-   * stays the final line, and its own wording is never rewritten.
+   * Applies a dropdown change immediately: it rewrites the musical phrases the
+   * base style already states and keeps the rest in the extension-managed
+   * musical-settings line (see applyMusicalSettingsToPrompt). Only the base
+   * style is touched: mastering stays the final line, and its own wording is
+   * never rewritten.
    */
   applyMusicalSettings(settings: MusicalSettings): void {
+    if (this.isExecutingCreate) return;
+    // setStylePrompt() opens the Style disclosure when no textarea exists at
+    // all; a dropdown change must never do that on the user's behalf. The
+    // dropdowns read their value back from the Style text, so a declined write
+    // simply leaves them showing what the text says.
+    if (!this.adapter.styleTextarea(true)) return;
     const current = this.adapter.getStylePrompt();
-    const base = this.baseStyle || (this.state.mastering ? current.replace(new RegExp(`\\n${this.state.mastering.prompt.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`), '') : current);
+    // The textarea is the truth, not the cached baseStyle (which can be stale,
+    // and is '' for a legitimately empty base). Only a mastering the text still
+    // ends with is put back, so a stale selection is never re-appended.
+    const { base, mastering } = splitMasteringPrompt(current, this.state.mastering);
     const nextBase = applyMusicalSettingsToPrompt(base, settings);
-    const next = composePrompt(nextBase, this.state.mastering?.prompt);
+    const next = composePrompt(nextBase, mastering?.prompt);
     if (next === undefined) return this.failOverflow();
     if (next === current) {
       this.syncMusicalSettingsFromText(current);

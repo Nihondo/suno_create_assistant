@@ -299,7 +299,7 @@ describe('SunoController style/mastering selection follows the Style text', () =
     expect(current().musicalSettings.conflicts).toEqual(['key']);
   });
 
-  describe('applyMusicalSettingsLive', () => {
+  describe('musical settings dropdown changes', () => {
     const keyed = { id: 's3', name: 'Keyed', prompt: 'orchestral rock, key of D Minor, tempo of 92 BPM' };
 
     async function setupKeyed() {
@@ -311,7 +311,7 @@ describe('SunoController style/mastering selection follows the Style text', () =
 
     it('rewrites the phrases the Style states, keeping the style, the mastering, and the final line', async () => {
       const { controller, textarea, current } = await setupKeyed();
-      controller.applyMusicalSettingsLive({ key: 'F Minor', tempo: 92 });
+      controller.applyMusicalSettings({ key: 'F Minor', tempo: 92 });
       expect(textarea.value).toBe('orchestral rock, key of F Minor, tempo of 92 BPM\nwarm master');
       expect(current().style?.id).toBe('s3');
       expect(current().isCustomStyle).toBe(false);
@@ -319,30 +319,60 @@ describe('SunoController style/mastering selection follows the Style text', () =
       expect(current().musicalSettings).toMatchObject({ key: 'F Minor', tempo: 92, conflicts: [] });
     });
 
-    it('does not add a field the Style never stated', async () => {
-      const { controller, textarea } = await setupKeyed();
-      controller.applyMusicalSettingsLive({ key: 'F Minor', tempo: 92, timeSignature: '4/4' });
-      expect(textarea.value).toBe('orchestral rock, key of F Minor, tempo of 92 BPM\nwarm master');
+    it('adds a field the Style never stated to the managed line, leaving the stated phrases in place', async () => {
+      const { controller, textarea, current } = await setupKeyed();
+      controller.applyMusicalSettings({ key: 'F Minor', tempo: 92, timeSignature: '4/4' });
+      expect(textarea.value).toBe('orchestral rock, key of F Minor, tempo of 92 BPM\nMusical settings: Time signature: 4/4.\nwarm master');
+      expect(current().style?.id).toBe('s3');
+      expect(current().musicalSettings).toMatchObject({ key: 'F Minor', tempo: 92, timeSignature: '4/4', conflicts: [] });
     });
 
-    it('writes nothing while the Style states no musical information', async () => {
+    it('builds the managed line one dropdown at a time when the Style states nothing', async () => {
+      const { controller, textarea, current } = await setup();
+      controller.applyMusicalSettings({ key: 'C Major' });
+      expect(textarea.value).toBe('80s city pop\nMusical settings: Key: C Major.\nwarm master');
+      controller.applyMusicalSettings({ key: 'C Major', tempo: 160 });
+      expect(textarea.value).toBe('80s city pop\nMusical settings: Key: C Major; Tempo: 160 BPM.\nwarm master');
+      expect(current().style?.id).toBe('s1');
+      expect(current().isCustomStyle).toBe(false);
+    });
+
+    it('keeps the mastering as the only, final line when the Style is unselected', async () => {
+      const { controller, textarea, current } = await setup();
+      await controller.selectStyle(undefined);
+      expect(textarea.value).toBe('warm master');
+      controller.applyMusicalSettings({ key: 'C Major' });
+      expect(textarea.value).toBe('Musical settings: Key: C Major.\nwarm master');
+      expect(current().mastering?.id).toBe('m1');
+    });
+
+    it('keeps the Style\'s leading and internal whitespace when the managed line is first added', async () => {
+      const { controller, textarea, current } = await setup();
+      await type(textarea, '  my style\n\n\nsecond line\nwarm master');
+      controller.applyMusicalSettings({ key: 'C Major' });
+      expect(textarea.value).toBe('  my style\n\n\nsecond line\nMusical settings: Key: C Major.\nwarm master');
+      expect(current().mastering?.id).toBe('m1');
+    });
+
+    it('does not write while a Create submission is running', async () => {
       const { controller, textarea } = await setup();
-      controller.applyMusicalSettingsLive({ key: 'C Major', tempo: 160, timeSignature: '4/4' });
+      (controller as unknown as { isExecutingCreate: boolean }).isExecutingCreate = true;
+      controller.applyMusicalSettings({ key: 'C Major' });
       expect(textarea.value).toBe('80s city pop\nwarm master');
     });
 
     it('never deletes prose when a dropdown is cleared', async () => {
       const { controller, textarea } = await setupKeyed();
-      controller.applyMusicalSettingsLive({});
+      controller.applyMusicalSettings({});
       expect(textarea.value).toBe('orchestral rock, key of D Minor, tempo of 92 BPM\nwarm master');
     });
 
     it('edits the managed line: a changed field is rewritten, a cleared one is dropped', async () => {
       const { controller, textarea } = await setup();
       await type(textarea, 'moody\nMusical settings: Key: C Major; Tempo: 100 BPM.\nwarm master');
-      controller.applyMusicalSettingsLive({ key: 'A Minor' });
+      controller.applyMusicalSettings({ key: 'A Minor' });
       expect(textarea.value).toBe('moody\nMusical settings: Key: A Minor.\nwarm master');
-      controller.applyMusicalSettingsLive({});
+      controller.applyMusicalSettings({});
       expect(textarea.value).toBe('moody\nwarm master');
     });
 
@@ -351,7 +381,7 @@ describe('SunoController style/mastering selection follows the Style text', () =
       vi.mocked(controller.adapter.styleTextarea).mockReturnValue(undefined);
       const setStylePrompt = vi.spyOn(controller.adapter, 'setStylePrompt');
       setStylePrompt.mockClear();
-      controller.applyMusicalSettingsLive({ key: 'F Minor', tempo: 92 });
+      controller.applyMusicalSettings({ key: 'F Minor', tempo: 92 });
       expect(setStylePrompt).not.toHaveBeenCalled();
       expect(textarea.value).toBe('orchestral rock, key of D Minor, tempo of 92 BPM\nwarm master');
     });

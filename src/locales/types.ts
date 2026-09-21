@@ -95,7 +95,6 @@ export interface UiMessages {
   key: string;
   tempo: string;
   timeSignature: string;
-  applyToStyle: string;
   noMusicalSettingsDetected: string;
   musicalSettingsConflict: string;
   aria: {

@@ -21,6 +21,7 @@ import {
   optionFieldSummaryLines,
   parseLyricsTags,
   replaceTakePlaceholder,
+  splitMasteringPrompt,
   validateUniqueName,
 } from '../src/domain/logic';
 import { emptyOtherOptions, type MasteringPrompt, type OtherOptionsKey, type OtherOptionsSnapshot } from '../src/domain/models';
@@ -35,6 +36,29 @@ describe('prompt composition', () => {
 
   it('does not truncate an overflow prompt', () => {
     expect(composePrompt('a'.repeat(1000), 'b')).toBeUndefined();
+  });
+
+  it('keeps the style\'s leading and internal whitespace, trimming only what trails it', () => {
+    expect(composePrompt('  intro\n\n\nverse  \n', ' master ')).toBe('  intro\n\n\nverse\nmaster');
+    expect(composePrompt('   ', 'master')).toBe('master');
+  });
+});
+
+describe('splitMasteringPrompt', () => {
+  const mastering: MasteringPrompt = { id: 'm', name: 'Master', prompt: 'warm master', createdAt: '', updatedAt: '' };
+
+  it('treats text equal to the mastering as an empty base', () => {
+    expect(splitMasteringPrompt('warm master', mastering)).toEqual({ base: '', mastering });
+    expect(splitMasteringPrompt('warm master\n', mastering)).toEqual({ base: '', mastering });
+  });
+
+  it('splits off a mastering that is the final line', () => {
+    expect(splitMasteringPrompt('80s city pop\nwarm master', mastering)).toEqual({ base: '80s city pop', mastering });
+  });
+
+  it('recognizes no mastering when the text no longer ends with it, or when there is none', () => {
+    expect(splitMasteringPrompt('80s city pop\nwarm master X', mastering)).toEqual({ base: '80s city pop\nwarm master X' });
+    expect(splitMasteringPrompt('80s city pop', undefined)).toEqual({ base: '80s city pop' });
   });
 });
 
@@ -64,6 +88,16 @@ describe('musical settings', () => {
     expect(applyMusicalSettings('warm synth pop\nMusical settings: Key: D Minor; Tempo: 120 BPM.', {
       key: 'C Major', tempo: 160, timeSignature: '4/4',
     })).toBe('warm synth pop\nMusical settings: Key: C Major; Tempo: 160 BPM; Time signature: 4/4.');
+  });
+
+  it('leaves the rest of the prompt alone when it first adds the managed line', () => {
+    expect(applyMusicalSettings('  intro\n\n\n\nverse  \n', { key: 'C Major' })).toBe('  intro\n\n\n\nverse\nMusical settings: Key: C Major.');
+    expect(applyMusicalSettingsToPrompt('  intro\n\n\n\nverse', { key: 'C Major' })).toBe('  intro\n\n\n\nverse\nMusical settings: Key: C Major.');
+    expect(applyMusicalSettings('', { key: 'C Major' })).toBe('Musical settings: Key: C Major.');
+  });
+
+  it('returns the prompt as-is when there is no managed line and nothing to add', () => {
+    expect(applyMusicalSettings('  intro\n\n\n\nverse  \n', {})).toBe('  intro\n\n\n\nverse  \n');
   });
 
   it('decides the managed-line priority per field, not per line', () => {

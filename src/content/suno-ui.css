@@ -274,8 +274,7 @@
   border: 0;
 }
 
-.suno-assistant__musical-fields,
-.suno-assistant__musical-actions {
+.suno-assistant__musical-fields {
   display: flex;
   flex-wrap: wrap;
   align-items: end;
@@ -318,7 +317,6 @@
   font-size: 13px;
 }
 
-.suno-assistant__musical-actions { margin-left: auto; }
 .suno-assistant__musical-detection { flex: 1 1 100%; color: var(--sca-fg-secondary); font-size: 12px; }
 .suno-assistant__field-error { flex-basis: 100%; color: var(--sca-error); font-size: 12px; }
 
@@ -333,7 +331,6 @@
 
 @media (max-width: 420px) {
   .suno-assistant__select { min-width: 0; flex: 1 1 135px; }
-  .suno-assistant__musical-actions { margin-left: 0; }
 }
 
 .suno-assistant__dialog {

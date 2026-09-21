@@ -77,16 +77,6 @@ function BookmarkIcon({ className, style }: { className?: string; style?: React.
   );
 }
 
-// This uses the same Material Icons Filled family as the other extension-only
-// actions. Its accessible name and title retain the precise action wording.
-function CheckIcon({ className, style }: { className?: string; style?: React.CSSProperties }) {
-  return (
-    <svg xmlns="http://www.w3.org/2000/svg" width="1em" height="1em" viewBox="0 0 24 24" fill="currentColor" className={className} style={style}>
-      <path d="M9 16.17 4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
-    </svg>
-  );
-}
-
 // Suno's own dropdown-trigger chevron, measured from its role="combobox"
 // buttons (the workspace sort/list-view controls, aria-label="新着"/"リスト"
 // in docs/showmore.txt) rather than the model selector's menu-trigger icon
@@ -217,98 +207,91 @@ const MUSIC_KEY_ROOTS = ['C', 'C#', 'Db', 'D', 'D#', 'Eb', 'E', 'F', 'F#', 'Gb',
 const MUSIC_KEYS = MUSIC_KEY_ROOTS.flatMap((root) => [`${root} Major`, `${root} Minor`]);
 const TIME_SIGNATURES = ['2/4', '3/4', '4/4', '5/4', '6/8', '7/8', '9/8', '12/8'];
 
+// The detector recognizes more than the pickers list (Cb Major, E# Minor,
+// 11/16, ...). A controlled select cannot show a value it has no option for, so
+// a detected value outside the list is added as a temporary option; it goes
+// away by itself once the text states something else.
+function withDetectedOption(options: string[], detected?: string): string[] {
+  return detected && !options.includes(detected) ? [detected, ...options] : options;
+}
+
 /**
- * A compact, explicit editor for musical metadata visible in the Style
- * prompt. Draft values stay local until the user submits the form, so
- * detecting a phrase never rewrites Suno's controlled textarea by itself.
+ * A compact editor for the key, tempo, and time signature the Style prompt
+ * states. Detecting a phrase never rewrites Suno's textarea by itself; a
+ * change does, at once. Key and time signature show the detected value
+ * directly and apply on change; only the tempo, which is typed, keeps a local
+ * draft and applies on blur or Enter.
  */
 export function MusicalSettingsControls({ controller }: { controller: SunoController }) {
   const state = useController(controller);
   const ui = getUiMessages();
-  const [key, setKey] = useState('');
+  const detected = state.musicalSettings;
+  // Key and time signature are read straight from the Style text, so a
+  // dropdown can never show something the text does not say. The tempo is
+  // free-typed and only applied when committed, so it alone keeps a draft.
   const [tempo, setTempo] = useState('');
-  const [timeSignature, setTimeSignature] = useState('');
 
   useEffect(() => {
-    setKey(state.musicalSettings.key ?? '');
-    setTempo(state.musicalSettings.tempo === undefined ? '' : String(state.musicalSettings.tempo));
-    setTimeSignature(state.musicalSettings.timeSignature ?? '');
-  }, [
-    state.musicalSettings.key,
-    state.musicalSettings.tempo,
-    state.musicalSettings.timeSignature,
-  ]);
+    setTempo(detected.tempo === undefined ? '' : String(detected.tempo));
+  }, [detected.tempo]);
 
   const detectedValues = [
-    state.musicalSettings.key,
-    state.musicalSettings.tempo !== undefined ? `${state.musicalSettings.tempo} BPM` : undefined,
-    state.musicalSettings.timeSignature,
+    detected.key,
+    detected.tempo !== undefined ? `${detected.tempo} BPM` : undefined,
+    detected.timeSignature,
   ].filter(Boolean);
-  const detectionMessage = state.musicalSettings.conflicts.length
+  const detectionMessage = detected.conflicts.length
     ? ui.musicalSettingsConflict
     : detectedValues.length ? detectedValues.join(' · ') : undefined;
   const numericTempo = tempo === '' ? undefined : Number(tempo);
   const isTempoValid = numericTempo === undefined || (Number.isInteger(numericTempo) && numericTempo >= 30 && numericTempo <= 300);
-  // The Apply button only matters while the drafts differ from what the Style
-  // text says; after an immediate apply they match, so it goes quiet.
-  const isDirty = (key || undefined) !== state.musicalSettings.key
-    || numericTempo !== state.musicalSettings.tempo
-    || (timeSignature || undefined) !== state.musicalSettings.timeSignature;
-  const submit = (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!isTempoValid || !isDirty) return;
-    controller.applyMusicalSettings({ key: key || undefined, tempo: numericTempo, timeSignature: timeSignature || undefined });
-  };
-  // Dropdown changes take effect at once, but only for phrases the Style text
-  // already states (the controller decides which). Only the field the user
-  // just changed is overlaid on the controller's current detection: the
-  // untouched fields must not come from the drafts above, which can still be a
-  // render behind (e.g. right after a saved style was selected).
+
+  // A change is applied at once: it rewrites the phrase the Style already
+  // states, or adds the field to the managed line when it does not. Only the
+  // field the user just changed is overlaid on the controller's current
+  // detection, never on stale component state.
   const commit = (changed: Partial<MusicalSettings>) => {
-    const { key: detectedKey, tempo: detectedTempo, timeSignature: detectedTimeSignature } = controller.getState().musicalSettings;
-    controller.applyMusicalSettingsLive({ key: detectedKey, tempo: detectedTempo, timeSignature: detectedTimeSignature, ...changed });
-    // Clearing a dropdown never deletes prose, so a stated phrase is still
-    // there; show it again instead of a value the text does not back.
-    const detected = controller.getState().musicalSettings;
-    if (detected.key !== undefined) setKey(detected.key);
-    if (detected.tempo !== undefined) setTempo(String(detected.tempo));
-    if (detected.timeSignature !== undefined) setTimeSignature(detected.timeSignature);
+    const current = controller.getState().musicalSettings;
+    controller.applyMusicalSettings({ key: current.key, tempo: current.tempo, timeSignature: current.timeSignature, ...changed });
+    if (!('tempo' in changed)) return;
+    // Clearing the tempo never deletes a phrase the Style states, and a write
+    // can be declined; show what the text really says.
+    const next = controller.getState().musicalSettings.tempo;
+    setTempo(next === undefined ? '' : String(next));
+  };
+  const commitTempo = () => {
+    if (isTempoValid && numericTempo !== detected.tempo) commit({ tempo: numericTempo });
   };
 
-  return <form className="suno-assistant__musical-form" onSubmit={submit}>
+  return <div className="suno-assistant__musical-form">
     <fieldset className="suno-assistant__musical-fieldset" aria-label={ui.musicalSettings}>
       <div className="suno-assistant__musical-fields">
         <label className="suno-assistant__field-label">
           <span>{ui.key}</span>
-          <select className="suno-assistant__field-select suno-assistant__field-select--key" value={key} onChange={(event) => { setKey(event.target.value); commit({ key: event.target.value || undefined }); }}>
+          <select className="suno-assistant__field-select suno-assistant__field-select--key" value={detected.key ?? ''} onChange={(event) => commit({ key: event.target.value || undefined })}>
             <option value="">{ui.unselected}</option>
-            {MUSIC_KEYS.map((value) => <option key={value} value={value}>{value}</option>)}
+            {withDetectedOption(MUSIC_KEYS, detected.key).map((value) => <option key={value} value={value}>{value}</option>)}
           </select>
         </label>
         <label className="suno-assistant__field-label">
           <span>{ui.tempo}</span>
           <span className="suno-assistant__tempo-input-wrap">
-            <input className="suno-assistant__field-input" type="number" min="30" max="300" step="1" inputMode="numeric" value={tempo} onChange={(event) => setTempo(event.target.value)} onBlur={() => { if (isTempoValid) commit({ tempo: numericTempo }); }} aria-describedby={!isTempoValid ? 'suno-assistant-tempo-help' : undefined} />
+            <input className="suno-assistant__field-input" type="number" min="30" max="300" step="1" inputMode="numeric" value={tempo} onChange={(event) => setTempo(event.target.value)} onBlur={commitTempo} onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); commitTempo(); } }} aria-describedby={!isTempoValid ? 'suno-assistant-tempo-help' : undefined} />
             <span aria-hidden="true">BPM</span>
           </span>
         </label>
         <label className="suno-assistant__field-label">
           <span>{ui.timeSignature}</span>
-          <select className="suno-assistant__field-select suno-assistant__field-select--time-signature" value={timeSignature} onChange={(event) => { setTimeSignature(event.target.value); commit({ timeSignature: event.target.value || undefined }); }}>
+          <select className="suno-assistant__field-select suno-assistant__field-select--time-signature" value={detected.timeSignature ?? ''} onChange={(event) => commit({ timeSignature: event.target.value || undefined })}>
             <option value="">{ui.unselected}</option>
-            {TIME_SIGNATURES.map((value) => <option key={value} value={value}>{value}</option>)}
+            {withDetectedOption(TIME_SIGNATURES, detected.timeSignature).map((value) => <option key={value} value={value}>{value}</option>)}
           </select>
         </label>
       </div>
       {!isTempoValid && <span id="suno-assistant-tempo-help" className="suno-assistant__field-error">30–300 BPM</span>}
-      <div className="suno-assistant__musical-actions">
-        <button type="submit" className="suno-assistant__tag-button suno-assistant__tag-button--settings suno-assistant__button--primary" aria-label={ui.applyToStyle} title={ui.applyToStyle} disabled={!isDirty || !isTempoValid}>
-          <CheckIcon />
-        </button>
-      </div>
       {detectionMessage && <output className="suno-assistant__musical-detection" role="status">{detectionMessage}</output>}
     </fieldset>
-  </form>;
+  </div>;
 }
 
 export function PresetControls({ controller }: { controller: SunoController }) {

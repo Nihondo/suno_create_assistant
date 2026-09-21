@@ -67,7 +67,6 @@ export const enUiMessages: UiMessages = {
   key: 'Key',
   tempo: 'Tempo',
   timeSignature: 'Time signature',
-  applyToStyle: 'Apply to Style',
   noMusicalSettingsDetected: 'No key, tempo, or time signature was detected in the Style prompt.',
   musicalSettingsConflict: 'Multiple values were found. Review the values before applying them.',
   aria: {

@@ -251,9 +251,21 @@ test('mounts the Suno controls beside their anchors, survives host removal, and 
     const musicalKeySelect = stylesHost.locator('select').first();
     const musicalTempoInput = stylesHost.locator('input[type="number"]');
     const musicalTimeSignatureSelect = stylesHost.locator('select').nth(1);
+    const styleTextarea = page.locator('[data-testid="create-form-styles-wrapper"] textarea');
+    // Lets the page run its already-queued 0ms timers, so "nothing was written" also rules out a deferred write.
+    const flushTimers = () => page.evaluate(() => new Promise<void>((resolve) => { setTimeout(resolve, 0); }));
+    // A field the Style does not state goes into the managed line as soon as it is chosen.
     await musicalKeySelect.selectOption('C Major');
+    await expect(styleTextarea).toHaveValue('gentle acoustic ensemble\nMusical settings: Key: C Major.');
+    // Typing a tempo writes nothing; Enter commits it.
     await musicalTempoInput.fill('160');
+    await flushTimers();
+    await expect(styleTextarea).toHaveValue('gentle acoustic ensemble\nMusical settings: Key: C Major.');
+    await musicalTempoInput.press('Enter');
+    await expect(styleTextarea).toHaveValue('gentle acoustic ensemble\nMusical settings: Key: C Major; Tempo: 160 BPM.');
     await musicalTimeSignatureSelect.selectOption('4/4');
+    await expect(styleTextarea).toHaveValue('gentle acoustic ensemble\nMusical settings: Key: C Major; Tempo: 160 BPM; Time signature: 4/4.');
+    await expect(stylesHost.getByRole('button', { name: 'スタイルに反映' })).toHaveCount(0);
     await expect(musicalKeySelect).toHaveCSS('field-sizing', 'content');
     const [keyBox, timeSignatureBox] = await Promise.all([
       musicalKeySelect.boundingBox(),
@@ -267,8 +279,6 @@ test('mounts the Suno controls beside their anchors, survives host removal, and 
     expect(timeSignatureBox!.width).toBeLessThan(140);
     await musicalKeySelect.hover();
     await expect(stylesHost.locator('.suno-assistant--styles')).toHaveCSS('border-bottom-color', 'rgba(234, 122, 59, 0.75)');
-    await stylesHost.getByRole('button', { name: 'スタイルに反映' }).click();
-    await expect(page.locator('[data-testid="create-form-styles-wrapper"] textarea')).toHaveValue('gentle acoustic ensemble\nMusical settings: Key: C Major; Tempo: 160 BPM; Time signature: 4/4.');
     await stylesHost.getByRole('button', { name: /^スタイル:/ }).click();
     await stylesHost.locator('.suno-assistant__menu').getByRole('option', { name: '未選択' }).click();
     await expect(page.locator('[data-testid="create-form-styles-wrapper"] textarea')).toHaveValue('Musical settings: Key: C Major; Tempo: 160 BPM; Time signature: 4/4.');
@@ -283,12 +293,26 @@ test('mounts the Suno controls beside their anchors, survives host removal, and 
     await expect(musicalKeySelect).toHaveValue('D Minor');
     await expect(musicalTempoInput).toHaveValue('92');
     await expect(musicalTimeSignatureSelect).toHaveValue('3/4');
-    // A dropdown change rewrites the stated phrase in place, without pressing Apply,
-    // and the saved style stays selected.
+    // A dropdown change rewrites the stated phrase in place, and the saved style stays selected.
     await musicalKeySelect.selectOption('F Minor');
-    await expect(page.locator('[data-testid="create-form-styles-wrapper"] textarea')).toHaveValue('orchestral rock, key of F Minor, tempo of 92 BPM in 3/4 time');
+    await expect(styleTextarea).toHaveValue('orchestral rock, key of F Minor, tempo of 92 BPM in 3/4 time');
     await expect(stylesHost.getByRole('button', { name: /^スタイル:/ })).toContainText('Keyed');
-    await expect(stylesHost.getByRole('button', { name: 'スタイルに反映' })).toBeDisabled();
+    // Clearing a dropdown never deletes the phrase, and the dropdown shows what the text says.
+    await musicalKeySelect.selectOption('');
+    await expect(musicalKeySelect).toHaveValue('F Minor');
+    await expect(styleTextarea).toHaveValue('orchestral rock, key of F Minor, tempo of 92 BPM in 3/4 time');
+    // Typing a tempo writes nothing; leaving the field commits it once.
+    await musicalTempoInput.fill('100');
+    await flushTimers();
+    await expect(styleTextarea).toHaveValue('orchestral rock, key of F Minor, tempo of 92 BPM in 3/4 time');
+    await musicalTempoInput.blur();
+    await expect(styleTextarea).toHaveValue('orchestral rock, key of F Minor, tempo of 100 BPM in 3/4 time');
+    // A key or meter the Style states but the picker does not list is still shown, not blanked.
+    await styleTextarea.fill('key of Cb Major in 11/16 time');
+    await expect(musicalKeySelect).toHaveValue('Cb Major');
+    await expect(musicalTimeSignatureSelect).toHaveValue('11/16');
+    await styleTextarea.fill('orchestral rock, key of F Minor, tempo of 100 BPM in 3/4 time');
+    await expect(musicalKeySelect).toHaveValue('F Minor');
     await page.reload();
     await expect(page.locator('suno-create-assistant[data-suno-create-assistant="title"]')).toHaveCount(1);
     await expect(page.locator('suno-create-assistant[data-suno-create-assistant="title"]').getByRole('checkbox', { name: '自動設定' })).toBeChecked();

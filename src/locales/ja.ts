@@ -67,7 +67,6 @@ export const jaUiMessages: UiMessages = {
   key: 'キー',
   tempo: 'テンポ',
   timeSignature: '拍子',
-  applyToStyle: 'スタイルに反映',
   noMusicalSettingsDetected: 'スタイルからキー・テンポ・拍子を検出できませんでした。',
   musicalSettingsConflict: '複数の候補が見つかりました。内容を確認してから反映してください。',
   aria: {
