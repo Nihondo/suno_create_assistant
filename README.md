@@ -56,12 +56,9 @@ The Preset dropdown appears directly under the **More Options** heading, so it s
 - Use **Manage presets…** inside the dropdown to edit or delete existing presets.
 - Applying a preset changes only the settings it includes; everything else is left as-is.
 
-### Recent workspace switcher
+### Recent workspace switcher (temporarily disabled)
 
-The extension adds an orange-outlined **Recent Workspaces** dropdown in the workspace header, immediately before the **Workspaces > …** breadcrumb. The breadcrumb shifts right so neither pane nor a song-details panel is covered.
-
-- Open it to choose from the ten most recently used workspaces shown by Suno.
-- Selecting an item delegates the switch to Suno's own visible workspace row, so the list stays in sync with renamed or archived workspaces without calling a private API or storing workspace data.
+The Recent Workspaces dropdown is temporarily hidden. Suno's current workspace breadcrumb navigates to its workspace index instead of opening the in-page chooser the feature uses. Use Suno's workspace navigation until an in-page chooser is available again.
 
 ### Automatic titles and take numbers
 

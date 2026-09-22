@@ -145,8 +145,8 @@ test('mounts the Suno controls beside their anchors, survives host removal, and 
     await cdp.send('Runtime.enable');
     await page.goto('https://suno.com/create');
     await page.locator('suno-create-assistant').first().waitFor();
-    // lyrics, styles (including musical settings), presets, title, sidebar, settings dialog, and workspace switcher.
-    expect(await page.locator('suno-create-assistant').count(), extensionErrors.join('\n')).toBe(7);
+    // lyrics, styles (including musical settings), presets, title, sidebar, and settings dialog.
+    expect(await page.locator('suno-create-assistant').count(), extensionErrors.join('\n')).toBe(6);
 
     // Verify sidebar settings button is mounted after hooks link, in light DOM
     const sidebarHost = page.locator('suno-create-assistant[data-suno-create-assistant="sidebar"]');
@@ -533,25 +533,12 @@ test('mounts the Suno controls beside their anchors, survives host removal, and 
     await expect(dialog.getByRole('heading', { name: 'テイク履歴' })).toBeVisible();
     await expect(dialog.getByText('まだ記録がありません。')).toBeVisible();
 
-    // The switcher stays fixed immediately left of the workspace breadcrumb
-    // and uses the same orange border treatment as the other extension controls.
+    // WorkspaceSwitcher is deliberately kept in the source but disabled:
+    // Suno's current breadcrumb navigates to the workspace index instead of
+    // opening the in-place native chooser the feature requires.
     const workspaceHost = page.locator('suno-create-assistant[data-suno-create-assistant="workspaces"]');
-    const workspaceTrigger = workspaceHost.getByRole('button', { name: /^最近のワークスペース:/ });
-    await expect(workspaceTrigger).toBeVisible();
-    await expect(workspaceHost.locator('.suno-assistant--workspace-switcher')).toHaveCSS('border-top-color', 'rgba(234, 122, 59, 0.45)');
-    await expect(page.locator('suno-create-assistant[data-suno-create-assistant="workspaces"] + #workspace-breadcrumb')).toHaveCount(1);
-    await expect(workspaceHost.locator('.suno-assistant--workspace-switcher')).toHaveCSS('position', 'static');
-    const [workspaceHostBox, workspaceBreadcrumbBox] = await Promise.all([
-      workspaceHost.boundingBox(),
-      page.locator('#workspace-breadcrumb').boundingBox(),
-    ]);
-    expect(workspaceHostBox).not.toBeNull();
-    expect(workspaceBreadcrumbBox).not.toBeNull();
-    expect(workspaceHostBox!.x + workspaceHostBox!.width).toBeLessThanOrEqual(workspaceBreadcrumbBox!.x);
-    expect(Math.abs(
-      workspaceHostBox!.y + workspaceHostBox!.height / 2
-      - (workspaceBreadcrumbBox!.y + workspaceBreadcrumbBox!.height / 2),
-    )).toBeLessThan(8);
+    await expect(workspaceHost).toHaveCount(0);
+    await expect(page.locator('#workspace-breadcrumb')).toBeVisible();
 
     // Suno is an SPA: the extension must start when the URL becomes /create
     // through client-side navigation (no reload), and stop when it leaves.

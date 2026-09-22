@@ -9,6 +9,12 @@ import { createClipLinker } from '../src/suno/clip-linker';
 import { SunoController } from '../src/suno/controller';
 import { isCreatePath, isPageNavigation } from '../src/suno/route';
 
+// Suno's workspace breadcrumb now navigates to its workspace index instead
+// of opening the visible chooser used by WorkspaceSwitcher. Keep the feature
+// implementation in place, but do not mount or interact with it until Suno
+// provides a stable in-page chooser again.
+const WORKSPACE_SWITCHER_ENABLED = false;
+
 // Builds the whole assistant (controller, mounts, observers, shortcuts) and
 // returns its teardown. Called when the page becomes /create and torn down
 // when the user navigates away, since Suno is an SPA and this script is
@@ -107,8 +113,14 @@ function startAssistant(): () => void {
     // regardless of which tab is selected so it never disappears while
     // the user is interacting with it.
     mounter.mount('settings', { anchor: document.body, position: 'beforeend' }, () => <SettingsDialog controller={controller} />, theme);
-    const workspaceBreadcrumb = controller.adapter.workspaceListTrigger();
-    mounter.mount('workspaces', { anchor: workspaceBreadcrumb, position: 'beforebegin' }, () => <WorkspaceSwitcher controller={controller} />, theme);
+    if (WORKSPACE_SWITCHER_ENABLED) {
+      const workspaceBreadcrumb = controller.adapter.workspaceListTrigger();
+      mounter.mount('workspaces', { anchor: workspaceBreadcrumb, position: 'beforebegin' }, () => <WorkspaceSwitcher controller={controller} />, theme);
+    } else {
+      // An undefined anchor removes any pre-existing host without calling
+      // Suno's workspace breadcrumb or rendering the disabled feature.
+      mounter.mount('workspaces', { anchor: undefined, position: 'beforebegin' }, () => null, theme);
+    }
 
     const sidebarPlacement = controller.adapter.sidebarPlacement();
     if (sidebarPlacement) {
