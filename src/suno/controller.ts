@@ -7,6 +7,7 @@ import {
   extractTakeKey,
   hasTakePlaceholder,
   deriveStyleSelection,
+  mergeStyleSources,
   optionFieldsMatch,
   readableOptionFields,
   replaceTakePlaceholder,
@@ -14,7 +15,9 @@ import {
 } from '../domain/logic';
 import {
   type ApplyResult,
+  type CustomStyle,
   DEFAULT_LYRICS_TAGS,
+  DEFAULT_STYLE_SOURCE,
   type MasteringPrompt,
   type MusicalSettings,
   type MusicalSettingsDetection,
@@ -23,6 +26,7 @@ import {
   type OtherOptionsKey,
   type OtherOptionsPreset,
   type SavedStyle,
+  type StyleSource,
   type TakeRecord,
 } from '../domain/models';
 import {
@@ -33,6 +37,7 @@ import {
   saveTitleFormat,
   setAutoTitleEnabled,
   setCloseDisclosuresOnAdvanced,
+  setStyleSource,
   subscribeStorage,
 } from '../storage/repository';
 import { describeSkipped, SunoAdapter } from './adapter';
@@ -44,7 +49,7 @@ import {
   getUiMessages,
 } from '../locales';
 
-export type SettingsSection = 'masterings' | 'presets' | 'titleFormat' | 'display' | 'lyricsTags' | 'backup' | 'takeHistory' | 'about';
+export type SettingsSection = 'styles' | 'masterings' | 'presets' | 'titleFormat' | 'display' | 'lyricsTags' | 'backup' | 'takeHistory' | 'about';
 export type SettingsAction = 'create-preset' | 'reuse-as-preset';
 
 export interface Feedback {
@@ -56,6 +61,7 @@ export interface ControllerState {
   styles: SavedStyle[];
   stylesLoading: boolean;
   stylesDirty: boolean;
+  styleSource: StyleSource;
   style?: SavedStyle;
   isCustomStyle: boolean;
   mastering?: MasteringPrompt;
@@ -81,6 +87,7 @@ export class SunoController {
     styles: [],
     stylesLoading: false,
     stylesDirty: true,
+    styleSource: DEFAULT_STYLE_SOURCE,
     isCustomStyle: false,
     isCustomPreset: false,
     autoTitleEnabled: false,
@@ -107,6 +114,11 @@ export class SunoController {
   private programmaticStyleWrite = false;
   private refreshingStyles = false;
   private stylesRefresh?: Promise<void>;
+  // The two raw sources state.styles is merged from (see applyStyleSources).
+  // sunoStyles is only populated once refreshStyles() has actually opened
+  // Suno's native dialog; customStyles/state.styleSource come from storage.
+  private sunoStyles: SavedStyle[] = [];
+  private customStyles: CustomStyle[] = [];
   private isExecutingCreate = false;
   private unsubscribeStorage?: () => void;
 
@@ -124,6 +136,9 @@ export class SunoController {
     this.state.titleFormat = stored.titleFormat ?? DEFAULT_TITLE_FORMAT;
     this.state.closeDisclosuresOnAdvanced = stored.closeDisclosuresOnAdvanced ?? true;
     this.state.lyricsTags = stored.lyricsTags ?? [...DEFAULT_LYRICS_TAGS];
+    this.customStyles = stored.customStyles ?? [];
+    this.state.styleSource = stored.styleSource ?? DEFAULT_STYLE_SOURCE;
+    this.applyStyleSources();
     this.adapter.setTitleReadOnly(this.state.autoTitleEnabled);
     this.updateAutoTitle();
     this.unsubscribeStorage = subscribeStorage(async () => {
@@ -141,6 +156,26 @@ export class SunoController {
       const freshPreset = (preset?: OtherOptionsPreset) => preset && updated.optionPresets.find((item) => item.id === preset.id);
       if (this.state.preset) this.state.preset = freshPreset(this.state.preset);
       this.rememberedPreset = freshPreset(this.rememberedPreset);
+      const nextCustomStyles = updated.customStyles ?? [];
+      const nextStyleSource = updated.styleSource ?? DEFAULT_STYLE_SOURCE;
+      // Leaving 'custom' means Suno's list has never been read (or is stale)
+      // since the dropdown was disabled from opening it - force a re-read.
+      if (nextStyleSource !== this.state.styleSource && nextStyleSource !== 'custom') this.state.stylesDirty = true;
+      this.customStyles = nextCustomStyles;
+      this.state.styleSource = nextStyleSource;
+      this.applyStyleSources();
+      // A custom style the user just deleted (or a source switch that drops
+      // it from the merged list) must not stay selected. The Style text
+      // itself is untouched, so it becomes a hand-edited custom prompt.
+      // state.style can only be set via selectStyle() with an entry that was
+      // a member of state.styles at the time (StyleControls always passes
+      // one of its own MenuItem values), so an empty merged list here is
+      // never mistaken for "Suno's list has not loaded yet" - it always
+      // means the previously-selected entry genuinely dropped out.
+      if (this.state.style && !this.state.styles.some((item) => item.id === this.state.style?.id)) {
+        this.state.style = undefined;
+        this.state.isCustomStyle = true;
+      }
       if (updated.autoTitleEnabled !== this.state.autoTitleEnabled) {
         this.state.autoTitleEnabled = updated.autoTitleEnabled;
         this.adapter.setTitleReadOnly(updated.autoTitleEnabled);
@@ -184,8 +219,26 @@ export class SunoController {
     return this.stylesRefresh;
   }
 
+  // Recomputes state.styles from the two raw sources. Called whenever either
+  // one changes (Suno list re-read, custom list edited in storage, or the
+  // source setting itself changed) so downstream code (deriveStyleSelection,
+  // StyleControls, take-history styleName, {{STYLE}}) only ever reads the
+  // merged, display-ready list and never needs to know about the split.
+  private applyStyleSources(): void {
+    this.state.styles = mergeStyleSources(this.customStyles, this.sunoStyles, this.state.styleSource);
+  }
+
   private async loadStyles(): Promise<void> {
-    if (!this.state.stylesDirty && this.state.styles.length) return;
+    // In 'custom' mode the extension must never open Suno's native dialog.
+    if (this.state.styleSource === 'custom') {
+      this.applyStyleSources();
+      this.emit();
+      return;
+    }
+    if (!this.state.stylesDirty && this.sunoStyles.length) {
+      this.applyStyleSources();
+      return;
+    }
     this.state.stylesLoading = true;
     this.state.styleFeedback = undefined;
     this.emit();
@@ -193,11 +246,11 @@ export class SunoController {
       // The adapter opens Suno's native saved-styles dialog to read it.  Its
       // own click must not make the cache dirty again.
       this.refreshingStyles = true;
-      const styles = await this.adapter.extractSavedStyles();
-      this.state.styles = styles;
+      this.sunoStyles = await this.adapter.extractSavedStyles();
       this.state.stylesDirty = false;
+      this.applyStyleSources();
       const ui = getUiMessages();
-      if (!styles.length) this.state.styleFeedback = { kind: 'error', message: ui.feedback.noSavedStyles };
+      if (!this.state.styles.length) this.state.styleFeedback = { kind: 'error', message: ui.feedback.noSavedStyles };
     } catch (error) {
       const ui = getUiMessages();
       this.state.styleFeedback = { kind: 'error', message: error instanceof Error ? error.message : ui.feedback.failedUpdateStyles };
@@ -206,6 +259,23 @@ export class SunoController {
       this.state.stylesLoading = false;
       this.emit();
     }
+  }
+
+  async setStyleSource(source: StyleSource): Promise<void> {
+    const sourceChanged = source !== this.state.styleSource;
+    this.state.styleSource = source;
+    this.applyStyleSources();
+    // Leaving 'custom' means Suno's list has never been read (or is stale)
+    // since the dropdown was disabled from opening it - force a re-read.
+    if (sourceChanged && source !== 'custom') this.state.stylesDirty = true;
+    // A style that dropped out of the merged list (e.g. switching to
+    // 'suno' while a custom style was selected) must not stay selected.
+    if (this.state.style && !this.state.styles.some((item) => item.id === this.state.style?.id)) {
+      this.state.style = undefined;
+      this.state.isCustomStyle = true;
+    }
+    this.emit();
+    await setStyleSource(source);
   }
 
   async selectStyle(style?: SavedStyle): Promise<void> {

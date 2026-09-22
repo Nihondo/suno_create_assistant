@@ -560,6 +560,21 @@
 
 .suno-assistant__dialog-body textarea { min-height: 80px; resize: vertical; }
 
+.suno-assistant__dialog-body select {
+  min-height: 32px;
+  padding: 5px 8px;
+  border-radius: 8px;
+  border: 1px solid var(--sca-border-solid);
+  background: var(--sca-bg-input);
+  color: var(--sca-fg);
+  font: inherit;
+}
+
+.suno-assistant__dialog-body select:focus-visible {
+  outline: 2px solid var(--sca-accent);
+  outline-offset: 2px;
+}
+
 .suno-assistant__list { list-style: none; margin: 8px 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
 .suno-assistant__list li {
   display: flex;

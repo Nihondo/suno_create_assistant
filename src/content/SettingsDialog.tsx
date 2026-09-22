@@ -1,7 +1,7 @@
 import { useEffect, useId, useMemo, useRef, useState, type ChangeEvent } from 'react';
 import { autoTitle, DEFAULT_TITLE_FORMAT, formatLyricsTags, formatPreset, parseLyricsTags, readableOptionFields, replaceTakePlaceholder, validateUniqueName } from '../domain/logic';
-import { DEFAULT_LYRICS_TAGS, DEFAULT_TAKE_HISTORY_LIMIT, emptyOtherOptions, optionKeys, type MasteringPrompt, type OtherOptionsKey, type OtherOptionsPreset, type OtherOptionsSnapshot, type TakeRecord, type VocalGender } from '../domain/models';
-import { clearTakeHistory, deleteMastering, deletePreset, deleteTakeRecord, exportBackup, parseBackup, replaceStorage, saveMastering, savePreset, setTakeHistoryLimit } from '../storage/repository';
+import { DEFAULT_LYRICS_TAGS, DEFAULT_TAKE_HISTORY_LIMIT, emptyOtherOptions, optionKeys, type CustomStyle, type MasteringPrompt, type OtherOptionsKey, type OtherOptionsPreset, type OtherOptionsSnapshot, type StyleSource, type TakeRecord, type VocalGender } from '../domain/models';
+import { clearTakeHistory, deleteCustomStyle, deleteMastering, deletePreset, deleteTakeRecord, exportBackup, parseBackup, replaceStorage, saveCustomStyle, saveMastering, savePreset, setTakeHistoryLimit } from '../storage/repository';
 import type { SettingsSection, SunoController } from '../suno/controller';
 import { useController, useStoredLists } from './components';
 import { getUiMessages, type UiMessages } from '../locales';
@@ -19,7 +19,7 @@ function cloneFields(fields: Partial<OtherOptionsSnapshot>): Partial<OtherOption
 // Order and identity of the sidebar's section tabs. Labels are resolved
 // from `ui.dialog.*Heading` at render time (see sectionLabel below) so this
 // stays language-agnostic.
-const SECTION_ORDER: SettingsSection[] = ['display', 'lyricsTags', 'masterings', 'presets', 'titleFormat', 'takeHistory', 'backup', 'about'];
+const SECTION_ORDER: SettingsSection[] = ['display', 'lyricsTags', 'styles', 'masterings', 'presets', 'titleFormat', 'takeHistory', 'backup', 'about'];
 
 // Generic (non-brand) glyphs, one per tab, purely as a visual anchor next
 // to each label - matching the icon-before-label pattern of the reference
@@ -29,6 +29,7 @@ const SECTION_ICON_PATHS: Record<SettingsSection, string> = {
   display: 'M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5C21.27 7.61 17 4.5 12 4.5m0 12.5c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5m0-8a3 3 0 1 0 0 6 3 3 0 0 0 0-6',
   lyricsTags: 'M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3z',
   backup: 'M19 12v7H5v-7H3v7a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7zM13 12.67l2.59-2.58L17 11.5l-5 5-5-5 1.41-1.41L11 12.67V3h2z',
+  styles: 'M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z',
   masterings: 'M17 3H7a2 2 0 0 0-2 2v16l7-3 7 3V5a2 2 0 0 0-2-2',
   presets: 'M3 17v2h6v-2zM3 5v2h10V5zm10 16v-2h8v-2h-8v-2h-2v6zM7 9v2H3v2h4v2h2V9zm14 4v-2H11v2zm-6-4h2V7h4V5h-4V3h-2v6z',
   takeHistory: 'M13 3a9 9 0 0 0-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42A8.954 8.954 0 0 0 13 21a9 9 0 0 0 0-18m-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8z',
@@ -62,6 +63,7 @@ function sectionLabel(section: SettingsSection, ui: UiMessages): string {
     case 'display': return ui.dialog.displayHeading;
     case 'lyricsTags': return ui.dialog.lyricsTagsHeading;
     case 'backup': return ui.dialog.backupHeading;
+    case 'styles': return ui.dialog.customStyleHeading;
     case 'masterings': return ui.dialog.masteringHeading;
     case 'presets': return ui.dialog.presetHeading;
     case 'takeHistory': return ui.dialog.takeHistoryHeading;
@@ -72,7 +74,7 @@ function sectionLabel(section: SettingsSection, ui: UiMessages): string {
 
 export function SettingsDialog({ controller }: { controller: SunoController }) {
   const state = useController(controller);
-  const { masterings, presets, takeHistory, takeHistoryLimit } = useStoredLists();
+  const { customStyles, masterings, presets, takeHistory, takeHistoryLimit } = useStoredLists();
   const dialogRef = useRef<HTMLDialogElement>(null);
   const activeSection: SettingsSection = state.settings?.section ?? 'display';
   const [titleFormat, setTitleFormat] = useState(state.titleFormat);
@@ -81,6 +83,8 @@ export function SettingsDialog({ controller }: { controller: SunoController }) {
   const [lyricsTagsSavedNotice, setLyricsTagsSavedNotice] = useState(false);
   const [historyLimitText, setHistoryLimitText] = useState(String(takeHistoryLimit));
   const [historyLimitSavedNotice, setHistoryLimitSavedNotice] = useState(false);
+  const [editingCustomStyle, setEditingCustomStyle] = useState<CustomStyle>();
+  const [customStyleForm, setCustomStyleForm] = useState<{ name: string; prompt: string }>();
   const [editingMastering, setEditingMastering] = useState<MasteringPrompt>();
   const [masteringForm, setMasteringForm] = useState<{ name: string; prompt: string }>();
   const [editingPreset, setEditingPreset] = useState<OtherOptionsPreset>();
@@ -123,6 +127,8 @@ export function SettingsDialog({ controller }: { controller: SunoController }) {
 
   useEffect(() => {
     if (open) return;
+    setCustomStyleForm(undefined);
+    setEditingCustomStyle(undefined);
     setMasteringForm(undefined);
     setEditingMastering(undefined);
     setPresetForm(undefined);
@@ -152,6 +158,24 @@ export function SettingsDialog({ controller }: { controller: SunoController }) {
   }, [open, state.settings?.section, state.settings?.action, controller]);
 
   const close = () => controller.closeSettings();
+
+  const startCustomStyle = (item?: CustomStyle) => {
+    setEditingCustomStyle(item);
+    setCustomStyleForm({ name: item?.name ?? '', prompt: item?.prompt ?? '' });
+    setLocalError(undefined);
+  };
+  const cancelCustomStyle = () => { setCustomStyleForm(undefined); setEditingCustomStyle(undefined); };
+  const saveCurrentCustomStyle = async () => {
+    const name = customStyleForm!.name.trim();
+    const prompt = customStyleForm!.prompt.trim();
+    const ui = getUiMessages();
+    const issue = validateUniqueName(name, customStyles, editingCustomStyle?.id)
+      ?? (!prompt ? ui.feedback.promptRequired : undefined)
+      ?? (prompt.length > 1000 ? ui.feedback.promptTooLong(1000) : undefined);
+    if (issue) { setLocalError(issue); return; }
+    await saveCustomStyle({ id: editingCustomStyle?.id, name, prompt });
+    cancelCustomStyle();
+  };
 
   const startMastering = (item?: MasteringPrompt) => {
     setEditingMastering(item);
@@ -405,6 +429,44 @@ export function SettingsDialog({ controller }: { controller: SunoController }) {
             {lyricsTagsSavedNotice && <span className="suno-assistant__format-saved">{ui.dialog.lyricsTagsSavedNotice}</span>}
           </div>
         </div>
+      </section>}
+
+      {activeSection === 'styles' && <section aria-labelledby="suno-assistant-style-heading">
+        <h3 id="suno-assistant-style-heading">{ui.dialog.customStyleHeading}</h3>
+        <label className="suno-assistant__dialog-toggle-label">
+          {ui.dialog.styleSourceLabel}
+          <select
+            value={state.styleSource}
+            onChange={(event) => void controller.setStyleSource(event.target.value as StyleSource)}
+          >
+            <option value="merged">{ui.dialog.styleSourceMerged}</option>
+            <option value="custom">{ui.dialog.styleSourceCustom}</option>
+            <option value="suno">{ui.dialog.styleSourceSuno}</option>
+          </select>
+        </label>
+        <p className="suno-assistant__hint">{ui.dialog.styleSourceHint}</p>
+        <p className="suno-assistant__hint">{ui.dialog.customStyleHint}</p>
+        {!customStyleForm && <>
+          <ul className="suno-assistant__list">
+            {customStyles.map((item) => <li key={item.id}>
+              <div><strong>{item.name}</strong><p>{item.prompt}</p></div>
+              <div className="suno-assistant__list-actions">
+                <button type="button" onClick={() => startCustomStyle(item)}>{ui.dialog.edit}</button>
+                <button type="button" onClick={() => void deleteCustomStyle(item.id)}>{ui.dialog.delete}</button>
+              </div>
+            </li>)}
+          </ul>
+          {!customStyles.length && <p className="suno-assistant__hint">{ui.dialog.notRegisteredYet}</p>}
+          <button type="button" className="suno-assistant__button" onClick={() => startCustomStyle()}>{ui.dialog.add}</button>
+        </>}
+        {customStyleForm && <form onSubmit={(event) => { event.preventDefault(); void saveCurrentCustomStyle(); }}>
+          <label>{ui.dialog.customStyleName}<input type="text" value={customStyleForm.name} onChange={(event) => setCustomStyleForm((current) => ({ ...current!, name: event.target.value }))} /></label>
+          <label>{ui.dialog.customStylePrompt}<textarea value={customStyleForm.prompt} maxLength={1000} onChange={(event) => setCustomStyleForm((current) => ({ ...current!, prompt: event.target.value }))} /></label>
+          <div className="suno-assistant__dialog-actions">
+            <button type="button" onClick={cancelCustomStyle}>{ui.dialog.cancel}</button>
+            <button type="submit">{ui.dialog.save}</button>
+          </div>
+        </form>}
       </section>}
 
       {activeSection === 'masterings' && <section aria-labelledby="suno-assistant-mastering-heading">

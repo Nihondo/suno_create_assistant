@@ -103,7 +103,7 @@ export interface UiMessages {
     titleFormatInput: string;
     lyricsTagPalette: string;
     editLyricsTags: string;
-    editMasterings: string;
+    editStyles: string;
     editPresets: string;
     editTitleFormat: string;
     reuseParameters: string;
@@ -144,6 +144,15 @@ export interface UiMessages {
     lyricsTagsHint: string;
     saveLyricsTags: string;
     lyricsTagsSavedNotice: string;
+    customStyleHeading: string;
+    customStyleHint: string;
+    customStyleName: string;
+    customStylePrompt: string;
+    styleSourceLabel: string;
+    styleSourceMerged: string;
+    styleSourceCustom: string;
+    styleSourceSuno: string;
+    styleSourceHint: string;
     masteringHeading: string;
     masteringHint: string;
     masteringName: string;

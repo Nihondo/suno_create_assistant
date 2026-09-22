@@ -109,6 +109,15 @@ describe('SunoController feedback scopes', () => {
 
     expect(current().settings).toEqual({ section: 'display', action: undefined });
   });
+
+  it('sets section to styles when openSettings("styles") is called', () => {
+    const controller = new SunoController();
+    const current = watch(controller);
+
+    controller.openSettings('styles');
+
+    expect(current().settings).toEqual({ section: 'styles', action: undefined });
+  });
 });
 
 describe('SunoController executeCreateWithTake and title format', () => {
@@ -209,8 +218,11 @@ describe('SunoController style/mastering selection follows the Style text', () =
     vi.spyOn(controller.adapter, 'setStylePrompt').mockImplementation((value) => { textarea.value = value; return true; });
     vi.spyOn(controller.adapter, 'getStylePrompt').mockImplementation(() => textarea.value);
     const current = watch(controller);
-    (controller as unknown as { state: ControllerState }).state.styles = [cityPop, jazz];
     await controller.initialize();
+    // initialize() recomputes state.styles from storage (customStyles) and
+    // whatever Suno list has been fetched so far (empty here) - seed the
+    // saved-style list for prompt matching only after that settles.
+    (controller as unknown as { state: ControllerState }).state.styles = [cityPop, jazz];
     await controller.selectStyle(cityPop);
     await controller.selectMastering(mastering);
     return { controller, textarea, current };
@@ -434,6 +446,75 @@ describe('SunoController style/mastering selection follows the Style text', () =
     vi.spyOn(controller.adapter, 'styleTextarea').mockReturnValue(undefined);
     controller.reconcile();
     expect(current().style?.id).toBe('s1');
+  });
+});
+
+describe('SunoController custom style list and styleSource', () => {
+  beforeEach(() => {
+    for (const key of Object.keys(storageMock)) delete storageMock[key];
+  });
+
+  it('never opens Suno\'s native saved-styles dialog while styleSource is custom', async () => {
+    storageMock.sunoCreateAssistant = {
+      schemaVersion: 2, masteringPrompts: [], optionPresets: [], autoTitleEnabled: false,
+      takeHistory: [], customStyles: [{ id: 'c1', name: 'Lo-fi', prompt: 'lofi chill', createdAt: '', updatedAt: '' }],
+      styleSource: 'custom',
+    };
+    const controller = new SunoController();
+    const extractSpy = vi.spyOn(controller.adapter, 'extractSavedStyles');
+    const current = watch(controller);
+
+    await controller.initialize();
+    await controller.refreshStyles();
+
+    expect(extractSpy).not.toHaveBeenCalled();
+    expect(current().styles).toEqual([{ id: 'c1', name: 'Lo-fi', prompt: 'lofi chill' }]);
+  });
+
+  it('merges custom styles ahead of Suno styles when styleSource is merged (the default)', async () => {
+    storageMock.sunoCreateAssistant = {
+      schemaVersion: 2, masteringPrompts: [], optionPresets: [], autoTitleEnabled: false,
+      takeHistory: [], customStyles: [{ id: 'c1', name: 'Lo-fi', prompt: 'lofi chill', createdAt: '', updatedAt: '' }],
+    };
+    const controller = new SunoController();
+    vi.spyOn(controller.adapter, 'extractSavedStyles').mockResolvedValue([{ id: 's1', name: 'City Pop', prompt: '80s city pop' }]);
+    const current = watch(controller);
+
+    await controller.initialize();
+    await controller.refreshStyles();
+
+    expect(current().styles.map((s) => s.name)).toEqual(['Lo-fi', 'City Pop']);
+  });
+
+  it('deselects a custom style that is removed from storage, without touching the Style text', async () => {
+    storageMock.sunoCreateAssistant = {
+      schemaVersion: 2, masteringPrompts: [], optionPresets: [], autoTitleEnabled: false,
+      takeHistory: [], customStyles: [{ id: 'c1', name: 'Lo-fi', prompt: 'lofi chill', createdAt: '', updatedAt: '' }],
+      styleSource: 'custom',
+    };
+    const controller = new SunoController();
+    const current = watch(controller);
+    await controller.initialize();
+    await controller.refreshStyles();
+    await controller.selectStyle(current().styles[0]);
+    expect(current().style?.id).toBe('c1');
+
+    // Simulate the settings dialog deleting the style: storage changes out
+    // from under the controller and its onChanged listener fires. The
+    // registered handler is subscribeStorage()'s (changes, area) wrapper,
+    // not the controller's raw callback - it only re-reads on a 'local'
+    // change to our own key (see repository.ts's subscribeStorage()).
+    storageMock.sunoCreateAssistant = { ...(storageMock.sunoCreateAssistant as object), customStyles: [] };
+    const [handler] = (globalThis.chrome.storage.onChanged.addListener as ReturnType<typeof vi.fn>).mock.calls.at(-1) ?? [];
+    // The registered handler is subscribeStorage()'s synchronous (changes,
+    // area) wrapper; it fires the controller's async listener without
+    // awaiting it, so give that listener's readStorage()/emit() a tick to
+    // finish before asserting.
+    handler?.({ sunoCreateAssistant: {} }, 'local');
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(current().style).toBeUndefined();
+    expect(current().isCustomStyle).toBe(true);
   });
 });
 

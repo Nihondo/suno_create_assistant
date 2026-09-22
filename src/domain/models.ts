@@ -9,6 +9,24 @@ export interface MasteringPrompt {
   updatedAt: string;
 }
 
+// A style prompt the user maintains in the extension itself, independent of
+// Suno's own saved styles (which the extension only reads, never persists -
+// see SavedStyle below). Structurally identical to MasteringPrompt so the
+// same save/delete/validate patterns apply.
+export interface CustomStyle {
+  id: string;
+  name: string;
+  prompt: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Which source(s) feed the style dropdown (see mergeStyleSources in
+// src/domain/logic.ts). 'custom' must never trigger opening Suno's native
+// saved-styles dialog - see SunoController.loadStyles().
+export type StyleSource = 'merged' | 'custom' | 'suno';
+export const DEFAULT_STYLE_SOURCE: StyleSource = 'merged';
+
 export interface OtherOptionsSnapshot {
   excludedStyles: string;
   vocalGender: VocalGender;
@@ -104,6 +122,8 @@ export interface StorageSchemaV2 {
   lyricsTags?: string[];
   takeHistory: TakeRecord[];
   takeHistoryLimit?: number;
+  customStyles?: CustomStyle[];
+  styleSource?: StyleSource;
 }
 
 export type StorageSchema = StorageSchemaV2;

@@ -61,6 +61,10 @@ describe('locales module', () => {
     expect(getUiMessages('ja').autoTitle).toBe('自動設定');
     expect(getUiMessages('en').dialog.aboutHeading).toBe('About Suno Create Assistant');
     expect(getUiMessages('ja').dialog.aboutHeading).toBe('Suno Create Assistant について');
+    expect(getUiMessages('en').dialog.customStyleHeading).toBe('Styles');
+    expect(getUiMessages('ja').dialog.customStyleHeading).toBe('スタイル');
+    expect(getUiMessages('en').aria.editStyles).toBe('Manage Styles');
+    expect(getUiMessages('ja').aria.editStyles).toBe('スタイルを管理');
   });
 
   it('aggregates all title placeholders, destination keywords, and reset labels', () => {

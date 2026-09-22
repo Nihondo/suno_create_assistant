@@ -376,6 +376,47 @@ test('mounts the Suno controls beside their anchors, survives host removal, and 
     await dialog.locator('label').filter({ hasText: /^奇抜さ/ }).locator('input[type="range"]').fill('35');
     await dialog.getByRole('button', { name: '保存', exact: true }).click();
     await expect(dialog.getByText('奇抜さ: 35%')).toBeVisible();
+
+    // Custom style list: added via the same add/edit/delete form pattern as
+    // masterings/presets, but with its own gear-button entry point and a
+    // source select that can exclude Suno's own saved styles entirely.
+    await gotoTab('スタイル');
+    await expect(dialog.getByRole('heading', { name: 'スタイル' })).toBeVisible();
+    await expect(dialog.getByText('まだ登録されていません。')).toBeVisible();
+    await dialog.getByRole('button', { name: '追加' }).click();
+    await dialog.getByRole('textbox', { name: '名前' }).fill('Lo-fi Night');
+    await dialog.getByRole('textbox', { name: 'プロンプト' }).fill('lofi chill beats, vinyl crackle');
+    await dialog.getByRole('button', { name: '保存', exact: true }).click();
+    await expect(dialog.getByText('Lo-fi Night')).toBeVisible();
+
+    await dialog.getByRole('button', { name: '閉じる' }).click();
+    await expect(dialog.getByRole('heading', { name: 'Suno Create Assistant の設定' })).toBeHidden();
+
+    // Merged mode (the default): the custom style appears ahead of Suno's
+    // own saved styles ("ARIA", "Keyed") in the same dropdown.
+    await stylesHost.getByRole('button', { name: /^スタイル:/ }).click();
+    await expect(page.getByRole('option', { name: 'Lo-fi Night' })).toBeVisible();
+    await expect(page.getByRole('option', { name: 'ARIA' })).toBeVisible();
+    await page.getByRole('option', { name: 'Lo-fi Night' }).click();
+    await expect(stylesHost.getByRole('button', { name: /^スタイル:/ })).toContainText('Lo-fi Night');
+    await expect(page.locator('#styles textarea')).toHaveValue('lofi chill beats, vinyl crackle');
+
+    // Switching to "自前リストのみ" removes Suno's saved styles from the
+    // dropdown, leaving only the custom list.
+    await sidebarButton.click();
+    await gotoTab('スタイル');
+    await dialog.getByLabel('プルダウンに表示するスタイル').selectOption({ label: '自前リストのみ' });
+    await dialog.getByRole('button', { name: '閉じる' }).click();
+    await stylesHost.getByRole('button', { name: /^スタイル:/ }).click();
+    await expect(page.getByRole('option', { name: 'Lo-fi Night' })).toBeVisible();
+    await expect(page.getByRole('option', { name: 'ARIA' })).toHaveCount(0);
+    await page.keyboard.press('Escape');
+
+    // Restore merged mode so the rest of this test can still pick a Suno
+    // saved style ("ARIA") further below.
+    await sidebarButton.click();
+    await gotoTab('スタイル');
+    await dialog.getByLabel('プルダウンに表示するスタイル').selectOption({ label: '自前リストとSunoの保存済みスタイル' });
     await dialog.getByRole('button', { name: '閉じる' }).click();
     await expect(dialog.getByRole('heading', { name: 'Suno Create Assistant の設定' })).toBeHidden();
 

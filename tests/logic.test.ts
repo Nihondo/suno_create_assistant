@@ -16,6 +16,7 @@ import {
   formatTakeNumber,
   formatTime,
   hasTakePlaceholder,
+  mergeStyleSources,
   normalizedInsertTag,
   optionFieldsMatch,
   optionFieldSummaryLines,
@@ -24,7 +25,7 @@ import {
   splitMasteringPrompt,
   validateUniqueName,
 } from '../src/domain/logic';
-import { emptyOtherOptions, type MasteringPrompt, type OtherOptionsKey, type OtherOptionsSnapshot } from '../src/domain/models';
+import { emptyOtherOptions, type CustomStyle, type MasteringPrompt, type OtherOptionsKey, type OtherOptionsSnapshot, type SavedStyle } from '../src/domain/models';
 import { getUiMessages } from '../src/locales';
 
 describe('prompt composition', () => {
@@ -59,6 +60,37 @@ describe('splitMasteringPrompt', () => {
   it('recognizes no mastering when the text no longer ends with it, or when there is none', () => {
     expect(splitMasteringPrompt('80s city pop\nwarm master X', mastering)).toEqual({ base: '80s city pop\nwarm master X' });
     expect(splitMasteringPrompt('80s city pop', undefined)).toEqual({ base: '80s city pop' });
+  });
+});
+
+describe('mergeStyleSources', () => {
+  const customStyles: CustomStyle[] = [
+    { id: 'c1', name: 'Lo-fi Night', prompt: 'lofi chill beats', createdAt: '', updatedAt: '' },
+  ];
+  const sunoStyles: SavedStyle[] = [
+    { id: '0:City Pop:city pop 80s', name: 'City Pop', prompt: 'city pop 80s' },
+  ];
+
+  it('puts custom styles first, ahead of Suno styles, in merged mode', () => {
+    expect(mergeStyleSources(customStyles, sunoStyles, 'merged')).toEqual([
+      { id: 'c1', name: 'Lo-fi Night', prompt: 'lofi chill beats' },
+      { id: '0:City Pop:city pop 80s', name: 'City Pop', prompt: 'city pop 80s' },
+    ]);
+  });
+
+  it('returns only custom styles, stripped to id/name/prompt, in custom mode', () => {
+    expect(mergeStyleSources(customStyles, sunoStyles, 'custom')).toEqual([
+      { id: 'c1', name: 'Lo-fi Night', prompt: 'lofi chill beats' },
+    ]);
+  });
+
+  it('returns only Suno styles in suno mode', () => {
+    expect(mergeStyleSources(customStyles, sunoStyles, 'suno')).toEqual(sunoStyles);
+  });
+
+  it('returns an empty list when the active source has nothing', () => {
+    expect(mergeStyleSources([], [], 'merged')).toEqual([]);
+    expect(mergeStyleSources(customStyles, [], 'suno')).toEqual([]);
   });
 });
 

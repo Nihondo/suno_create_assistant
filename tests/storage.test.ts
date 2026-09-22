@@ -1,8 +1,9 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { DEFAULT_TAKE_HISTORY_LIMIT, type TakeRecord } from '../src/domain/models';
+import { DEFAULT_STYLE_SOURCE, DEFAULT_TAKE_HISTORY_LIMIT, type TakeRecord } from '../src/domain/models';
 import {
   appendTakeRecord,
   clearTakeHistory,
+  deleteCustomStyle,
   deleteTakeRecord,
   exportBackup,
   findTakeByClipId,
@@ -13,6 +14,8 @@ import {
   parseBackup,
   readStorage,
   replaceStorage,
+  saveCustomStyle,
+  setStyleSource,
   setTakeHistoryLimit,
   subscribeStorage,
   writeStorage,
@@ -74,6 +77,11 @@ describe('storage schema migration', () => {
     expect(result.closeDisclosuresOnAdvanced).toBe(false);
     expect(result.lyricsTags).toEqual(['[Intro]']);
     expect(result.takeHistory).toEqual([]);
+    // v1 data predates customStyles/styleSource entirely; readStorage() must
+    // fall back to empty/default rather than treating their absence as
+    // reason to reset the rest of the migrated data.
+    expect(result.customStyles).toEqual([]);
+    expect(result.styleSource).toBe(DEFAULT_STYLE_SOURCE);
   });
 
   it('does not reset an unknown future schema version, preserving its fields', async () => {
@@ -194,6 +202,45 @@ describe('take history', () => {
   });
 });
 
+describe('custom styles', () => {
+  beforeEach(() => {
+    mockChrome();
+  });
+
+  it('creates a new custom style and sorts the list by name', async () => {
+    await saveCustomStyle({ name: 'Zeta', prompt: 'zeta prompt' });
+    await saveCustomStyle({ name: 'Alpha', prompt: 'alpha prompt' });
+
+    const stored = await readStorage();
+    expect(stored.customStyles?.map((item) => item.name)).toEqual(['Alpha', 'Zeta']);
+  });
+
+  it('updates an existing custom style in place, preserving createdAt', async () => {
+    const created = await saveCustomStyle({ name: 'Lo-fi', prompt: 'lofi v1' });
+    const updated = await saveCustomStyle({ id: created.id, name: 'Lo-fi', prompt: 'lofi v2' });
+
+    expect(updated.createdAt).toBe(created.createdAt);
+    const stored = await readStorage();
+    expect(stored.customStyles).toHaveLength(1);
+    expect(stored.customStyles?.[0]?.prompt).toBe('lofi v2');
+  });
+
+  it('deletes a custom style', async () => {
+    const created = await saveCustomStyle({ name: 'Lo-fi', prompt: 'lofi' });
+    await deleteCustomStyle(created.id);
+
+    const stored = await readStorage();
+    expect(stored.customStyles).toEqual([]);
+  });
+
+  it('defaults styleSource to merged and persists a change', async () => {
+    expect((await readStorage()).styleSource).toBe(DEFAULT_STYLE_SOURCE);
+
+    await setStyleSource('custom');
+    expect((await readStorage()).styleSource).toBe('custom');
+  });
+});
+
 describe('concurrent storage writes', () => {
   beforeEach(() => {
     mockChrome();
@@ -245,6 +292,15 @@ describe('concurrent storage writes', () => {
 describe('backup export/import', () => {
   beforeEach(() => {
     mockChrome();
+  });
+
+  it('includes custom styles and the style source in the export', async () => {
+    await saveCustomStyle({ name: 'Lo-fi', prompt: 'lofi' });
+    await setStyleSource('suno');
+
+    const backup = await exportBackup(false);
+    expect(backup.customStyles?.map((item) => item.name)).toEqual(['Lo-fi']);
+    expect(backup.styleSource).toBe('suno');
   });
 
   it('excludes take history from the export when requested', async () => {

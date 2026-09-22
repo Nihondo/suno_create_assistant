@@ -16,7 +16,7 @@ Run `pnpm zip`. Upload `install/suno-create-assistant.zip` to the Chrome Web Sto
 
 ### Detailed description (English)
 
-Suno Create Assistant adds local productivity controls to the Advanced tab of Suno Create. Choose saved styles and your own mastering prompts, save reusable More Options presets, generate titles with take numbers, and reopen recent workspaces from the workspace header.
+Suno Create Assistant adds local productivity controls to the Advanced tab of Suno Create. Choose from Suno's saved styles, your own local style list, and your own mastering prompts, save reusable More Options presets, generate titles with take numbers, and reopen recent workspaces from the workspace header.
 
 Your settings stay in Chrome's local extension storage. The extension works only on `suno.com`, uses Suno's visible interface rather than private APIs, and has no developer-operated server, analytics, or advertising.
 
@@ -24,7 +24,7 @@ This is an unofficial, independent extension and is not affiliated with, endorse
 
 ### 詳細説明（日本語）
 
-Suno Create Assistant は、Suno Createのアドバンストタブへローカルで使える作業支援コントロールを追加します。保存済みスタイルと独自マスタリングプロンプトの選択、その他のオプションの再利用可能なプリセット、テイク番号付きの曲名自動設定、ワークスペース見出し行からの最近使ったワークスペース切り替えを利用できます。
+Suno Create Assistant は、Suno Createのアドバンストタブへローカルで使える作業支援コントロールを追加します。Sunoの保存済みスタイル、拡張機能側の自前スタイルリスト、独自マスタリングプロンプトの選択、その他のオプションの再利用可能なプリセット、テイク番号付きの曲名自動設定、ワークスペース見出し行からの最近使ったワークスペース切り替えを利用できます。
 
 設定はChromeの拡張機能用ローカルストレージに保存されます。拡張機能は `suno.com` でのみ動作し、非公開APIではなくSunoの可視UIを使用します。開発者が運営するサーバー、分析、広告はありません。
 

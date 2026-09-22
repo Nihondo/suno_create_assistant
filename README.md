@@ -30,8 +30,10 @@ Directly under the **Lyrics** heading, the extension adds a row of buttons (`Ins
 
 Directly under the **Style** heading, the extension adds a Style dropdown and a Mastering dropdown that stay visible whether the section is open or closed.
 
-- Choose a saved Suno style and, optionally, a mastering prompt of your own; both are written into the Style field on separate lines.
-- Use **Manage…** to add, edit, or delete your mastering prompts.
+- The Style dropdown can show your own **custom style list**, kept by the extension itself, alongside Suno's saved styles. Add, edit, and delete entries (name and prompt) under the **Styles** tab in the settings dialog.
+- Which of the two sources the dropdown shows is set in that same **Styles** tab: "Own list and Suno's saved styles" (the default), "Own list only", or "Suno's saved styles only". Choosing "Own list only" stops the extension from ever opening Suno's "Saved Styles" dialog.
+- Choose a saved style (from Suno or your own list) and, optionally, a mastering prompt of your own; both are written into the Style field on separate lines.
+- Use the gear icon on the Style row to manage your custom style list. Mastering prompts are added, edited, or deleted from the **Mastering Prompts** tab in the settings dialog's sidebar.
 - If you add, rename, or delete a saved style inside Suno, reopen the extension's dropdown to see the updated list.
 - If the combined style and mastering text would exceed Suno's 1,000-character limit, nothing is changed and an error is shown instead.
 
@@ -90,7 +92,7 @@ Press `Cmd + Enter` (macOS) or `Ctrl + Enter` (Windows/Linux) anywhere on the Su
 
 ![Extension Settings](./images/suno_setting.png)
 
-The extension adds an **Extension Settings** item with a gear icon to Suno's sidebar, just below Hooks. Click it to open the settings dialog, where you manage song title formats, display settings, mastering prompts, and presets.
+The extension adds an **Extension Settings** item with a gear icon to Suno's sidebar, just below Hooks. Click it to open the settings dialog, where you manage song title formats, display settings, your custom style list, mastering prompts, and presets.
 
 ### Auto-collapsed sections
 
@@ -109,11 +111,11 @@ Every time you press **Create**, the extension automatically records the Style, 
 
 ### Backup (export / import)
 
-Under **Backup** in the settings dialog, export all your settings — mastering prompts, presets, lyrics tags, title format, and (optionally) take history — as a JSON file, or import a previously exported file. Importing replaces all current settings, so use it to move settings to another computer, recover from a lost Chrome profile, or keep your own copy under version control. Nothing is ever sent anywhere; the file is written and read entirely on your device.
+Under **Backup** in the settings dialog, export all your settings — custom styles, mastering prompts, presets, lyrics tags, title format, and (optionally) take history — as a JSON file, or import a previously exported file. Importing replaces all current settings, so use it to move settings to another computer, recover from a lost Chrome profile, or keep your own copy under version control. Nothing is ever sent anywhere; the file is written and read entirely on your device.
 
 ## Privacy
 
-All your settings — mastering prompts, presets, take history, the Auto title preference, the title format, and take-number counters — are stored locally in your browser and never leave it. The extension does not call any private Suno API or send data to a developer-operated server, and it does not permanently store the saved-style prompts it reads from Suno's dialog. Exporting settings saves a file directly on your device; nothing is ever uploaded anywhere. See the [Privacy Policy](PRIVACY.md) for complete details.
+All your settings — your custom style list, mastering prompts, presets, take history, the Auto title preference, the title format, and take-number counters — are stored locally in your browser and never leave it. The extension does not call any private Suno API or send data to a developer-operated server, and it does not permanently store the saved-style prompts it reads from Suno's dialog. Exporting settings saves a file directly on your device; nothing is ever uploaded anywhere. See the [Privacy Policy](PRIVACY.md) for complete details.
 
 ## Disclaimer
 

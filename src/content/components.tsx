@@ -1,30 +1,33 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react';
 import { DEFAULT_TITLE_FORMAT, displayTagName, optionFieldSummaryLines } from '../domain/logic';
-import { DEFAULT_TAKE_HISTORY_LIMIT, type MasteringPrompt, type MusicalSettings, type OtherOptionsPreset, type SavedStyle, type TakeRecord } from '../domain/models';
+import { DEFAULT_STYLE_SOURCE, DEFAULT_TAKE_HISTORY_LIMIT, type CustomStyle, type MasteringPrompt, type MusicalSettings, type OtherOptionsPreset, type SavedStyle, type TakeRecord } from '../domain/models';
 import { readStorage, subscribeStorage } from '../storage/repository';
 import type { ControllerState, SunoController } from '../suno/controller';
 import { getUiMessages } from '../locales';
 
 export function useController(controller: SunoController): ControllerState {
   const [state, setState] = useState<ControllerState>({
-    styles: [], stylesLoading: false, stylesDirty: true, isCustomStyle: false, isCustomPreset: false, autoTitleEnabled: false, titleFormat: DEFAULT_TITLE_FORMAT, closeDisclosuresOnAdvanced: true, lyricsTags: [], musicalSettings: { conflicts: [] },
+    styles: [], stylesLoading: false, stylesDirty: true, styleSource: DEFAULT_STYLE_SOURCE, isCustomStyle: false, isCustomPreset: false, autoTitleEnabled: false, titleFormat: DEFAULT_TITLE_FORMAT, closeDisclosuresOnAdvanced: true, lyricsTags: [], musicalSettings: { conflicts: [] },
   });
   useEffect(() => controller.subscribe(setState), [controller]);
   return state;
 }
 
 export function useStoredLists(): {
+  customStyles: CustomStyle[];
   masterings: MasteringPrompt[];
   presets: OtherOptionsPreset[];
   takeHistory: TakeRecord[];
   takeHistoryLimit: number;
 } {
   const [lists, setLists] = useState<{
+    customStyles: CustomStyle[];
     masterings: MasteringPrompt[];
     presets: OtherOptionsPreset[];
     takeHistory: TakeRecord[];
     takeHistoryLimit: number;
   }>({
+    customStyles: [],
     masterings: [],
     presets: [],
     takeHistory: [],
@@ -34,6 +37,7 @@ export function useStoredLists(): {
     const update = async () => {
       const stored = await readStorage();
       setLists({
+        customStyles: stored.customStyles ?? [],
         masterings: stored.masteringPrompts,
         presets: stored.optionPresets,
         takeHistory: stored.takeHistory,
@@ -194,7 +198,7 @@ export function StyleControls({ controller }: { controller: SunoController }) {
       <button type="button" className="suno-assistant__tag-button suno-assistant__tag-button--settings" aria-label={ui.clear} title={ui.clear} onClick={() => controller.clearStyleAndMastering()}>
         <TrashIcon />
       </button>
-      <button type="button" className="suno-assistant__tag-button suno-assistant__tag-button--settings" aria-label={ui.aria.editMasterings} title={ui.aria.editMasterings} onClick={() => controller.openSettings('masterings')}>
+      <button type="button" className="suno-assistant__tag-button suno-assistant__tag-button--settings" aria-label={ui.aria.editStyles} title={ui.aria.editStyles} onClick={() => controller.openSettings('styles')}>
         <GearIcon />
       </button>
     </div>

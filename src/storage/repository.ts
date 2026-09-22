@@ -2,11 +2,14 @@ import { DEFAULT_TITLE_FORMAT } from '../domain/logic';
 import {
   CURRENT_SCHEMA_VERSION,
   DEFAULT_LYRICS_TAGS,
+  DEFAULT_STYLE_SOURCE,
   DEFAULT_TAKE_HISTORY_LIMIT,
   EXPECTED_CLIPS_PER_TAKE,
+  type CustomStyle,
   type MasteringPrompt,
   type OtherOptionsPreset,
   type StorageSchema,
+  type StyleSource,
   type TakeRecord,
 } from '../domain/models';
 
@@ -41,7 +44,13 @@ const defaults = (): StorageSchema => ({
   lyricsTags: [...DEFAULT_LYRICS_TAGS],
   takeHistory: [],
   takeHistoryLimit: DEFAULT_TAKE_HISTORY_LIMIT,
+  customStyles: [],
+  styleSource: DEFAULT_STYLE_SOURCE,
 });
+
+function isStyleSource(value: unknown): value is StyleSource {
+  return value === 'merged' || value === 'custom' || value === 'suno';
+}
 
 // The minimal shape shared by every schema version so far - fields present
 // since v1 that every migration step is required to carry forward.
@@ -106,6 +115,8 @@ export async function readStorage(): Promise<StorageSchema> {
     lyricsTags: Array.isArray(migrated.lyricsTags) ? migrated.lyricsTags : [...DEFAULT_LYRICS_TAGS],
     takeHistory: Array.isArray(migrated.takeHistory) ? migrated.takeHistory : [],
     takeHistoryLimit: migrated.takeHistoryLimit ?? DEFAULT_TAKE_HISTORY_LIMIT,
+    customStyles: Array.isArray(migrated.customStyles) ? migrated.customStyles : [],
+    styleSource: isStyleSource(migrated.styleSource) ? migrated.styleSource : DEFAULT_STYLE_SOURCE,
   };
 }
 
@@ -252,6 +263,31 @@ export async function saveMastering(input: Omit<MasteringPrompt, 'id' | 'created
 
 export async function deleteMastering(id: string): Promise<void> {
   await updateStorage((current) => ({ ...current, masteringPrompts: current.masteringPrompts.filter((item) => item.id !== id) }));
+}
+
+export async function saveCustomStyle(input: Omit<CustomStyle, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }): Promise<CustomStyle> {
+  const now = new Date().toISOString();
+  const entry: CustomStyle = input.id
+    ? { ...input, id: input.id, createdAt: now, updatedAt: now }
+    : { ...input, id: crypto.randomUUID(), createdAt: now, updatedAt: now };
+  await updateStorage((current) => {
+    const existing = (current.customStyles ?? []).find((item) => item.id === entry.id);
+    const next = existing ? { ...entry, createdAt: existing.createdAt } : entry;
+    return {
+      ...current,
+      customStyles: [...(current.customStyles ?? []).filter((item) => item.id !== entry.id), next]
+        .sort((a, b) => a.name.localeCompare(b.name)),
+    };
+  });
+  return entry;
+}
+
+export async function deleteCustomStyle(id: string): Promise<void> {
+  await updateStorage((current) => ({ ...current, customStyles: (current.customStyles ?? []).filter((item) => item.id !== id) }));
+}
+
+export async function setStyleSource(styleSource: StyleSource): Promise<void> {
+  await updateStorage((current) => ({ ...current, styleSource }));
 }
 
 export async function savePreset(input: Omit<OtherOptionsPreset, 'id' | 'createdAt' | 'updatedAt'> & { id?: string }): Promise<OtherOptionsPreset> {

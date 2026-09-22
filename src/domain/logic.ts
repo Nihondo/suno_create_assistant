@@ -1,4 +1,4 @@
-import { optionKeys, type MasteringPrompt, type MusicalSettings, type MusicalSettingsDetection, type MusicalSettingsField, type OtherOptionsCapture, type OtherOptionsKey, type OtherOptionsPreset, type OtherOptionsSnapshot, type SavedStyle } from './models';
+import { optionKeys, type CustomStyle, type MasteringPrompt, type MusicalSettings, type MusicalSettingsDetection, type MusicalSettingsField, type OtherOptionsCapture, type OtherOptionsKey, type OtherOptionsPreset, type OtherOptionsSnapshot, type SavedStyle, type StyleSource } from './models';
 import { getUiMessages, type SupportedLanguage, type UiMessages } from '../locales';
 
 // Only trailing whitespace is trimmed from the style: its leading and internal
@@ -21,6 +21,18 @@ export function splitMasteringPrompt(text: string, candidate?: MasteringPrompt):
   if (trimmed === masteringPrompt) return { base: '', mastering: candidate };
   if (trimmed.endsWith(`\n${masteringPrompt}`)) return { base: trimmed.slice(0, -(masteringPrompt.length + 1)), mastering: candidate };
   return { base: text };
+}
+
+/**
+ * The list the style dropdown shows. Custom styles come first so that, when a
+ * custom style and a Suno saved style hold the same prompt, deriveStyleSelection's
+ * linear search (which tries savedStyles in order) resolves to the custom one.
+ */
+export function mergeStyleSources(customStyles: CustomStyle[], sunoStyles: SavedStyle[], source: StyleSource): SavedStyle[] {
+  const own: SavedStyle[] = customStyles.map(({ id, name, prompt }) => ({ id, name, prompt }));
+  if (source === 'custom') return own;
+  if (source === 'suno') return sunoStyles;
+  return [...own, ...sunoStyles];
 }
 
 const MUSIC_SETTINGS_LINE = /^\s*Musical settings:\s*.*$/gim;
@@ -523,7 +535,7 @@ export function optionFieldsMatch(
 
 export function validateUniqueName(
   value: string,
-  entries: Array<MasteringPrompt | OtherOptionsPreset>,
+  entries: Array<MasteringPrompt | OtherOptionsPreset | CustomStyle>,
   ignoredId?: string,
   lang?: SupportedLanguage,
 ): string | undefined {
