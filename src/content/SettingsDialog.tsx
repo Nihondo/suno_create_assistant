@@ -1,14 +1,15 @@
 import { useEffect, useId, useMemo, useRef, useState, type ChangeEvent } from 'react';
-import { autoTitle, DEFAULT_TITLE_FORMAT, formatLyricsTags, formatPreset, parseLyricsTags, readableOptionFields, replaceTakePlaceholder, validateUniqueName } from '../domain/logic';
-import { DEFAULT_LYRICS_TAGS, DEFAULT_TAKE_HISTORY_LIMIT, emptyOtherOptions, optionKeys, type CustomStyle, type MasteringPrompt, type OtherOptionsKey, type OtherOptionsPreset, type OtherOptionsSnapshot, type StyleSource, type TakeRecord, type VocalGender } from '../domain/models';
+import { autoTitle, DEFAULT_TITLE_FORMAT, formatLyricsTags, formatPreset, parseLyricsTags, readablePresetFields, replaceTakePlaceholder, validateUniqueName } from '../domain/logic';
+import { DEFAULT_LYRICS_TAGS, DEFAULT_TAKE_HISTORY_LIMIT, emptyOtherOptions, presetOptionKeys, type CustomStyle, type MasteringPrompt, type OtherOptionsPreset, type OtherOptionsPresetFields, type PresetOptionKey, type OtherOptionsSnapshot, type StyleSource, type TakeRecord, type VocalGender } from '../domain/models';
 import { clearTakeHistory, deleteCustomStyle, deleteMastering, deletePreset, deleteTakeRecord, exportBackup, parseBackup, replaceStorage, saveCustomStyle, saveMastering, savePreset, setTakeHistoryLimit } from '../storage/repository';
 import type { SettingsSection, SunoController } from '../suno/controller';
 import { useController, useStoredLists } from './components';
 import { getUiMessages, type UiMessages } from '../locales';
 
-type PresetForm = { name: string; fields: Partial<OtherOptionsSnapshot> };
+type PresetForm = { name: string; fields: OtherOptionsPresetFields };
+type CustomStyleForm = { name: string; prompt: string; saveExcludedStyles: boolean; excludedStyles: string };
 
-function cloneFields(fields: Partial<OtherOptionsSnapshot>): Partial<OtherOptionsSnapshot> {
+function cloneFields(fields: OtherOptionsPresetFields): OtherOptionsPresetFields {
   return {
     ...fields,
     ...(fields.duration && { duration: { ...fields.duration } }),
@@ -84,7 +85,7 @@ export function SettingsDialog({ controller }: { controller: SunoController }) {
   const [historyLimitText, setHistoryLimitText] = useState(String(takeHistoryLimit));
   const [historyLimitSavedNotice, setHistoryLimitSavedNotice] = useState(false);
   const [editingCustomStyle, setEditingCustomStyle] = useState<CustomStyle>();
-  const [customStyleForm, setCustomStyleForm] = useState<{ name: string; prompt: string }>();
+  const [customStyleForm, setCustomStyleForm] = useState<CustomStyleForm>();
   const [editingMastering, setEditingMastering] = useState<MasteringPrompt>();
   const [masteringForm, setMasteringForm] = useState<{ name: string; prompt: string }>();
   const [editingPreset, setEditingPreset] = useState<OtherOptionsPreset>();
@@ -143,7 +144,15 @@ export function SettingsDialog({ controller }: { controller: SunoController }) {
         const result = await controller.captureOptions();
         if (!result) return;
         setEditingPreset(undefined);
-        setPresetForm({ name: '', fields: readableOptionFields(result.snapshot, result.unreadable) });
+        setPresetForm({ name: '', fields: readablePresetFields(result.snapshot, result.unreadable) });
+        setLocalError(undefined);
+      })();
+    } else if (state.settings?.action === 'create-style') {
+      void (async () => {
+        const result = await controller.captureStyleForSave();
+        if (!result) return;
+        setEditingCustomStyle(undefined);
+        setCustomStyleForm({ name: '', prompt: result.prompt, saveExcludedStyles: result.excludedStyles !== undefined, excludedStyles: result.excludedStyles ?? '' });
         setLocalError(undefined);
       })();
     } else if (state.settings?.action !== 'reuse-as-preset') {
@@ -161,7 +170,7 @@ export function SettingsDialog({ controller }: { controller: SunoController }) {
 
   const startCustomStyle = (item?: CustomStyle) => {
     setEditingCustomStyle(item);
-    setCustomStyleForm({ name: item?.name ?? '', prompt: item?.prompt ?? '' });
+    setCustomStyleForm({ name: item?.name ?? '', prompt: item?.prompt ?? '', saveExcludedStyles: item?.excludedStyles !== undefined, excludedStyles: item?.excludedStyles ?? '' });
     setLocalError(undefined);
   };
   const cancelCustomStyle = () => { setCustomStyleForm(undefined); setEditingCustomStyle(undefined); };
@@ -173,7 +182,7 @@ export function SettingsDialog({ controller }: { controller: SunoController }) {
       ?? (!prompt ? ui.feedback.promptRequired : undefined)
       ?? (prompt.length > 1000 ? ui.feedback.promptTooLong(1000) : undefined);
     if (issue) { setLocalError(issue); return; }
-    await saveCustomStyle({ id: editingCustomStyle?.id, name, prompt });
+    await saveCustomStyle({ id: editingCustomStyle?.id, name, prompt, ...(customStyleForm!.saveExcludedStyles ? { excludedStyles: customStyleForm!.excludedStyles } : {}) });
     cancelCustomStyle();
   };
 
@@ -210,10 +219,10 @@ export function SettingsDialog({ controller }: { controller: SunoController }) {
     await savePreset({ id: editingPreset?.id, name, fields: cloneFields(presetForm!.fields) });
     cancelPreset();
   };
-  const updatePresetField = <K extends OtherOptionsKey>(key: K, value: OtherOptionsSnapshot[K]) => {
+  const updatePresetField = <K extends PresetOptionKey>(key: K, value: OtherOptionsSnapshot[K]) => {
     setPresetForm((current) => current && { ...current, fields: { ...current.fields, [key]: value } });
   };
-  const setPresetFieldIncluded = (key: OtherOptionsKey, included: boolean) => {
+  const setPresetFieldIncluded = (key: PresetOptionKey, included: boolean) => {
     setPresetForm((current) => {
       if (!current) return current;
       if (included) return { ...current, fields: { ...current.fields, [key]: emptyOtherOptions()[key] } };
@@ -222,7 +231,7 @@ export function SettingsDialog({ controller }: { controller: SunoController }) {
       return { ...current, fields };
     });
   };
-  const allSelected = !!presetForm && optionKeys.every((key) => presetForm.fields[key] !== undefined);
+  const allSelected = !!presetForm && presetOptionKeys.every((key) => presetForm.fields[key] !== undefined);
 
   const handleSaveTitleFormat = async () => {
     await controller.saveTitleFormat(titleFormat);
@@ -330,7 +339,8 @@ export function SettingsDialog({ controller }: { controller: SunoController }) {
     // the effect above not to clear presetForm right back out again.
     controller.openSettings('presets', 'reuse-as-preset');
     setEditingPreset(undefined);
-    setPresetForm({ name: record.title, fields: cloneFields(record.options) });
+    const { excludedStyles: _exclude, ...presetFields } = record.options;
+    setPresetForm({ name: record.title, fields: cloneFields(presetFields) });
     setLocalError(undefined);
   };
 
@@ -462,6 +472,8 @@ export function SettingsDialog({ controller }: { controller: SunoController }) {
         {customStyleForm && <form onSubmit={(event) => { event.preventDefault(); void saveCurrentCustomStyle(); }}>
           <label>{ui.dialog.customStyleName}<input type="text" value={customStyleForm.name} onChange={(event) => setCustomStyleForm((current) => ({ ...current!, name: event.target.value }))} /></label>
           <label>{ui.dialog.customStylePrompt}<textarea value={customStyleForm.prompt} maxLength={1000} onChange={(event) => setCustomStyleForm((current) => ({ ...current!, prompt: event.target.value }))} /></label>
+          <label className="suno-assistant__dialog-toggle-label"><input type="checkbox" checked={customStyleForm.saveExcludedStyles} onChange={(event) => setCustomStyleForm((current) => ({ ...current!, saveExcludedStyles: event.target.checked }))} />{ui.dialog.saveStyleExclude}</label>
+          {customStyleForm.saveExcludedStyles && <label>{ui.dialog.excludeStylesLabel}<input type="text" value={customStyleForm.excludedStyles} onChange={(event) => setCustomStyleForm((current) => ({ ...current!, excludedStyles: event.target.value }))} /></label>}
           <div className="suno-assistant__dialog-actions">
             <button type="button" onClick={cancelCustomStyle}>{ui.dialog.cancel}</button>
             <button type="submit">{ui.dialog.save}</button>
@@ -501,7 +513,7 @@ export function SettingsDialog({ controller }: { controller: SunoController }) {
         {!presetForm && <>
           <ul className="suno-assistant__list">
             {presets.map((item) => <li key={item.id}>
-              <div><strong>{item.name}</strong><p>{formatPreset(item.fields, ui)}</p></div>
+              <div><strong>{item.name}</strong><p>{Object.keys(item.fields).length ? formatPreset(item.fields, ui) : ui.dialog.emptyPresetHint}</p></div>
               <div className="suno-assistant__list-actions">
                 <button type="button" onClick={() => startPreset(item)}>{ui.dialog.edit}</button>
                 <button type="button" onClick={() => void deletePreset(item.id)}>{ui.dialog.delete}</button>
@@ -514,13 +526,12 @@ export function SettingsDialog({ controller }: { controller: SunoController }) {
           <label>{ui.dialog.presetName}<input type="text" value={presetForm.name} onChange={(event) => setPresetForm((current) => ({ ...current!, name: event.target.value }))} /></label>
           <fieldset className="suno-assistant__preset-fields">
             <legend>{ui.dialog.presetFieldsLegend}</legend>
-            <label className="suno-assistant__preset-field-toggle"><input type="checkbox" checked={allSelected} onChange={(event) => setPresetForm((current) => current && { ...current, fields: event.target.checked ? emptyOtherOptions() : {} })} />{ui.dialog.allFields}</label>
-            {optionKeys.map((key) => {
+            <label className="suno-assistant__preset-field-toggle"><input type="checkbox" checked={allSelected} onChange={(event) => setPresetForm((current) => current && { ...current, fields: event.target.checked ? Object.fromEntries(presetOptionKeys.map((key) => [key, emptyOtherOptions()[key]])) as OtherOptionsPresetFields : {} })} />{ui.dialog.allFields}</label>
+            {presetOptionKeys.map((key) => {
               const included = presetForm.fields[key] !== undefined;
               return <div className="suno-assistant__preset-field" key={key}>
                 <label className="suno-assistant__preset-field-toggle"><input type="checkbox" checked={included} onChange={(event) => setPresetFieldIncluded(key, event.target.checked)} />{ui.optionLabels[key]}</label>
                 {included && <div className="suno-assistant__preset-field-value">
-                  {key === 'excludedStyles' && <label>{ui.dialog.excludeStylesLabel}<input name={`${presetFormId}-excluded-styles`} type="text" value={presetForm.fields.excludedStyles ?? ''} onChange={(event) => updatePresetField('excludedStyles', event.target.value)} /></label>}
                   {key === 'vocalGender' && <fieldset><legend>{ui.optionLabels.vocalGender}</legend>{(['none', 'male', 'female'] as VocalGender[]).map((value) => <label key={value}><input name={`${presetFormId}-vocal-gender`} type="radio" checked={presetForm.fields.vocalGender === value} onChange={() => updatePresetField('vocalGender', value)} />{value === 'none' ? ui.dialog.noneOption : value === 'male' ? ui.dialog.maleOption : ui.dialog.femaleOption}</label>)}</fieldset>}
                   {key === 'duration' && <fieldset><legend>{ui.optionLabels.duration}</legend><label><input name={`${presetFormId}-duration`} type="radio" checked={presetForm.fields.duration?.mode === 'auto'} onChange={() => updatePresetField('duration', { mode: 'auto' })} />Auto</label><label><input name={`${presetFormId}-duration`} type="radio" checked={presetForm.fields.duration?.mode === 'custom'} onChange={() => updatePresetField('duration', { mode: 'custom', seconds: presetForm.fields.duration?.seconds })} />{ui.custom}</label>{presetForm.fields.duration?.mode === 'custom' && <label className="suno-assistant__duration-seconds"><span>{ui.dialog.secondsLabel}</span><input name={`${presetFormId}-duration-seconds`} type="number" min="1" inputMode="numeric" value={presetForm.fields.duration.seconds ?? ''} onChange={(event) => updatePresetField('duration', { mode: 'custom', seconds: event.target.value ? Number(event.target.value) : undefined })} /></label>}</fieldset>}
                   {key === 'maxMode' && <label><input name={`${presetFormId}-max-mode`} type="checkbox" checked={presetForm.fields.maxMode ?? false} onChange={(event) => updatePresetField('maxMode', event.target.checked)} />{ui.dialog.maxModeToggle}</label>}

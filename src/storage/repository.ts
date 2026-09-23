@@ -48,6 +48,15 @@ const defaults = (): StorageSchema => ({
   styleSource: DEFAULT_STYLE_SOURCE,
 });
 
+/** Runtime guard too: imported or manually-edited backups must not revive a preset Exclude. */
+function stripPresetExcludedStyles(preset: unknown): unknown {
+  if (!preset || typeof preset !== 'object') return preset;
+  const fields = (preset as { fields?: unknown }).fields;
+  if (!fields || typeof fields !== 'object') return preset;
+  const { excludedStyles: _legacyExcludedStyles, ...remaining } = fields as Record<string, unknown>;
+  return { ...(preset as Record<string, unknown>), fields: remaining };
+}
+
 function isStyleSource(value: unknown): value is StyleSource {
   return value === 'merged' || value === 'custom' || value === 'suno';
 }
@@ -73,6 +82,13 @@ function isKnownStorageShape(value: unknown): value is KnownStorageShape {
 // must only add/rename fields - never drop data the user already has.
 const migrations: Record<number, (value: Record<string, unknown>) => Record<string, unknown>> = {
   1: (value) => ({ ...value, schemaVersion: 2, takeHistory: [] }),
+  2: (value) => ({
+    ...value,
+    schemaVersion: 3,
+    optionPresets: Array.isArray(value.optionPresets)
+      ? value.optionPresets.map(stripPresetExcludedStyles)
+      : value.optionPresets,
+  }),
 };
 
 // Walks a possibly-stale (or possibly-future) stored value up to the current
@@ -115,6 +131,7 @@ export async function readStorage(): Promise<StorageSchema> {
     lyricsTags: Array.isArray(migrated.lyricsTags) ? migrated.lyricsTags : [...DEFAULT_LYRICS_TAGS],
     takeHistory: Array.isArray(migrated.takeHistory) ? migrated.takeHistory : [],
     takeHistoryLimit: migrated.takeHistoryLimit ?? DEFAULT_TAKE_HISTORY_LIMIT,
+    optionPresets: Array.isArray(migrated.optionPresets) ? migrated.optionPresets.map(stripPresetExcludedStyles) as StorageSchema['optionPresets'] : [],
     customStyles: Array.isArray(migrated.customStyles) ? migrated.customStyles : [],
     styleSource: isStyleSource(migrated.styleSource) ? migrated.styleSource : DEFAULT_STYLE_SOURCE,
   };

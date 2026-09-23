@@ -17,6 +17,8 @@ export interface CustomStyle {
   id: string;
   name: string;
   prompt: string;
+  /** Undefined keeps the live Exclude value; '' deliberately clears it. */
+  excludedStyles?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -40,11 +42,14 @@ export interface OtherOptionsSnapshot {
 }
 
 export type OtherOptionsKey = keyof OtherOptionsSnapshot;
+export type PresetOptionKey = Exclude<OtherOptionsKey, 'excludedStyles'>;
+export type OtherOptionsPresetFields = Partial<Omit<OtherOptionsSnapshot, 'excludedStyles'>>;
 
 export interface OtherOptionsPreset {
   id: string;
   name: string;
-  fields: Partial<OtherOptionsSnapshot>;
+  /** Exclude belongs to a style, never to an options preset. */
+  fields: OtherOptionsPresetFields;
   createdAt: string;
   updatedAt: string;
 }
@@ -111,8 +116,8 @@ export const DEFAULT_TAKE_HISTORY_LIMIT = 500;
 // hardcoded numbers is what actually prevents them drifting apart.
 export const EXPECTED_CLIPS_PER_TAKE = 2;
 
-export interface StorageSchemaV2 {
-  schemaVersion: 2;
+export interface StorageSchemaV3 {
+  schemaVersion: 3;
   masteringPrompts: MasteringPrompt[];
   optionPresets: OtherOptionsPreset[];
   autoTitleEnabled: boolean;
@@ -126,14 +131,16 @@ export interface StorageSchemaV2 {
   styleSource?: StyleSource;
 }
 
-export type StorageSchema = StorageSchemaV2;
+export type StorageSchema = StorageSchemaV3;
 
-export const CURRENT_SCHEMA_VERSION = 2;
+export const CURRENT_SCHEMA_VERSION = 3;
 
 export interface SavedStyle {
   id: string;
   name: string;
   prompt: string;
+  /** Only extension-owned styles store this; Suno styles leave it undefined. */
+  excludedStyles?: string;
 }
 
 // These values are intentionally kept in the live controller state rather
@@ -165,6 +172,18 @@ export interface OtherOptionsCapture {
 // ui.optionLabels (src/locales) exclusively - this array only fixes order.
 export const optionKeys: OtherOptionsKey[] = [
   'excludedStyles',
+  'vocalGender',
+  'duration',
+  'maxMode',
+  'weirdness',
+  'styleInfluence',
+  'variation',
+  'audioInfluence',
+  'personalization',
+];
+
+/** Fields that can be saved in/apply from an Other Options preset. */
+export const presetOptionKeys: PresetOptionKey[] = [
   'vocalGender',
   'duration',
   'maxMode',

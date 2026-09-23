@@ -8,7 +8,7 @@ Suno Create Assistant is an independent Chrome extension for `https://suno.com/c
 
 ### Data handled locally
 
-To provide its user-facing features, the extension reads the visible Suno Create interface and locally stores settings that you create or enable: a custom style list, mastering prompts, option presets, lyrics tags, title formats, Auto Title preferences, take-number counters, and optional take history. These items can include user-generated text such as prompts, song titles, and settings values.
+To provide its user-facing features, the extension reads the visible Suno Create interface and locally stores settings that you create or enable: a custom style list (including optional Exclude values), mastering prompts, option presets, lyrics tags, title formats, Auto Title preferences, take-number counters, and optional take history. These items can include user-generated text such as prompts, song titles, and settings values.
 
 The extension uses Chrome's local extension storage only. It has no developer-operated backend, analytics, advertising, tracking, or sale of data. It does not use private Suno APIs, read cookies, or access Suno account credentials.
 
@@ -32,7 +32,7 @@ Suno Create Assistant は、`https://suno.com/create` 向けの独立したChrom
 
 ### 端末内で取り扱うデータ
 
-拡張機能は、画面上に表示されているSuno CreateのUIを読み取り、利用者が作成または有効にした設定を端末内に保存します。対象は、自前のスタイルリスト、マスタリングプロンプト、オプションプリセット、歌詞タグ、曲名フォーマット、自動設定の有効状態、テイク番号カウンター、および任意のテイク履歴です。これらには、プロンプト、曲名、設定値などの利用者作成テキストが含まれる場合があります。
+拡張機能は、画面上に表示されているSuno CreateのUIを読み取り、利用者が作成または有効にした設定を端末内に保存します。対象は、任意のスタイル除外を含む自前のスタイルリスト、マスタリングプロンプト、オプションプリセット、歌詞タグ、曲名フォーマット、自動設定の有効状態、テイク番号カウンター、および任意のテイク履歴です。これらには、プロンプト、曲名、設定値などの利用者作成テキストが含まれる場合があります。
 
 保存先はChromeの拡張機能用ローカルストレージのみです。開発者が運営するバックエンド、分析、広告、トラッキング、データ販売は行いません。Sunoの非公開API、Cookie、アカウント認証情報にはアクセスしません。
 

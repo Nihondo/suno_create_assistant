@@ -95,7 +95,7 @@ function ChevronDownIcon({ className, style }: { className?: string; style?: Rea
   );
 }
 
-interface MenuItem<T> { id: string; label: string; value?: T }
+interface MenuItem<T> { id: string; label: string; value?: T; disabled?: boolean }
 
 function Dropdown<T>({ label, valueLabel, items, disabled, onOpen, onSelect }: {
   label: string;
@@ -144,6 +144,7 @@ function Dropdown<T>({ label, valueLabel, items, disabled, onOpen, onSelect }: {
     setOpen((previous) => !previous);
   };
   const choose = (item: MenuItem<T>) => {
+    if (item.disabled) return;
     onSelect(item.value);
     setOpen(false);
   };
@@ -173,7 +174,7 @@ function Dropdown<T>({ label, valueLabel, items, disabled, onOpen, onSelect }: {
     {open && <div ref={menu} id={listId} className="suno-assistant__menu" popover="auto" role="listbox" aria-label={label} onToggle={() => {
       if (!menu.current?.matches(':popover-open')) setOpen(false);
     }}>
-      {items.map((item, index) => <button key={item.id} type="button" role="option" aria-selected={valueLabel === item.label} onMouseEnter={() => setActive(index)} onClick={() => choose(item)}>{item.label}</button>)}
+      {items.map((item, index) => <button key={item.id} type="button" role="option" aria-selected={valueLabel === item.label} disabled={item.disabled} onMouseEnter={() => setActive(index)} onClick={() => choose(item)}>{item.label}</button>)}
     </div>}
   </div>;
 }
@@ -195,6 +196,9 @@ export function StyleControls({ controller }: { controller: SunoController }) {
     <Dropdown label={ui.style} valueLabel={state.stylesLoading ? ui.loading : styleLabel} items={styles} disabled={state.stylesLoading} onOpen={() => controller.refreshStyles()} onSelect={(style) => void controller.selectStyle(style)} />
     <Dropdown label={ui.mastering} valueLabel={state.mastering?.name ?? ui.unselected} items={masteringItems} onSelect={(mastering) => void controller.selectMastering(mastering)} />
     <div className="suno-assistant__icon-group">
+      <button type="button" className="suno-assistant__tag-button suno-assistant__tag-button--settings" aria-label={ui.saveStyle} title={ui.saveStyle} onClick={() => controller.openStyleCreation()}>
+        <BookmarkIcon />
+      </button>
       <button type="button" className="suno-assistant__tag-button suno-assistant__tag-button--settings" aria-label={ui.clear} title={ui.clear} onClick={() => controller.clearStyleAndMastering()}>
         <TrashIcon />
       </button>
@@ -299,7 +303,7 @@ export function PresetControls({ controller }: { controller: SunoController }) {
   const ui = getUiMessages();
   const items: MenuItem<OtherOptionsPreset>[] = [
     { id: 'none', label: ui.unselected },
-    ...presets.map((preset) => ({ id: preset.id, label: preset.name, value: preset })),
+    ...presets.map((preset) => ({ id: preset.id, label: preset.name, value: preset, disabled: !Object.keys(preset.fields).length })),
   ];
   return <div className="suno-assistant suno-assistant--presets" aria-label={ui.aria.presetSettings}>
     <Dropdown label={ui.preset} valueLabel={state.isCustomPreset ? ui.custom : state.preset?.name ?? ui.unselected} items={items} onSelect={(preset) => void controller.applyPreset(preset)} />

@@ -1,4 +1,4 @@
-import { optionKeys, type CustomStyle, type MasteringPrompt, type MusicalSettings, type MusicalSettingsDetection, type MusicalSettingsField, type OtherOptionsCapture, type OtherOptionsKey, type OtherOptionsPreset, type OtherOptionsSnapshot, type SavedStyle, type StyleSource } from './models';
+import { optionKeys, presetOptionKeys, type CustomStyle, type MasteringPrompt, type MusicalSettings, type MusicalSettingsDetection, type MusicalSettingsField, type OtherOptionsCapture, type OtherOptionsKey, type OtherOptionsPreset, type OtherOptionsPresetFields, type OtherOptionsSnapshot, type SavedStyle, type StyleSource } from './models';
 import { getUiMessages, type SupportedLanguage, type UiMessages } from '../locales';
 
 // Only trailing whitespace is trimmed from the style: its leading and internal
@@ -29,7 +29,7 @@ export function splitMasteringPrompt(text: string, candidate?: MasteringPrompt):
  * linear search (which tries savedStyles in order) resolves to the custom one.
  */
 export function mergeStyleSources(customStyles: CustomStyle[], sunoStyles: SavedStyle[], source: StyleSource): SavedStyle[] {
-  const own: SavedStyle[] = customStyles.map(({ id, name, prompt }) => ({ id, name, prompt }));
+  const own: SavedStyle[] = customStyles.map(({ id, name, prompt, excludedStyles }) => ({ id, name, prompt, ...(excludedStyles === undefined ? {} : { excludedStyles }) }));
   if (source === 'custom') return own;
   if (source === 'suno') return sunoStyles;
   return [...own, ...sunoStyles];
@@ -410,6 +410,13 @@ export function readableOptionFields(snapshot: OtherOptionsSnapshot, unreadable:
     .map((key) => [key, snapshot[key]])) as Partial<OtherOptionsSnapshot>;
 }
 
+/** Captures only the eight fields that remain owned by options presets. */
+export function readablePresetFields(snapshot: OtherOptionsSnapshot, unreadable: OtherOptionsKey[]): OtherOptionsPresetFields {
+  return Object.fromEntries(presetOptionKeys
+    .filter((key) => !unreadable.includes(key))
+    .map((key) => [key, snapshot[key]])) as OtherOptionsPresetFields;
+}
+
 // One "label: value" line per field present in `fields`, in optionKeys order.
 // Shared by the preset list/editor (SettingsDialog.tsx, joined with " / " via
 // formatPreset below) and the take-history reuse-parameters hover popup
@@ -456,7 +463,7 @@ export interface StyleSelection {
 export function deriveStyleSelection(
   text: string,
   savedStyles: SavedStyle[],
-  current: { style?: SavedStyle; mastering?: MasteringPrompt; rememberedMastering?: MasteringPrompt },
+  current: { style?: SavedStyle; mastering?: MasteringPrompt; rememberedMastering?: MasteringPrompt; excludedStyles?: string },
 ): StyleSelection {
   const candidate = current.mastering ?? current.rememberedMastering;
   const { base, mastering } = splitMasteringPrompt(text, candidate);
@@ -472,7 +479,15 @@ export function deriveStyleSelection(
   // The cost: saved styles that differ only in key/tempo/meter can match each
   // other; the current selection is tried first, so it wins.
   const target = musicallyComparable(comparable);
-  const matches = (saved: SavedStyle) => musicallyComparable(saved.prompt) === target;
+  const promptMatches = (saved: SavedStyle) => musicallyComparable(saved.prompt) === target;
+  const excludesMatch = (saved: SavedStyle) => saved.excludedStyles === undefined || current.excludedStyles === undefined
+    || saved.excludedStyles.trim() === current.excludedStyles.trim();
+  const matches = (saved: SavedStyle) => promptMatches(saved) && excludesMatch(saved);
+  // When the current style's text still matches but its saved Exclude was
+  // edited, do not silently select a different same-prompt style.
+  if (current.style && promptMatches(current.style) && !excludesMatch(current.style)) {
+    return { base, mastering, isCustomStyle: true };
+  }
   const style = current.style && matches(current.style) ? current.style : savedStyles.find(matches);
   if (style) return { base, style, mastering, isCustomStyle: false };
 
@@ -510,16 +525,14 @@ export function deriveStyleSelection(
  * so they never make a preset look edited.
  */
 export function optionFieldsMatch(
-  fields: Partial<OtherOptionsSnapshot>,
+  fields: OtherOptionsPresetFields,
   capture: OtherOptionsCapture,
   ignoredKeys: ReadonlySet<OtherOptionsKey> = new Set(),
 ): boolean {
   const live = capture.snapshot;
-  return optionKeys.every((key) => {
+  return presetOptionKeys.every((key) => {
     if (fields[key] === undefined || ignoredKeys.has(key) || capture.unreadable.includes(key)) return true;
     switch (key) {
-      case 'excludedStyles':
-        return (fields.excludedStyles ?? '').trim() === live.excludedStyles.trim();
       case 'duration': {
         const saved = fields.duration!;
         if (saved.mode !== live.duration.mode) return false;

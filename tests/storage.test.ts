@@ -53,7 +53,7 @@ describe('storage schema migration', () => {
     mockChrome();
   });
 
-  it('migrates v1 data to v2, adding takeHistory while preserving existing fields', async () => {
+  it('migrates v1 data through v3, adding takeHistory and dropping legacy preset Exclude', async () => {
     mockChrome({
       [STORAGE_KEY]: {
         schemaVersion: 1,
@@ -68,7 +68,7 @@ describe('storage schema migration', () => {
     });
 
     const result = await readStorage();
-    expect(result.schemaVersion).toBe(2);
+    expect(result.schemaVersion).toBe(3);
     expect(result.masteringPrompts).toHaveLength(1);
     expect(result.masteringPrompts[0]!.name).toBe('Warm');
     expect(result.autoTitleEnabled).toBe(true);
@@ -104,13 +104,13 @@ describe('storage schema migration', () => {
   it('falls back to defaults when the stored value does not match any known schema shape', async () => {
     mockChrome({ [STORAGE_KEY]: { garbage: true } });
     const result = await readStorage();
-    expect(result.schemaVersion).toBe(2);
+    expect(result.schemaVersion).toBe(3);
     expect(result.takeHistory).toEqual([]);
   });
 
   it('falls back to defaults when nothing is stored yet', async () => {
     const result = await readStorage();
-    expect(result.schemaVersion).toBe(2);
+    expect(result.schemaVersion).toBe(3);
     expect(result.masteringPrompts).toEqual([]);
   });
 });
@@ -130,9 +130,9 @@ describe('extension-context invalidation', () => {
       },
     } as unknown as typeof chrome;
 
-    await expect(readStorage()).resolves.toMatchObject({ schemaVersion: 2, takeHistory: [] });
+    await expect(readStorage()).resolves.toMatchObject({ schemaVersion: 3, takeHistory: [] });
     await expect(writeStorage({
-      schemaVersion: 2, masteringPrompts: [], optionPresets: [], autoTitleEnabled: false,
+      schemaVersion: 3, masteringPrompts: [], optionPresets: [], autoTitleEnabled: false,
       titleFormat: '{{WORKSPACE}}', takeNumbers: {}, closeDisclosuresOnAdvanced: true,
       lyricsTags: [], takeHistory: [], takeHistoryLimit: 500,
     })).resolves.toBeUndefined();
@@ -223,6 +223,14 @@ describe('custom styles', () => {
     const stored = await readStorage();
     expect(stored.customStyles).toHaveLength(1);
     expect(stored.customStyles?.[0]?.prompt).toBe('lofi v2');
+  });
+
+  it('preserves an explicit empty style Exclude and distinguishes it from unsaved', async () => {
+    await saveCustomStyle({ name: 'Clear', prompt: 'quiet piano', excludedStyles: '' });
+    await saveCustomStyle({ name: 'Keep', prompt: 'soft strings' });
+    const stored = await readStorage();
+    expect(stored.customStyles?.find((style) => style.name === 'Clear')).toMatchObject({ excludedStyles: '' });
+    expect(stored.customStyles?.find((style) => style.name === 'Keep')?.excludedStyles).toBeUndefined();
   });
 
   it('deletes a custom style', async () => {
@@ -320,11 +328,20 @@ describe('backup export/import', () => {
       autoTitleEnabled: false,
     });
     const parsed = parseBackup(v1Backup);
-    expect(parsed?.schemaVersion).toBe(2);
+    expect(parsed?.schemaVersion).toBe(3);
     expect(parsed?.takeHistory).toEqual([]);
 
     expect(parseBackup('not json')).toBeUndefined();
     expect(parseBackup('{"not":"a schema"}')).toBeUndefined();
+  });
+
+  it('migrates a v2 backup by removing only preset Exclude values', () => {
+    const parsed = parseBackup(JSON.stringify({
+      schemaVersion: 2, masteringPrompts: [], autoTitleEnabled: false, takeHistory: [],
+      optionPresets: [{ id: 'p1', name: 'Legacy', fields: { excludedStyles: 'metal', weirdness: 30 }, createdAt: '', updatedAt: '' }],
+    }));
+    expect(parsed?.schemaVersion).toBe(3);
+    expect(parsed?.optionPresets[0]?.fields).toEqual({ weirdness: 30 });
   });
 
   it('replaceStorage overwrites the entire stored schema', async () => {

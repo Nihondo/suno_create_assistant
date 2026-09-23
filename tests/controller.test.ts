@@ -101,6 +101,19 @@ describe('SunoController feedback scopes', () => {
     expect(current().settings).toEqual({ section: 'presets', action: 'create-preset' });
   });
 
+  it('applies a custom style\'s saved Exclude but leaves an unsaved one alone', async () => {
+    const controller = new SunoController();
+    vi.spyOn(controller.adapter, 'setStylePrompt').mockReturnValue(true);
+    const apply = vi.spyOn(controller.adapter, 'applyOtherOptions').mockResolvedValue({ applied: ['excludedStyles'], skipped: [] });
+
+    await controller.selectStyle({ id: 'saved', name: 'Saved', prompt: 'quiet piano', excludedStyles: 'vocals' });
+    expect(apply).toHaveBeenCalledWith({ excludedStyles: 'vocals' });
+
+    apply.mockClear();
+    await controller.selectStyle({ id: 'legacy', name: 'Legacy', prompt: 'soft strings' });
+    expect(apply).not.toHaveBeenCalled();
+  });
+
   it('defaults to display section when openSettings is called without arguments', () => {
     const controller = new SunoController();
     const current = watch(controller);

@@ -557,7 +557,7 @@ test('mounts the Suno controls beside their anchors, survives host removal, and 
     const exportPath = await download.path();
     expect(exportPath).toBeTruthy();
     const exported = JSON.parse(await readFile(exportPath!, 'utf-8'));
-    expect(exported.schemaVersion).toBe(2);
+    expect(exported.schemaVersion).toBe(3);
     expect(exported.optionPresets).toHaveLength(1);
     expect(exported.takeHistory.length).toBeGreaterThanOrEqual(2);
 
@@ -565,7 +565,7 @@ test('mounts the Suno controls beside their anchors, survives host removal, and 
     // a confirm() the user must accept.
     const importPath = join(profile, 'import-backup.json');
     await writeFile(importPath, JSON.stringify({
-      schemaVersion: 2, masteringPrompts: [], optionPresets: [], autoTitleEnabled: false, takeHistory: [],
+      schemaVersion: 3, masteringPrompts: [], optionPresets: [], autoTitleEnabled: false, takeHistory: [],
     }));
     page.once('dialog', (nativeDialog) => void nativeDialog.accept());
     await dialog.locator('input[type="file"]').setInputFiles(importPath);

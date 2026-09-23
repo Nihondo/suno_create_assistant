@@ -10,6 +10,7 @@ import {
   mergeStyleSources,
   optionFieldsMatch,
   readableOptionFields,
+  readablePresetFields,
   replaceTakePlaceholder,
   splitMasteringPrompt,
 } from '../domain/logic';
@@ -50,7 +51,7 @@ import {
 } from '../locales';
 
 export type SettingsSection = 'styles' | 'masterings' | 'presets' | 'titleFormat' | 'display' | 'lyricsTags' | 'backup' | 'takeHistory' | 'about';
-export type SettingsAction = 'create-preset' | 'reuse-as-preset';
+export type SettingsAction = 'create-preset' | 'reuse-as-preset' | 'create-style';
 
 export interface Feedback {
   message: string;
@@ -101,6 +102,9 @@ export class SunoController {
   // Style text as of the last time the extension wrote or reconciled it; a
   // difference means the text changed behind our back. undefined = no baseline.
   private lastStyleText?: string;
+  // Passive Exclude value paired with lastStyleText. Undefined means the
+  // disclosure was unavailable, not that the live value is empty.
+  private lastExcludedStyles?: string;
   private pendingStyleSync?: ReturnType<typeof setTimeout>;
   // Last mastering the user applied; survives the text being edited so it can
   // be re-selected when the text matches again (see deriveStyleSelection).
@@ -295,6 +299,23 @@ export class SunoController {
     this.syncMusicalSettingsFromText(next ?? '');
     this.updateAutoTitle();
     this.emit();
+    // Suno styles and old custom styles intentionally leave Exclude alone.
+    if (style?.excludedStyles === undefined) return;
+    this.isApplyingOptions = true;
+    try {
+      const result = await this.adapter.applyOtherOptions({ excludedStyles: style.excludedStyles });
+      this.lastExcludedStyles = result.applied.includes('excludedStyles') ? style.excludedStyles : undefined;
+      if (result.skipped.includes('excludedStyles')) {
+        const ui = getUiMessages();
+        this.state.styleFeedback = { kind: 'notice', message: `${ui.feedback.skippedItemsPrefix}${describeSkipped(['excludedStyles'])}` };
+      }
+    } catch (error) {
+      const ui = getUiMessages();
+      this.state.styleFeedback = { kind: 'error', message: error instanceof Error ? error.message : ui.feedback.failedApplyStyleExclude };
+    } finally {
+      this.isApplyingOptions = false;
+      this.emit();
+    }
   }
 
   async selectMastering(mastering?: MasteringPrompt): Promise<void> {
@@ -374,6 +395,31 @@ export class SunoController {
 
   openPresetCreation(): void {
     this.openSettings('presets', 'create-preset');
+  }
+
+  openStyleCreation(): void {
+    this.openSettings('styles', 'create-style');
+  }
+
+  /** Current base style plus Exclude, for the style bookmark action. */
+  async captureStyleForSave(): Promise<{ prompt: string; excludedStyles?: string } | undefined> {
+    const current = this.adapter.getStylePrompt();
+    const { base } = splitMasteringPrompt(current, this.state.mastering);
+    if (!base.trim()) {
+      const ui = getUiMessages();
+      this.state.settingsFeedback = { kind: 'error', message: ui.feedback.promptRequired };
+      this.emit();
+      return undefined;
+    }
+    try {
+      const capture = await this.adapter.readOtherOptions();
+      return {
+        prompt: base,
+        ...(capture && !capture.unreadable.includes('excludedStyles') ? { excludedStyles: capture.snapshot.excludedStyles } : {}),
+      };
+    } catch {
+      return { prompt: base };
+    }
   }
 
   closeSettings(): void {
@@ -461,7 +507,7 @@ export class SunoController {
       this.emit();
       return;
     }
-    const selection = deriveStyleSelection(next, this.state.styles, { ...this.state, rememberedMastering: this.rememberedMastering });
+    const selection = deriveStyleSelection(next, this.state.styles, { ...this.state, rememberedMastering: this.rememberedMastering, excludedStyles: this.lastExcludedStyles });
     this.baseStyle = selection.base;
     this.state.style = selection.style;
     this.state.mastering = selection.mastering;
@@ -492,6 +538,7 @@ export class SunoController {
     this.state.isCustomStyle = false;
     this.baseStyle = '';
     this.lastStyleText = undefined;
+    this.lastExcludedStyles = undefined;
     this.updateAutoTitle();
     this.emit();
   }
@@ -684,14 +731,18 @@ export class SunoController {
     // empty read there would wrongly look like the user cleared the field.
     if (!this.adapter.styleTextarea(true)) return;
     const text = this.adapter.getStylePrompt();
+    const capturedExclude = this.adapter.peekOtherOptions()?.snapshot.excludedStyles;
     const musicChanged = this.syncMusicalSettingsFromText(text);
-    if (!force && (this.lastStyleText === undefined || text === this.lastStyleText)) {
+    const excludeChanged = capturedExclude !== undefined && capturedExclude !== this.lastExcludedStyles;
+    if (!force && !excludeChanged && (this.lastStyleText === undefined || text === this.lastStyleText)) {
       this.lastStyleText = text;
+      if (capturedExclude !== undefined) this.lastExcludedStyles = capturedExclude;
       if (musicChanged) this.emit();
       return;
     }
     this.lastStyleText = text;
-    const next = deriveStyleSelection(text, this.state.styles, { ...this.state, rememberedMastering: this.rememberedMastering });
+    if (capturedExclude !== undefined) this.lastExcludedStyles = capturedExclude;
+    const next = deriveStyleSelection(text, this.state.styles, { ...this.state, rememberedMastering: this.rememberedMastering, excludedStyles: capturedExclude });
     const isChanged = next.style !== this.state.style
       || next.mastering !== this.state.mastering
       || next.isCustomStyle !== this.state.isCustomStyle;

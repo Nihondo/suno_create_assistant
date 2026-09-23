@@ -85,6 +85,7 @@ export interface UiMessages {
   custom: string;
   clear: string;
   savePreset: string;
+  saveStyle: string;
   autoTitle: string;
   recentWorkspaces: string;
   extensionSettings: string;
@@ -148,6 +149,7 @@ export interface UiMessages {
     customStyleHint: string;
     customStyleName: string;
     customStylePrompt: string;
+    saveStyleExclude: string;
     styleSourceLabel: string;
     styleSourceMerged: string;
     styleSourceCustom: string;
@@ -161,6 +163,7 @@ export interface UiMessages {
     presetHint: string;
     presetName: string;
     presetFieldsLegend: string;
+    emptyPresetHint: string;
     allFields: string;
     excludeStylesLabel: string;
     noneOption: string;
@@ -206,6 +209,7 @@ export interface UiMessages {
     cannotOpenSavedStyles: string;
     skippedItemsPrefix: string;
     failedApplyPreset: string;
+    failedApplyStyleExclude: string;
     optionsNotFound: string;
     capturedUnreadableNotice: (unreadableCount: number, keys: string) => string;
     failedCaptureOptions: string;

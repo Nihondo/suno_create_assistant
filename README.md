@@ -30,10 +30,10 @@ Directly under the **Lyrics** heading, the extension adds a row of buttons (`Ins
 
 Directly under the **Style** heading, the extension adds a Style dropdown and a Mastering dropdown that stay visible whether the section is open or closed.
 
-- The Style dropdown can show your own **custom style list**, kept by the extension itself, alongside Suno's saved styles. Add, edit, and delete entries (name and prompt) under the **Styles** tab in the settings dialog.
+- The Style dropdown can show your own **custom style list**, kept by the extension itself, alongside Suno's saved styles. Add, edit, and delete entries (name, prompt, and an optional Exclude value) under the **Styles** tab in the settings dialog.
 - Which of the two sources the dropdown shows is set in that same **Styles** tab: "Own list and Suno's saved styles" (the default), "Own list only", or "Suno's saved styles only". Choosing "Own list only" stops the extension from ever opening Suno's "Saved Styles" dialog.
 - Choose a saved style (from Suno or your own list) and, optionally, a mastering prompt of your own; both are written into the Style field on separate lines.
-- Use the gear icon on the Style row to manage your custom style list. Mastering prompts are added, edited, or deleted from the **Mastering Prompts** tab in the settings dialog's sidebar.
+- Use the bookmark icon on the Style row to save the current base Style (without its mastering line). You can also save the current Exclude value with it; an explicitly saved empty value clears Exclude when selected, while a style without a saved Exclude value leaves it unchanged. Use the gear icon to manage the list. Mastering prompts are added, edited, or deleted from the **Mastering Prompts** tab in the settings dialog's sidebar.
 - If you add, rename, or delete a saved style inside Suno, reopen the extension's dropdown to see the updated list.
 - If the combined style and mastering text would exceed Suno's 1,000-character limit, nothing is changed and an error is shown instead.
 
@@ -52,11 +52,11 @@ The orange-outlined **Key & Tempo** card sits directly below the Style controls.
 
 ### Advanced-option presets
 
-The Preset dropdown appears directly under the **More Options** heading, so it stays visible whether the section is open or closed. A preset can save any combination of: excluded styles, vocal gender, length, Max mode, weirdness, style influence, variation, audio influence, and personalization.
+The Preset dropdown appears directly under the **More Options** heading, so it stays visible whether the section is open or closed. A preset can save any combination of: vocal gender, length, Max mode, weirdness, style influence, variation, audio influence, and personalization. Exclude is saved with an extension-managed style instead.
 
 - Click **Save Preset** beside the dropdown to open a dialog pre-filled with Suno's current settings — this works even while More Options is collapsed. Choose which settings to include, adjust their values, and save.
-- Use **Manage presets…** inside the dropdown to edit or delete existing presets.
-- Applying a preset changes only the settings it includes; everything else is left as-is.
+- Use the gear icon beside the dropdown to edit or delete existing presets.
+- Applying a preset changes only the settings it includes; Exclude is never changed by a preset. Reusing a take still restores its recorded Exclude value.
 
 ### Recent workspace switcher (temporarily disabled)
 

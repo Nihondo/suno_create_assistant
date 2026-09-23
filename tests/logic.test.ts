@@ -300,6 +300,13 @@ describe('deriveStyleSelection', () => {
     });
   });
 
+  it('requires a saved Exclude to match, while an unsaved Exclude leaves it alone', () => {
+    const withExclude = { ...cityPop, excludedStyles: 'vocals, EDM' };
+    expect(deriveStyleSelection('80s city pop', [withExclude], { style: withExclude, excludedStyles: 'vocals, EDM' })).toMatchObject({ style: withExclude, isCustomStyle: false });
+    expect(deriveStyleSelection('80s city pop', [withExclude], { style: withExclude, excludedStyles: 'drums' })).toMatchObject({ style: undefined, isCustomStyle: true });
+    expect(deriveStyleSelection('80s city pop', [cityPop], { style: cityPop, excludedStyles: 'drums' })).toMatchObject({ style: cityPop, isCustomStyle: false });
+  });
+
   it('falls back to unselected, not custom, for empty text', () => {
     expect(deriveStyleSelection('', [cityPop], { style: cityPop })).toEqual({
       base: '', style: undefined, mastering: undefined, isCustomStyle: false,
@@ -325,7 +332,7 @@ describe('optionFieldsMatch', () => {
     expect(optionFieldsMatch({ weirdness: 70 }, capture({ weirdness: 71 }))).toBe(false);
     expect(optionFieldsMatch({ vocalGender: 'female' }, capture({ vocalGender: 'male' }))).toBe(false);
     expect(optionFieldsMatch({ maxMode: true }, capture({ maxMode: false }))).toBe(false);
-    expect(optionFieldsMatch({ excludedStyles: 'rock ' }, capture({ excludedStyles: 'pop' }))).toBe(false);
+    expect(optionFieldsMatch({ weirdness: 30 }, capture({ excludedStyles: 'pop', weirdness: 30 }))).toBe(true);
     expect(optionFieldsMatch({ personalization: { enabled: true } }, capture())).toBe(false);
   });
 
