@@ -585,14 +585,19 @@ describe('SunoAdapter triggerCreate', () => {
     `;
 
     const adapter = new SunoAdapter();
-    let clicked = false;
-    document.querySelector('#create-btn')!.addEventListener('click', () => {
-      clicked = true;
-    });
+    const createButton = document.querySelector('#create-btn')!;
+    let clicks = 0;
+    let pointerdowns = 0;
+    let mousedowns = 0;
+    createButton.addEventListener('click', () => { clicks += 1; });
+    createButton.addEventListener('pointerdown', () => { pointerdowns += 1; });
+    createButton.addEventListener('mousedown', () => { mousedowns += 1; });
 
     const result = adapter.triggerCreate();
     expect(result).toBe(true);
-    expect(clicked).toBe(true);
+    expect(clicks).toBe(1);
+    expect(pointerdowns).toBe(0);
+    expect(mousedowns).toBe(0);
   });
 
   it('triggers create button matching aria-label and role=button', () => {

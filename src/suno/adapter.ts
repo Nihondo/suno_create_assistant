@@ -1272,12 +1272,11 @@ export class SunoAdapter {
     const button = this.getCreateButton();
     if (!button) return false;
 
-    if (typeof PointerEvent !== 'undefined') {
-      button.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true }));
-    }
-    button.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+    // A native click is the single final activation after the controller has
+    // resolved the title and captured the take. Do not synthesize the full
+    // pointer sequence here: current Suno handlers can submit on pointerdown
+    // as well as click, which would create two takes.
     button.click();
-    button.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true }));
     return true;
   }
 

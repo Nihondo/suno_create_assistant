@@ -756,6 +756,54 @@ describe('SunoController closeDisclosuresOnAdvanced', () => {
 });
 
 describe('SunoController handleDocumentClick localization', () => {
+  it('captures a trusted Create pointerdown before Suno can submit, while allowing the extension synthetic activation', () => {
+    const controller = new SunoController();
+    const createButton = document.createElement('button');
+    document.body.appendChild(createButton);
+    vi.spyOn(controller.adapter, 'isCreateButton').mockReturnValue(true);
+    const execute = vi.spyOn(controller, 'executeCreateWithTake').mockResolvedValue(true);
+    const trustedEvent = {
+      target: createButton,
+      isTrusted: true,
+      preventDefault: vi.fn(),
+      stopPropagation: vi.fn(),
+      stopImmediatePropagation: vi.fn(),
+    } as unknown as PointerEvent;
+
+    controller['handleDocumentPointerDown'](trustedEvent);
+
+    expect(execute).toHaveBeenCalledOnce();
+    expect(trustedEvent.preventDefault).toHaveBeenCalledOnce();
+    expect(trustedEvent.stopPropagation).toHaveBeenCalledOnce();
+    expect(trustedEvent.stopImmediatePropagation).toHaveBeenCalledOnce();
+
+    // The rest of the original trusted gesture must not submit a second time.
+    controller['isExecutingCreate'] = true;
+    const trailingUserClick = {
+      target: createButton,
+      isTrusted: true,
+      preventDefault: vi.fn(),
+      stopPropagation: vi.fn(),
+      stopImmediatePropagation: vi.fn(),
+    } as unknown as MouseEvent;
+    controller['handleDocumentClick'](trailingUserClick);
+    expect(trailingUserClick.preventDefault).toHaveBeenCalledOnce();
+
+    // triggerCreate() dispatches untrusted events; this is the one activation
+    // that must reach Suno after the take number and history snapshot are ready.
+    const syntheticClick = {
+      target: createButton,
+      isTrusted: false,
+      preventDefault: vi.fn(),
+      stopPropagation: vi.fn(),
+      stopImmediatePropagation: vi.fn(),
+    } as unknown as MouseEvent;
+    controller['handleDocumentClick'](syntheticClick);
+    expect(syntheticClick.preventDefault).not.toHaveBeenCalled();
+
+    document.body.removeChild(createButton);
+  });
+
   it('marks styles dirty when an English "Delete" saved-style action is clicked, not only the Japanese label', async () => {
     const controller = new SunoController();
     await controller.initialize();

@@ -196,6 +196,12 @@ export class SunoController {
       }
       this.emit();
     });
+    // Suno can start a submission from pointerdown/mousedown before its
+    // click handler runs. Capture all three activation events so the
+    // extension resolves {{TAKE}} and snapshots the form before Suno sees
+    // any user-originated activation.
+    document.addEventListener('pointerdown', this.handleDocumentPointerDown, true);
+    document.addEventListener('mousedown', this.handleDocumentMouseDown, true);
     document.addEventListener('click', this.handleDocumentClick, true);
     document.addEventListener('input', this.handleStyleInput, true);
   }
@@ -203,6 +209,8 @@ export class SunoController {
   dispose(): void {
     if (this.pendingStyleSync !== undefined) clearTimeout(this.pendingStyleSync);
     this.unsubscribeStorage?.();
+    document.removeEventListener('pointerdown', this.handleDocumentPointerDown, true);
+    document.removeEventListener('mousedown', this.handleDocumentMouseDown, true);
     document.removeEventListener('click', this.handleDocumentClick, true);
     document.removeEventListener('input', this.handleStyleInput, true);
   }
@@ -791,26 +799,40 @@ export class SunoController {
     return next.key || next.tempo !== undefined || next.timeSignature ? next : undefined;
   }
 
+  private handleCreateActivation(event: Event): boolean {
+    const createCandidate = event.target instanceof Element ? event.target.closest('button, [role="button"]') : undefined;
+    if (!(createCandidate instanceof HTMLElement) || !this.adapter.isCreateButton(createCandidate)) return false;
+
+    if (this.isExecutingCreate) {
+      // triggerCreate() deliberately dispatches untrusted pointer/mouse/click
+      // events after the title and snapshot are ready. Let only that sequence
+      // reach Suno; suppress the trusted remainder of the original gesture.
+      if (event.isTrusted) {
+        event.preventDefault();
+        event.stopPropagation();
+        event.stopImmediatePropagation();
+      }
+      return true;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+    event.stopImmediatePropagation();
+    void this.executeCreateWithTake();
+    return true;
+  }
+
+  private handleDocumentPointerDown = (event: PointerEvent): void => {
+    this.handleCreateActivation(event);
+  };
+
+  private handleDocumentMouseDown = (event: MouseEvent): void => {
+    this.handleCreateActivation(event);
+  };
+
   private handleDocumentClick = (event: Event): void => {
     if (this.refreshingStyles) return;
-
-    // Every click on the Create button is routed through
-    // executeCreateWithTake() now, not only when {{TAKE}} is present, so a
-    // take-history record is captured for every submission (see
-    // captureTakeSnapshot). isExecutingCreate still guards against
-    // recursing into the synthetic click that triggerCreate() dispatches
-    // from inside executeCreateWithTake() itself: on that second pass this
-    // branch returns immediately *without* calling preventDefault, so the
-    // synthetic click's default action (Suno's own handler) actually fires.
-    const createCandidate = event.target instanceof Element ? event.target.closest('button, [role="button"]') : undefined;
-    if (createCandidate instanceof HTMLElement && this.adapter.isCreateButton(createCandidate)) {
-      if (this.isExecutingCreate) return;
-      event.preventDefault();
-      event.stopPropagation();
-      event.stopImmediatePropagation();
-      void this.executeCreateWithTake();
-      return;
-    }
+    if (this.handleCreateActivation(event)) return;
 
     const target = event.target instanceof Element ? event.target.closest('button') : undefined;
     const label = target?.getAttribute('aria-label') ?? '';
