@@ -473,7 +473,7 @@ export function SettingsDialog({ controller }: { controller: SunoController }) {
           <label>{ui.dialog.customStyleName}<input type="text" value={customStyleForm.name} onChange={(event) => setCustomStyleForm((current) => ({ ...current!, name: event.target.value }))} /></label>
           <label>{ui.dialog.customStylePrompt}<textarea value={customStyleForm.prompt} maxLength={1000} onChange={(event) => setCustomStyleForm((current) => ({ ...current!, prompt: event.target.value }))} /></label>
           <label className="suno-assistant__dialog-toggle-label"><input type="checkbox" checked={customStyleForm.saveExcludedStyles} onChange={(event) => setCustomStyleForm((current) => ({ ...current!, saveExcludedStyles: event.target.checked }))} />{ui.dialog.saveStyleExclude}</label>
-          {customStyleForm.saveExcludedStyles && <label>{ui.dialog.excludeStylesLabel}<input type="text" value={customStyleForm.excludedStyles} onChange={(event) => setCustomStyleForm((current) => ({ ...current!, excludedStyles: event.target.value }))} /></label>}
+          <label>{ui.dialog.excludeStylesLabel}<input type="text" disabled={!customStyleForm.saveExcludedStyles} value={customStyleForm.excludedStyles} onChange={(event) => setCustomStyleForm((current) => ({ ...current!, excludedStyles: event.target.value }))} /></label>
           <div className="suno-assistant__dialog-actions">
             <button type="button" onClick={cancelCustomStyle}>{ui.dialog.cancel}</button>
             <button type="submit">{ui.dialog.save}</button>

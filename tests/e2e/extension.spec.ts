@@ -386,6 +386,13 @@ test('mounts the Suno controls beside their anchors, survives host removal, and 
     await dialog.getByRole('button', { name: '追加' }).click();
     await dialog.getByRole('textbox', { name: '名前' }).fill('Lo-fi Night');
     await dialog.getByRole('textbox', { name: 'プロンプト' }).fill('lofi chill beats, vinyl crackle');
+    const saveStyleExclude = dialog.getByRole('checkbox', { name: 'このスタイルに「スタイルを除外」を保存する' });
+    const styleExclude = dialog.getByRole('textbox', { name: '除外するスタイル' });
+    await expect(styleExclude).toBeVisible();
+    await expect(styleExclude).toBeDisabled();
+    await saveStyleExclude.check();
+    await expect(styleExclude).toBeEnabled();
+    await styleExclude.fill('heavy metal');
     await dialog.getByRole('button', { name: '保存', exact: true }).click();
     await expect(dialog.getByText('Lo-fi Night')).toBeVisible();
 
@@ -400,6 +407,7 @@ test('mounts the Suno controls beside their anchors, survives host removal, and 
     await page.getByRole('option', { name: 'Lo-fi Night' }).click();
     await expect(stylesHost.getByRole('button', { name: /^スタイル:/ })).toContainText('Lo-fi Night');
     await expect(page.locator('#styles textarea')).toHaveValue('lofi chill beats, vinyl crackle');
+    await expect(page.locator('input[aria-label="スタイルを除外"]')).toHaveValue('heavy metal');
 
     // Switching to "自前リストのみ" removes Suno's saved styles from the
     // dropdown, leaving only the custom list.
