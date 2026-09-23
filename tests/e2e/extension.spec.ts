@@ -74,6 +74,10 @@ const sunoFixture = `<!doctype html><html lang="ja"><body>
           + '<button aria-label="クリップをワークスペースに固定"></button>'
           + '<button aria-label="クリップを共有"></button>'
           + '</div>';
+        // Approximates the live site's clip card opening the song detail
+        // pane on any un-stopped click within the row - our injected reuse
+        // button must swallow its own click so it doesn't trigger this.
+        row.addEventListener('click', () => { row.dataset.opened = 'true'; });
         document.querySelector('#clip-list').prepend(row);
       }
       document.querySelector('#create').addEventListener('click', () => {
@@ -549,10 +553,12 @@ test('mounts the Suno controls beside their anchors, survives host removal, and 
     await expect(secondClipRows.first().getByRole('button', { name: 'パラメータを再利用' })).toBeVisible();
     await expect(secondClipRows.last().getByRole('button', { name: 'パラメータを再利用' })).toBeVisible();
 
-    // Clicking it re-applies the recorded More Options without touching Style.
+    // Clicking it re-applies the recorded More Options without touching Style,
+    // and must not also open the clip row's own song detail pane.
     const styleValueBeforeReuse = await page.locator('[data-testid="create-form-styles-wrapper"] textarea').inputValue();
     await firstClipRows.first().getByRole('button', { name: 'パラメータを再利用' }).click();
     await expect(page.locator('[data-testid="create-form-styles-wrapper"] textarea')).toHaveValue(styleValueBeforeReuse);
+    await expect(firstClipRows.first()).not.toHaveAttribute('data-opened', 'true');
 
     // Export downloads the live settings (including the two take-history
     // entries just recorded) as a JSON backup file.

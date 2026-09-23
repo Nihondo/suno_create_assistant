@@ -448,7 +448,18 @@ export function ReuseParamsButton({ controller, record }: { controller: SunoCont
         }}
         onMouseEnter={() => setHovered(true)}
         onMouseLeave={() => setHovered(false)}
-        onClick={() => void handleClick()}
+        // The clip row itself opens the song detail pane on click (and,
+        // going by Suno's Create button, possibly on pointerdown/mousedown
+        // too). Suno's own row-action buttons (like/pin/share) must swallow
+        // that themselves; this plain custom button does not get that for
+        // free, so it stops propagation on every pointer-activation stage
+        // to keep a press on this button from also opening the row.
+        onPointerDown={(event) => event.stopPropagation()}
+        onMouseDown={(event) => event.stopPropagation()}
+        onClick={(event) => {
+          event.stopPropagation();
+          void handleClick();
+        }}
       >
         <span aria-hidden="true" className="hxc-btn-overlay-slot hxc-btn-border" />
         <span className="hxc-btn-content">
