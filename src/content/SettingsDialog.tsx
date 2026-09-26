@@ -457,9 +457,10 @@ export function SettingsDialog({ controller }: { controller: SunoController }) {
         <p className="suno-assistant__hint">{ui.dialog.styleSourceHint}</p>
         <p className="suno-assistant__hint">{ui.dialog.customStyleHint}</p>
         {!customStyleForm && <>
-          <ul className="suno-assistant__list">
+          <button type="button" className="suno-assistant__button" onClick={() => startCustomStyle()}>{ui.dialog.add}</button>
+          <ul className="suno-assistant__list suno-assistant__list--compact">
             {customStyles.map((item) => <li key={item.id}>
-              <div><strong>{item.name}</strong><p>{item.prompt}</p></div>
+              <strong>{item.name}</strong>
               <div className="suno-assistant__list-actions">
                 <button type="button" onClick={() => startCustomStyle(item)}>{ui.dialog.edit}</button>
                 <button type="button" onClick={() => void deleteCustomStyle(item.id)}>{ui.dialog.delete}</button>
@@ -467,7 +468,6 @@ export function SettingsDialog({ controller }: { controller: SunoController }) {
             </li>)}
           </ul>
           {!customStyles.length && <p className="suno-assistant__hint">{ui.dialog.notRegisteredYet}</p>}
-          <button type="button" className="suno-assistant__button" onClick={() => startCustomStyle()}>{ui.dialog.add}</button>
         </>}
         {customStyleForm && <form onSubmit={(event) => { event.preventDefault(); void saveCurrentCustomStyle(); }}>
           <label>{ui.dialog.customStyleName}<input type="text" value={customStyleForm.name} onChange={(event) => setCustomStyleForm((current) => ({ ...current!, name: event.target.value }))} /></label>
@@ -485,9 +485,10 @@ export function SettingsDialog({ controller }: { controller: SunoController }) {
         <h3 id="suno-assistant-mastering-heading">{ui.dialog.masteringHeading}</h3>
         <p className="suno-assistant__hint">{ui.dialog.masteringHint}</p>
         {!masteringForm && <>
-          <ul className="suno-assistant__list">
+          <button type="button" className="suno-assistant__button" onClick={() => startMastering()}>{ui.dialog.add}</button>
+          <ul className="suno-assistant__list suno-assistant__list--compact">
             {masterings.map((item) => <li key={item.id}>
-              <div><strong>{item.name}</strong><p>{item.prompt}</p></div>
+              <strong>{item.name}</strong>
               <div className="suno-assistant__list-actions">
                 <button type="button" onClick={() => startMastering(item)}>{ui.dialog.edit}</button>
                 <button type="button" onClick={() => void deleteMastering(item.id)}>{ui.dialog.delete}</button>
@@ -495,7 +496,6 @@ export function SettingsDialog({ controller }: { controller: SunoController }) {
             </li>)}
           </ul>
           {!masterings.length && <p className="suno-assistant__hint">{ui.dialog.notRegisteredYet}</p>}
-          <button type="button" className="suno-assistant__button" onClick={() => startMastering()}>{ui.dialog.add}</button>
         </>}
         {masteringForm && <form onSubmit={(event) => { event.preventDefault(); void saveCurrentMastering(); }}>
           <label>{ui.dialog.masteringName}<input type="text" value={masteringForm.name} onChange={(event) => setMasteringForm((current) => ({ ...current!, name: event.target.value }))} /></label>

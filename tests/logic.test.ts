@@ -303,7 +303,9 @@ describe('deriveStyleSelection', () => {
   it('requires a saved Exclude to match, while an unsaved Exclude leaves it alone', () => {
     const withExclude = { ...cityPop, excludedStyles: 'vocals, EDM' };
     expect(deriveStyleSelection('80s city pop', [withExclude], { style: withExclude, excludedStyles: 'vocals, EDM' })).toMatchObject({ style: withExclude, isCustomStyle: false });
-    expect(deriveStyleSelection('80s city pop', [withExclude], { style: withExclude, excludedStyles: 'drums' })).toMatchObject({ style: undefined, isCustomStyle: true });
+    expect(deriveStyleSelection('80s city pop', [withExclude], { style: withExclude, excludedStyles: 'drums' })).toEqual({
+      base: '80s city pop', style: undefined, mastering: undefined, isCustomStyle: true,
+    });
     expect(deriveStyleSelection('80s city pop', [cityPop], { style: cityPop, excludedStyles: 'drums' })).toMatchObject({ style: cityPop, isCustomStyle: false });
   });
 

@@ -588,6 +588,11 @@
 .suno-assistant__list li p { margin: 2px 0 0; color: var(--sca-fg-secondary); font-size: 12px; }
 .suno-assistant__list-actions { display: flex; gap: 6px; flex-shrink: 0; }
 
+/* Style/mastering rows show only the name; the prompt is visible in the
+   edit form, so the list stays short enough to scan without scrolling. */
+.suno-assistant__list--compact li { align-items: center; }
+.suno-assistant__list--compact strong { min-width: 0; overflow-wrap: anywhere; }
+
 /* Take history rows carry far more text (title, timestamp, a full options
    summary line) than mastering/preset rows, so they get their own layout:
    the info block spans the row's full width and the action buttons move to

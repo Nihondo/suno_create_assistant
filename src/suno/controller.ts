@@ -10,7 +10,6 @@ import {
   mergeStyleSources,
   optionFieldsMatch,
   readableOptionFields,
-  readablePresetFields,
   replaceTakePlaceholder,
   splitMasteringPrompt,
 } from '../domain/logic';
